@@ -30,7 +30,7 @@ def juju_fixture():
 
 
 @pytest.fixture(scope="module", name="application")
-def application_fixture(juju: jubilant.Juju, charm_file: str):
+def application_fixture(juju: jubilant.Juju, charm: str):
     """Deploy the ingress-configurator application.
 
     Args:
@@ -40,10 +40,10 @@ def application_fixture(juju: jubilant.Juju, charm_file: str):
     Yields:
         The ingress-configurator app name.
     """
-    metadata = yaml.safe_load(pathlib.Path("./metadata.yaml").read_text(encoding="UTF-8"))
+    metadata = yaml.safe_load(pathlib.Path("./charmcraft.yaml").read_text(encoding="UTF-8"))
     app_name = metadata["name"]
     juju.deploy(
-        charm=charm_file,
+        charm=charm,
         app=app_name,
         base="ubuntu@24.04",
     )
@@ -65,7 +65,7 @@ def haproxy_fixture(juju: jubilant.Juju):
         charm="haproxy",
         app=haproxy_app_name,
         channel="2.8/edge",
-        revision=174,
+        revision=158,
         config={"external-hostname": MOCK_HAPROXY_HOSTNAME},
         base="ubuntu@24.04",
     )

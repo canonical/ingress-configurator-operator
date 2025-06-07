@@ -11,8 +11,8 @@ import logging
 import typing
 
 import ops
+from charms.haproxy.v0.haproxy_route import HaproxyRouteRequirer
 
-from lib.charms.haproxy.v0.haproxy_route import HaproxyRouteRequirer
 from state.integrator import IntegratorInformation
 from state.validation import validate_config
 
@@ -32,6 +32,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         super().__init__(*args)
         self._haproxy_route = HaproxyRouteRequirer(self, HAPROXY_ROUTE_RELATION)
         self.framework.observe(self.on.config_changed, self._reconcile)
+        self.framework.observe(self.on[HAPROXY_ROUTE_RELATION].relation_changed, self._reconcile)
 
     @validate_config
     def _reconcile(self, _: ops.EventBase) -> None:
@@ -45,6 +46,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             ports=[integrator_information.backend_port],
             unit_address=str(integrator_information.backend_address),
         )
+        self.unit.status = ops.ActiveStatus()
 
 
 if __name__ == "__main__":  # pragma: nocover

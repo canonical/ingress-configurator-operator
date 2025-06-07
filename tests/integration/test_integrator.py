@@ -18,4 +18,6 @@ def test_integrator(juju: jubilant.Juju, application: str, haproxy: str):
     """
     juju.integrate("haproxy:haproxy-route", f"{application}:haproxy-route")
     juju.config(app=application, values={"backend_address": "10.0.0.1", "backend_port": 80})
-    juju.wait(lambda status: jubilant.all_active(status, haproxy, application))
+    juju.wait(
+        lambda status: jubilant.all_active(status, haproxy, application), error=jubilant.any_error
+    )

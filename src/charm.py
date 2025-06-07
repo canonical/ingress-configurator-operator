@@ -5,113 +5,47 @@
 
 # Learn more at: https://juju.is/docs/sdk
 
-"""Charm the service.
-
-Refer to the following post for a quick-start guide that will help you
-develop a new k8s charm using the Operator Framework:
-
-https://discourse.charmhub.io/t/4208
-"""
+"""Charm the service."""
 
 import logging
 import typing
 
 import ops
-from ops import pebble
 
-# Log messages can be retrieved using juju debug-log
+from lib.charms.haproxy.v0.haproxy_route import HaproxyRouteRequirer
+from state.integrator import IntegratorInformation
+from state.validation import validate_config
+
 logger = logging.getLogger(__name__)
+HAPROXY_ROUTE_RELATION = "haproxy-route"
 
-VALID_LOG_LEVELS = ["info", "debug", "warning", "error", "critical"]
 
-
-class IsCharmsTemplateCharm(ops.CharmBase):
+class IngressConfiguratorCharm(ops.CharmBase):
     """Charm the service."""
 
     def __init__(self, *args: typing.Any):
-        """Construct.
+        """Initialize the ingress-configurator charm.
 
         Args:
             args: Arguments passed to the CharmBase parent constructor.
         """
         super().__init__(*args)
-        self.framework.observe(self.on.httpbin_pebble_ready, self._on_httpbin_pebble_ready)
-        self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self._haproxy_route = HaproxyRouteRequirer(self, HAPROXY_ROUTE_RELATION)
+        self.framework.observe(self.on.config_changed, self._reconcile)
 
-    def _on_httpbin_pebble_ready(self, event: ops.PebbleReadyEvent) -> None:
-        """Define and start a workload using the Pebble API.
-
-        Change this example to suit your needs. You'll need to specify the right entrypoint and
-        environment configuration for your specific workload.
-
-        Learn more about interacting with Pebble at at https://juju.is/docs/sdk/pebble.
-
-        Args:
-            event: event triggering the handler.
-        """
-        # Get a reference the container attribute on the PebbleReadyEvent
-        container = event.workload
-        # Add initial Pebble config layer using the Pebble API
-        container.add_layer("httpbin", self._pebble_layer, combine=True)
-        # Make Pebble reevaluate its plan, ensuring any services are started if enabled.
-        container.replan()
-        # Learn more about statuses in the SDK docs:
-        # https://juju.is/docs/sdk/constructs#heading--statuses
-        self.unit.status = ops.ActiveStatus()
-
-    def _on_config_changed(self, event: ops.ConfigChangedEvent) -> None:
-        """Handle changed configuration.
-
-        Change this example to suit your needs. If you don't need to handle config, you can remove
-        this method.
-
-        Learn more about config at https://juju.is/docs/sdk/config
-
-        Args:
-            event: event triggering the handler.
-        """
-        # Fetch the new config value
-        log_level = str(self.model.config["log-level"]).lower()
-
-        # Do some validation of the configuration option
-        if log_level in VALID_LOG_LEVELS:
-            # The config is good, so update the configuration of the workload
-            container = self.unit.get_container("httpbin")
-            # Verify that we can connect to the Pebble API in the workload container
-            if container.can_connect():
-                # Push an updated layer with the new config
-                container.add_layer("httpbin", self._pebble_layer, combine=True)
-                container.replan()
-
-                logger.debug("Log level for gunicorn changed to '%s'", log_level)
-                self.unit.status = ops.ActiveStatus()
-            else:
-                # We were unable to connect to the Pebble API, so we defer this event
-                event.defer()
-                self.unit.status = ops.WaitingStatus("waiting for Pebble API")
-        else:
-            # In this case, the config option is bad, so block the charm and notify the operator.
-            self.unit.status = ops.BlockedStatus("invalid log level: '{log_level}'")
-
-    @property
-    def _pebble_layer(self) -> pebble.LayerDict:
-        """Return a dictionary representing a Pebble layer."""
-        return {
-            "summary": "httpbin layer",
-            "description": "pebble config layer for httpbin",
-            "services": {
-                "httpbin": {
-                    "override": "replace",
-                    "summary": "httpbin",
-                    "command": "gunicorn -b 0.0.0.0:80 httpbin:app -k gevent",
-                    "startup": "enabled",
-                    "environment": {
-                        "GUNICORN_CMD_ARGS": f"--log-level {self.model.config['log-level']}"
-                    },
-                }
-            },
-        }
+    @validate_config
+    def _reconcile(self, _: ops.EventBase) -> None:
+        """Refresh haproxy-route requirer data."""
+        integrator_information = IntegratorInformation.from_charm(self)
+        if not self._haproxy_route.relation:
+            self.unit.status = ops.BlockedStatus("haproxy-route relation missing.")
+            return
+        self._haproxy_route.provide_haproxy_route_requirements(
+            service=self.app.name,
+            ports=[integrator_information.backend_port],
+            unit_address=str(integrator_information.backend_address),
+        )
 
 
 if __name__ == "__main__":  # pragma: nocover
-    ops.main.main(IsCharmsTemplateCharm)
+    ops.main.main(IngressConfiguratorCharm)

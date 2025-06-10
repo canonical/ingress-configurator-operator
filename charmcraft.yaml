@@ -9,8 +9,11 @@ platforms:
 
 parts:
   charm:
-    plugin: charm
-    source: .
+    build-snaps:
+      - rustup
+    override-build: |
+      rustup default stable
+      craftctl default
 
 name: ingress-configurator
 title: Ingress configurator charm.
@@ -20,7 +23,7 @@ description: |
 
 summary: Translation layer between ingress and haproxy-route.
 links:
-  documentation: https://discourse.charmhub.io/t/
+  documentation: https://discourse.charmhub.io/t/ingress-configurator-charm-documentation-overview/18004
   issues: https://github.com/canonical/ingress-configurator-operator/issues
   source: https://github.com/canonical/ingress-configurator-operator
   contact:

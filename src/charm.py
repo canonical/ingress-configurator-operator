@@ -33,6 +33,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
         self._haproxy_route = HaproxyRouteRequirer(self, HAPROXY_ROUTE_RELATION)
         self.framework.observe(self.on.config_changed, self._reconcile)
         self.framework.observe(self.on[HAPROXY_ROUTE_RELATION].relation_changed, self._reconcile)
+        self.framework.observe(self.on[HAPROXY_ROUTE_RELATION].relation_broken, self._reconcile)
+        self.framework.observe(self.on[HAPROXY_ROUTE_RELATION].relation_departed, self._reconcile)
 
     @validate_config
     def _reconcile(self, _: ops.EventBase) -> None:

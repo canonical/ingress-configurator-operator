@@ -5,25 +5,48 @@
 
 """Test the charm in integrator mode."""
 
+import ipaddress
+
 import jubilant
-import pytest
+from requests import Session
+
+from .conftest import MOCK_HAPROXY_HOSTNAME
+from .helper import DNSResolverHTTPSAdapter
 
 
-@pytest.mark.usefixtures("httpd")
-def test_integrator(juju: jubilant.Juju, application: str, haproxy: str):
-    """_summary_
+def test_integrator(juju: jubilant.Juju, application: str, haproxy: str, ingress_requirer: str):
+    """Test for integrator mode.
 
     Args:
         juju: Jubilant juju fixture
         application: Name of the ingress-configurator application.
         haproxy: Name of the haproxy application.
+        ingress_requirer: Any charm running an apache webserver.
     """
     juju.integrate("haproxy:haproxy-route", f"{application}:haproxy-route")
-    juju.config(app=application, values={"backend_address": "10.0.0.1", "backend_port": 80})
     juju.wait(
-        lambda status: jubilant.all_active(status, haproxy, application), error=jubilant.any_error
+        lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
+        error=jubilant.any_error,
     )
-    import logging
-    logger = logging.getLogger()
-    logger.error(juju.status().machines)
-    assert False
+    any_charm_address = ipaddress.ip_address(
+        juju.status().apps[ingress_requirer].units[f"{ingress_requirer}/0"].public_address
+    )
+    juju.config(
+        app=application, values={"backend_address": str(any_charm_address), "backend_port": 80}
+    )
+
+    juju.wait(
+        lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
+        error=jubilant.any_error,
+    )
+    haproxy_address = ipaddress.ip_address(
+        juju.status().apps[haproxy].units[f"{haproxy}/0"].public_address
+    )
+
+    session = Session()
+    session.mount(
+        "https://",
+        DNSResolverHTTPSAdapter(MOCK_HAPROXY_HOSTNAME, str(haproxy_address)),
+    )
+    response = session.get(f"https://{MOCK_HAPROXY_HOSTNAME}/ok", timeout=30)
+    assert "Apache2 Default Page" in response.text

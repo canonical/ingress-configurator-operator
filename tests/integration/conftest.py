@@ -5,15 +5,16 @@
 
 """Integration tests configuration."""
 
+import json
 import pathlib
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from threading import Thread
 
 import jubilant
 import pytest
 import yaml
 
 MOCK_HAPROXY_HOSTNAME = "haproxy.internal"
+HAPROXY_ROUTE_REQUIRER_SRC = "tests/integration/any_charm_ingress_requirer.py"
+APT_LIB_SRC = "lib/charms/operator_libs_linux/v0/apt.py"
 
 
 @pytest.fixture(scope="session", name="charm")
@@ -79,16 +80,24 @@ def haproxy_fixture(juju: jubilant.Juju):
     yield haproxy_app_name
 
 
-@pytest.fixture(scope="module", name="httpd")
-def httpd_fixture():
-    """Spin up a http server.
-
-    Yields:
-        The http server address.
-    """
-    httpd = HTTPServer(("0.0.0.0", 8080), BaseHTTPRequestHandler)
-    thread = Thread(target=httpd.serve_forever, daemon=True)
-    httpd.serve_forever()
-    yield httpd.server_address
-    httpd.shutdown()
-    thread.join()
+@pytest.fixture(scope="module", name="ingress_requirer")
+def haproxy_route_requirer_fixture(juju: jubilant.Juju):
+    """Deploy any-charm and configure it to serve as a requirer for the http interface."""
+    app_name = "ingress-requirer"
+    juju.deploy(
+        charm="any-charm",
+        channel="beta",
+        app=app_name,
+        config={
+            "src-overwrite": json.dumps(
+                {
+                    "any_charm.py": pathlib.Path(HAPROXY_ROUTE_REQUIRER_SRC).read_text(
+                        encoding="utf-8"
+                    )
+                }
+            ),
+        },
+    )
+    juju.wait(lambda status: jubilant.all_active(status, app_name, "self-signed-certificates"))
+    juju.run(f"{app_name}/0", "rpc", {"method": "start_server"})
+    yield app_name

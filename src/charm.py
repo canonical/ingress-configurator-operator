@@ -44,7 +44,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self.unit.status = ops.BlockedStatus("haproxy-route relation missing.")
             return
         self._haproxy_route.provide_haproxy_route_requirements(
-            service=self.app.name,
+            service=f"{self.model.name}-{self.app.name}",
             ports=[integrator_information.backend_port],
             unit_address=str(integrator_information.backend_address),
         )

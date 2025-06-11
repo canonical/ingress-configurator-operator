@@ -6,8 +6,10 @@
 """Test the charm in integrator mode."""
 
 import jubilant
+import pytest
 
 
+@pytest.mark.usefixtures("httpd")
 def test_integrator(juju: jubilant.Juju, application: str, haproxy: str):
     """_summary_
 
@@ -21,3 +23,7 @@ def test_integrator(juju: jubilant.Juju, application: str, haproxy: str):
     juju.wait(
         lambda status: jubilant.all_active(status, haproxy, application), error=jubilant.any_error
     )
+    import logging
+    logger = logging.getLogger()
+    logger.error(juju.status().machines)
+    assert False

@@ -6,6 +6,8 @@
 """Integration tests configuration."""
 
 import pathlib
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from threading import Thread
 
 import jubilant
 import pytest
@@ -75,3 +77,18 @@ def haproxy_fixture(juju: jubilant.Juju):
         lambda status: jubilant.all_active(status, haproxy_app_name, "self-signed-certificates")
     )
     yield haproxy_app_name
+
+
+@pytest.fixture(scope="module", name="httpd")
+def httpd_fixture():
+    """Spin up a http server.
+
+    Yields:
+        The http server address.
+    """
+    httpd = HTTPServer(("0.0.0.0", 8080), BaseHTTPRequestHandler)
+    thread = Thread(target=httpd.serve_forever, daemon=True)
+    httpd.serve_forever()
+    yield httpd.server_address
+    httpd.shutdown()
+    thread.join()

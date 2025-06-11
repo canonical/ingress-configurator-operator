@@ -3,6 +3,7 @@
 
 """ingress-configurator-operator integrator information."""
 
+import itertools
 import logging
 import typing
 
@@ -60,6 +61,20 @@ class IntegratorInformation:
             )
         except ValidationError as exc:
             logger.error(str(exc))
+            error_field_str = ",".join(f"{field}" for field in get_invalid_config_fields(exc))
             raise InvalidIntegratorConfigError(
-                "Error parsing the integrator configuration"
+                f"Invalid integrator configuration: {error_field_str}"
             ) from exc
+
+
+def get_invalid_config_fields(exc: ValidationError) -> typing.Set[int | str]:
+    """Return a list on invalid config from pydantic validation error.
+
+    Args:
+        exc: The validation error exception.
+
+    Returns:
+        str: list of fields that failed validation.
+    """
+    error_fields = set(itertools.chain.from_iterable(error["loc"] for error in exc.errors()))
+    return error_fields

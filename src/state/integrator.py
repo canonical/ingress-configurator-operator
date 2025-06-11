@@ -29,7 +29,7 @@ class IntegratorInformation:
     """
 
     backend_address: IPvAnyAddress
-    backend_port: int = Field(ge=0, le=65535)
+    backend_port: int = Field(gt=0, le=65535)
 
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> "IntegratorInformation":

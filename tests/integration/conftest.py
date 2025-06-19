@@ -13,7 +13,7 @@ import pytest
 import yaml
 
 MOCK_HAPROXY_HOSTNAME = "haproxy.internal"
-HAPROXY_ROUTE_REQUIRER_SRC = "tests/integration/any_charm_ingress_requirer.py"
+HAPROXY_ROUTE_REQUIRER_SRC = "tests/integration/any_charm_requirer.py"
 APT_LIB_SRC = "lib/charms/operator_libs_linux/v0/apt.py"
 
 

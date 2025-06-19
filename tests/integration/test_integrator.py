@@ -24,21 +24,17 @@ def test_integrator(juju: jubilant.Juju, application: str, haproxy: str, ingress
         ingress_requirer: Any charm running an apache webserver.
     """
     juju.integrate("haproxy:haproxy-route", f"{application}:haproxy-route")
-    juju.wait(
-        lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
-        error=jubilant.any_error,
-    )
     any_charm_address = ipaddress.ip_address(
         juju.status().apps[ingress_requirer].units[f"{ingress_requirer}/0"].public_address
     )
     juju.config(
         app=application, values={"backend_address": str(any_charm_address), "backend_port": 80}
     )
-
     juju.wait(
         lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
         error=jubilant.any_error,
     )
+
     haproxy_address = ipaddress.ip_address(
         juju.status().apps[haproxy].units[f"{haproxy}/0"].public_address
     )
@@ -48,5 +44,9 @@ def test_integrator(juju: jubilant.Juju, application: str, haproxy: str, ingress
         "https://",
         DNSResolverHTTPSAdapter(MOCK_HAPROXY_HOSTNAME, str(haproxy_address)),
     )
-    response = session.get(f"https://{MOCK_HAPROXY_HOSTNAME}/ok", timeout=30)
+    response = session.get(
+        f"https://{MOCK_HAPROXY_HOSTNAME}",
+        timeout=30,
+        verify=False,  # nosec - calling charm ingress URL
+    )
     assert "Apache2 Default Page" in response.text

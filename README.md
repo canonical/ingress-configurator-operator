@@ -3,8 +3,7 @@
 
 A [Juju](https://juju.is/) [charm](https://juju.is/docs/olm/charmed-operators) that serves as a translation layer between the ingress interface and the haproxy-route interface.
 
-Like any Juju charm, this charm supports one-line deployment, configuration, integration, scaling, and more. For Charmed {Name}, this includes:
-* list or summary of app-specific features
+Like any Juju charm, this charm supports one-line deployment, configuration, integration, scaling, and more.
 
 For information about how to deploy, integrate, and manage this charm, see the Official [platform-engineering-charm-template Documentation](external link).
 

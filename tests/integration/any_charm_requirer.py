@@ -1,8 +1,9 @@
 # Copyright 2025 Canonical Ltd.
+# See LICENSE file for licensing details.
+
 # pylint: disable=import-error
 # We use subprocess and subprocess.run to install apache
 # No external inputs is parsed, ignoring bandit errors with nosec
-# See LICENSE file for licensing details.
 
 """haproxy-route requirer source."""
 

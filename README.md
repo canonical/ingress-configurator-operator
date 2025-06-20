@@ -1,20 +1,9 @@
-<!--
-Avoid using this README file for information that is maintained or published elsewhere, e.g.:
-
-* metadata.yaml > published on Charmhub
-* documentation > published on (or linked to from) Charmhub
-* detailed contribution guide > documentation or CONTRIBUTING.md
-
-Use links instead.
--->
-
-# platform-engineering-charm-template
+# ingress-configurator-operator
 <!-- Use this space for badges -->
 
-Describe your charm in 1-2 sentences. Include the software that the charm deploys (if applicable), and the substrate (VM/K8s).
+A [Juju](https://juju.is/) [charm](https://juju.is/docs/olm/charmed-operators) that serves as a translation layer between the ingress interface and the haproxy-route interface.
 
-Like any Juju charm, this charm supports one-line deployment, configuration, integration, scaling, and more. For Charmed {Name}, this includes:
-* list or summary of app-specific features
+Like any Juju charm, this charm supports one-line deployment, configuration, integration, scaling, and more.
 
 For information about how to deploy, integrate, and manage this charm, see the Official [platform-engineering-charm-template Documentation](external link).
 

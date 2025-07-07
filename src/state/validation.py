@@ -9,6 +9,7 @@ import typing
 
 import ops
 
+from state.exceptions import UndefinedModeError
 from state.integrator import InvalidIntegratorConfigError
 
 logger = logging.getLogger(__name__)
@@ -41,7 +42,7 @@ def validate_config(
         """
         try:
             return method(instance, *args)
-        except InvalidIntegratorConfigError as exc:
+        except (InvalidIntegratorConfigError, UndefinedModeError) as exc:
             instance.unit.status = ops.BlockedStatus(str(exc))
             logger.exception("Error configuring the integrator mode.")
             return None

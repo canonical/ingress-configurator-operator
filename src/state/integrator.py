@@ -33,8 +33,8 @@ class IntegratorInformation:
 
     backend_address: IPvAnyAddress
     backend_port: int = Field(gt=0, le=65535)
-    paths: list[str]
-    subdomains: list[str]
+    paths: list[str] = Field(default_factory=list)
+    subdomains: list[str] = Field(default_factory=list)
 
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> "IntegratorInformation":
@@ -51,8 +51,8 @@ class IntegratorInformation:
         """
         backend_address = charm.config.get("backend_address")
         backend_port = charm.config.get("backend_port")
-        paths = charm.config.get("paths")
-        subdomains = charm.config.get("subdomains")
+        paths = typing.cast(str, charm.config.get("paths"))
+        subdomains = typing.cast(str, charm.config.get("subdomains"))
         if not backend_address or not backend_port:
             raise InvalidIntegratorConfigError(
                 (

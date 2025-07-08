@@ -11,8 +11,8 @@ import logging
 import typing
 
 import ops
+from charms.haproxy.v0.haproxy_route import HaproxyRouteRequirer
 
-from lib.charms.haproxy.v0.haproxy_route import HaproxyRouteRequirer
 from state.integrator import IntegratorInformation
 from state.validation import validate_config
 

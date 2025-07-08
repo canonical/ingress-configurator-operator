@@ -22,6 +22,7 @@ def test_integrator(
         application: Name of the ingress-configurator application.
         haproxy: Name of the haproxy application.
         ingress_requirer: Any charm running an apache webserver.
+        session: Modified requests session fixture for making HTTP requests.
     """
     juju.integrate("haproxy:haproxy-route", f"{application}:haproxy-route")
     any_charm_address = ipaddress.ip_address(
@@ -51,6 +52,9 @@ def test_config(
     Args:
         juju: Jubilant juju fixture
         application: Name of the ingress-configurator application.
+        haproxy: Name of the haproxy application.
+        ingress_requirer: Any charm running an apache webserver.
+        session: Modified requests session fixture for making HTTP requests.
     """
     juju.config(app=application, values={"paths": "/api/v1,/api/v2", "subdomains": "api"})
     juju.wait(

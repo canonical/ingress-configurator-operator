@@ -15,7 +15,6 @@ from charms.haproxy.v0.haproxy_route import HaproxyRouteRequirer
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider
 
 from state import configurator
-from state.validation import validate_config
 
 logger = logging.getLogger(__name__)
 HAPROXY_ROUTE_RELATION = "haproxy-route"
@@ -41,37 +40,37 @@ class IngressConfiguratorCharm(ops.CharmBase):
         self.framework.observe(self._ingress.on.data_provided, self._reconcile)
         self.framework.observe(self._ingress.on.data_removed, self._reconcile)
 
-    @validate_config
     def _reconcile(self, _: ops.EventBase) -> None:
         """Refresh haproxy-route requirer data."""
-        mode = None
         try:
             mode = configurator.get_mode(
                 self, self.model.get_relation(self._ingress.relation_name)
             )
+            if not self._haproxy_route.relation:
+                self.unit.status = ops.BlockedStatus("Missing haproxy-route relation.")
+                return
+            if mode == configurator.Mode.INTEGRATOR:
+                integrator_information = configurator.IntegratorInformation.from_charm(self)
+                self._haproxy_route.provide_haproxy_route_requirements(
+                    service=f"{self.model.name}-{self.app.name}",
+                    ports=[integrator_information.backend_port],
+                    unit_address=str(integrator_information.backend_address),
+                )
+            elif mode == configurator.Mode.ADAPTER:
+                relation = self.model.get_relation(self._ingress.relation_name)
+                data = self._ingress.get_data(relation)
+                self._haproxy_route.provide_haproxy_route_requirements(
+                    service=f"{data.app.model}-{data.app.name}",
+                    ports=[data.app.port],
+                    unit_address=str([udata.host for udata in data.units][0]),
+                )
+            self.unit.status = ops.ActiveStatus()
         except configurator.UndefinedModeError:
             logger.exception("Invalid mode")
             self.unit.status = ops.BlockedStatus("Mode is invalid.")
-            return
-        if not self._haproxy_route.relation:
-            self.unit.status = ops.BlockedStatus("haproxy-route relation missing.")
-            return
-        if mode == configurator.Mode.INTEGRATOR:
-            integrator_information = configurator.IntegratorInformation.from_charm(self)
-            self._haproxy_route.provide_haproxy_route_requirements(
-                service=f"{self.model.name}-{self.app.name}",
-                ports=[integrator_information.backend_port],
-                unit_address=str(integrator_information.backend_address),
-            )
-        elif mode == configurator.Mode.ADAPTER:
-            relation = self.model.get_relation(self._ingress.relation_name)
-            data = self._ingress.get_data(relation)
-            self._haproxy_route.provide_haproxy_route_requirements(
-                service=f"{data.app.model}-{data.app.name}",
-                ports=[data.app.port],
-                unit_address=str([udata.host for udata in data.units][0]),
-            )
-        self.unit.status = ops.ActiveStatus()
+        except configurator.InvalidIntegratorConfigError as ex:
+            logger.exception("Invalid configuration")
+            self.unit.status = ops.BlockedStatus(str(ex))
 
 
 if __name__ == "__main__":  # pragma: nocover

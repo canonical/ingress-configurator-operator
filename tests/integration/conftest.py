@@ -80,8 +80,8 @@ def haproxy_fixture(juju: jubilant.Juju):
     yield haproxy_app_name
 
 
-@pytest.fixture(scope="module", name="ingress_requirer")
-def haproxy_route_requirer_fixture(juju: jubilant.Juju):
+@pytest.fixture(scope="module", name="http_requirer")
+def http_requirer_fixture(juju: jubilant.Juju):
     """Deploy any-charm and configure it to serve as a requirer for the http interface."""
     app_name = "ingress-requirer"
     juju.deploy(

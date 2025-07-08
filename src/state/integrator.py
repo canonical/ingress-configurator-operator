@@ -27,10 +27,14 @@ class IntegratorInformation:
     Attributes:
         backend_address: Configured backend ip address in integrator mode.
         backend_port: Configured backend port in integrator mode.
+        paths: List of URL paths to route to the service.
+        subdomains: List of subdomains to route to the service.
     """
 
     backend_address: IPvAnyAddress
     backend_port: int = Field(gt=0, le=65535)
+    paths: list[str]
+    subdomains: list[str]
 
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> "IntegratorInformation":
@@ -47,6 +51,8 @@ class IntegratorInformation:
         """
         backend_address = charm.config.get("backend_address")
         backend_port = charm.config.get("backend_port")
+        paths = charm.config.get("paths")
+        subdomains = charm.config.get("subdomains")
         if not backend_address or not backend_port:
             raise InvalidIntegratorConfigError(
                 (
@@ -58,6 +64,14 @@ class IntegratorInformation:
             return cls(
                 backend_address=typing.cast(IPvAnyAddress, charm.config.get("backend_address")),
                 backend_port=typing.cast(int, charm.config.get("backend_port")),
+                paths=(
+                    typing.cast(list[str], paths.split(CHARM_CONFIG_DELIMITER)) if paths else []
+                ),
+                subdomains=(
+                    typing.cast(list[str], subdomains.split(CHARM_CONFIG_DELIMITER))
+                    if subdomains
+                    else []
+                ),
             )
         except ValidationError as exc:
             logger.error(str(exc))

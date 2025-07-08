@@ -7,8 +7,10 @@
 
 """haproxy-route requirer source."""
 
+import pathlib
 import subprocess  # nosec
 
+import ops
 from any_charm_base import AnyCharmBase  # type: ignore
 
 
@@ -27,3 +29,9 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
             "apache2",
         ]
         subprocess.run(install, capture_output=True, check=True)  # nosec
+        base = pathlib.Path("/var/www/html/api")
+        (base / "v1").mkdir(parents=True, exist_ok=True)
+        (base / "v2").mkdir(parents=True, exist_ok=True)
+        (base / "v1" / "index.html").write_text("v1 ok!")
+        (base / "v2" / "index.html").write_text("v2 ok!")
+        self.unit.status = ops.ActiveStatus("Server ready")

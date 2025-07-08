@@ -1,7 +1,7 @@
 # ingress-configurator-operator
 <!-- Use this space for badges -->
 
-A [Juju](https://juju.is/) [charm](https://juju.is/docs/olm/charmed-operators) that serves as a translation layer between the ingress interface and the haproxy-route interface.
+A [Juju](https://juju.is/) [charm](https://juju.is/docs/olm/charmed-operators) that serves as a translation layer between the ingress interface and the haproxy-route interface. It provides more control on the haproxy-route interface through configurations including paths, subdomains and many more.
 
 Like any Juju charm, this charm supports one-line deployment, configuration, integration, scaling, and more.
 
@@ -33,6 +33,16 @@ Use this section to link the Charmhub documentation for actions and configuratio
 
 You may also want to link to the `charmcraft.yaml` file here.
 -->
+The ingress-configurator charm will be able to work both as an adapter and as an integrator. The integrator mode is used to support non-charm workloads that want to use the haproxy charm as a load balancer.
+The following configurations must be configured for integrator mode:
+- backend_address
+- backend_port
+
+Apart from these, the ingress-configurator also supports a wide range of haproxy-route-related configurations:
+- paths
+- subdomains
+
+To obtain the full list of configurations, see the official [CharmHub documentation](to-be-updated)
 
 ## (Optional) Integrations
 <!-- Information about particularly relevant interfaces, endpoints or libraries related to the

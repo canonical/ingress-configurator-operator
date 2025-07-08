@@ -41,6 +41,12 @@ config:
     backend_port:
       type: int
       description: (integrator mode) Port of the backend service.
+    paths:
+      type: string
+      description: Comma-separated list of URL paths to route to the service.
+    subdomains:
+      type: string
+      description: Comma-separated list of subdomains to route to the service.
 
 charm-libs:
   - lib: haproxy.haproxy_route

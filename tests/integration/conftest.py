@@ -5,15 +5,19 @@
 
 """Integration tests configuration."""
 
+import ipaddress
 import json
 import pathlib
 
 import jubilant
 import pytest
 import yaml
+from requests import Session
+
+from .helper import DNSResolverHTTPSAdapter
 
 MOCK_HAPROXY_HOSTNAME = "haproxy.internal"
-HAPROXY_ROUTE_REQUIRER_SRC = "tests/integration/any_charm_requirer.py"
+INGRESS_REQUIRER_SRC = "tests/integration/any_charm_requirer.py"
 APT_LIB_SRC = "lib/charms/operator_libs_linux/v0/apt.py"
 
 
@@ -81,7 +85,7 @@ def haproxy_fixture(juju: jubilant.Juju):
 
 
 @pytest.fixture(scope="module", name="ingress_requirer")
-def haproxy_route_requirer_fixture(juju: jubilant.Juju):
+def ingress_requirer_fixture(juju: jubilant.Juju):
     """Deploy any-charm and configure it to serve as a requirer for the http interface."""
     app_name = "ingress-requirer"
     juju.deploy(
@@ -90,14 +94,25 @@ def haproxy_route_requirer_fixture(juju: jubilant.Juju):
         app=app_name,
         config={
             "src-overwrite": json.dumps(
-                {
-                    "any_charm.py": pathlib.Path(HAPROXY_ROUTE_REQUIRER_SRC).read_text(
-                        encoding="utf-8"
-                    )
-                }
+                {"any_charm.py": pathlib.Path(INGRESS_REQUIRER_SRC).read_text(encoding="utf-8")}
             ),
         },
     )
     juju.wait(lambda status: jubilant.all_active(status, app_name, "self-signed-certificates"))
     juju.run(f"{app_name}/0", "rpc", {"method": "start_server"})
     yield app_name
+
+
+@pytest.fixture(scope="module", name="session")
+def modified_session_fixture(juju: jubilant.Juju, haproxy: str):
+    """Fixture to provide a session with a custom HTTPS adapter."""
+    haproxy_address = ipaddress.ip_address(
+        juju.status().apps[haproxy].units[f"{haproxy}/0"].public_address
+    )
+
+    session = Session()
+    session.mount(
+        "https://",
+        DNSResolverHTTPSAdapter(MOCK_HAPROXY_HOSTNAME, str(haproxy_address)),
+    )
+    yield session

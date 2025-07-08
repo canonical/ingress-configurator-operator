@@ -68,8 +68,9 @@ class IntegratorInformation:
         if not backend_addresses or not backend_ports:
             raise InvalidIntegratorConfigError(
                 (
-                    "Missing configuration for integrator mode, "
-                    "both backend_port and backend_address must be set."
+                    "Missing configuration for integrator mode: "
+                    f'{"backend-addresses " if not backend_addresses else ""}'
+                    f'{"backend-ports" if not backend_ports else ""}'
                 )
             )
         try:

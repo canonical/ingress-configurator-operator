@@ -9,8 +9,7 @@ import typing
 
 import ops
 
-from state.exceptions import UndefinedModeError
-from state.integrator import InvalidIntegratorConfigError
+from state.configurator import InvalidIntegratorConfigError, UndefinedModeError
 
 logger = logging.getLogger(__name__)
 

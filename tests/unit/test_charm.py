@@ -1,13 +1,9 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Unit tests for the ingress-configurator charm."""
-
-import logging
+"""Unit tests for the ingress configurator charm."""
 
 import ops.testing
-
-logger = logging.getLogger(__name__)
 
 
 def test_config_changed(context, base_state):

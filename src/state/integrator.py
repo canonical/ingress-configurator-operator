@@ -3,7 +3,6 @@
 
 """ingress-configurator-operator integrator information."""
 
-import itertools
 import logging
 import typing
 
@@ -29,8 +28,12 @@ class IntegratorInformation:
         backend_ports: Configured list of backend ports in integrator mode.
     """
 
-    backend_addresses: list[IPvAnyAddress]
-    backend_ports: list[int] = Field(description="")
+    backend_addresses: list[IPvAnyAddress] = Field(
+        description="Configured list of backend ip addresses in integrator mode."
+    )
+    backend_ports: list[int] = Field(
+        description="Configured list of backend ports in integrator mode."
+    )
 
     @field_validator("backend_ports")
     @classmethod
@@ -93,7 +96,7 @@ class IntegratorInformation:
             ) from exc
 
 
-def get_invalid_config_fields(exc: ValidationError) -> typing.Set[int | str]:
+def get_invalid_config_fields(exc: ValidationError) -> list[str]:
     """Return a list on invalid config from pydantic validation error.
 
     Args:
@@ -102,5 +105,6 @@ def get_invalid_config_fields(exc: ValidationError) -> typing.Set[int | str]:
     Returns:
         str: list of fields that failed validation.
     """
-    error_fields = set(itertools.chain.from_iterable(error["loc"] for error in exc.errors()))
+    logger.info(exc.errors())
+    error_fields = ["-".join([str(i) for i in error["loc"]]) for error in exc.errors()]
     return error_fields

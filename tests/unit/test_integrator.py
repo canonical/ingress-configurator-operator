@@ -19,10 +19,7 @@ def test_config_changed(context, base_state):
     state = ops.testing.State(**base_state)
     out = context.run(context.on.config_changed(), state)
     assert out.unit_status == ops.testing.BlockedStatus(
-        (
-            "Missing configuration for integrator mode, "
-            "both backend_port and backend_address must be set."
-        )
+        "Missing configuration for integrator mode: backend-addresses backend-ports"
     )
 
 
@@ -33,11 +30,11 @@ def test_config_changed_invalid_address(context, base_state):
     assert: status is active.
     """
     state = ops.testing.State(
-        **base_state, config={"backend_address": "invalid", "backend_port": 8080}
+        **base_state, config={"backend-addresses": "10.0.0.1,invalid", "backend-ports": "8080"}
     )
     out = context.run(context.on.config_changed(), state)
     assert out.unit_status == ops.testing.BlockedStatus(
-        "Invalid integrator configuration: backend_address"
+        "Invalid integrator configuration: backend_addresses-1"
     )
 
 
@@ -48,9 +45,9 @@ def test_config_changed_invalid_port(context, base_state):
     assert: status is blocked with the correct message.
     """
     state = ops.testing.State(
-        **base_state, config={"backend_address": "10.0.0.1", "backend_port": 99999}
+        **base_state, config={"backend-addresses": "10.0.0.1,10.0.0.2", "backend-ports": "99999"}
     )
     out = context.run(context.on.config_changed(), state)
     assert out.unit_status == ops.testing.BlockedStatus(
-        "Invalid integrator configuration: backend_port"
+        "Invalid integrator configuration: backend_ports"
     )

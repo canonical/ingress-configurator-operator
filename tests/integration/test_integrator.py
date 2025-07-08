@@ -28,7 +28,7 @@ def test_integrator(juju: jubilant.Juju, application: str, haproxy: str, ingress
         juju.status().apps[ingress_requirer].units[f"{ingress_requirer}/0"].public_address
     )
     juju.config(
-        app=application, values={"backend_address": str(any_charm_address), "backend_port": 80}
+        app=application, values={"backend-addresses": str(any_charm_address), "backend-ports": 80}
     )
     juju.wait(
         lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),

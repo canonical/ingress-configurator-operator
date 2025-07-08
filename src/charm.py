@@ -25,7 +25,12 @@ INGRESS_RELATION = "ingress"
 
 
 class Mode(Enum):
-    """Enum representing the mode of the charm."""
+    """Enum representing the mode of the charm.
+
+    Attrs:
+        INTEGRATOR: integrator mode.
+        ADAPTER: afapter mode.
+    """
 
     INTEGRATOR = "integrator"
     ADAPTER = "adapter"
@@ -66,26 +71,33 @@ class IngressConfiguratorCharm(ops.CharmBase):
             raise UndefinedModeError("Both integrator and adapter configurations are set.")
         if self.config.get("backend_address") or self.config.get("backend_port"):
             return Mode.INTEGRATOR
-        elif ingress_relation:
+        if ingress_relation:
             return Mode.ADAPTER
         raise UndefinedModeError("No valid mode detected.")
 
     @validate_config
     def _reconcile(self, _: ops.EventBase) -> None:
         """Refresh haproxy-route requirer data."""
-        # self._ingress.get_data(relation)
         mode = self.detect_mode()
 
-        integrator_information = IntegratorInformation.from_charm(self)
         if not self._haproxy_route.relation:
             self.unit.status = ops.BlockedStatus("haproxy-route relation missing.")
             return
-        self._haproxy_route.provide_haproxy_route_requirements(
-            service=f"{self.model.name}-{self.app.name}",
-            ports=[integrator_information.backend_port],
-            # FIXME: needs multi-address support to be implemented
-            unit_address=str(integrator_information.backend_address),
-        )
+        if mode == Mode.INTEGRATOR:
+            integrator_information = IntegratorInformation.from_charm(self)
+            self._haproxy_route.provide_haproxy_route_requirements(
+                service=f"{self.model.name}-{self.app.name}",
+                ports=[integrator_information.backend_port],
+                unit_address=str(integrator_information.backend_address),
+            )
+        elif mode == Mode.ADAPTER:
+            relation = self.model.get_relation(self._ingress.relation_name)
+            data = self._ingress.get_data(relation)
+            self._haproxy_route.provide_haproxy_route_requirements(
+                service=f"{data.app.model}-{data.app.name}",
+                ports=[data.app.port],
+                unit_address=str([udata.host for udata in data.units][0]),
+            )
         self.unit.status = ops.ActiveStatus()
 
 

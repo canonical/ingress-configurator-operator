@@ -64,6 +64,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
                     ports=[data.app.port],
                     unit_address=str([udata.host for udata in data.units][0]),
                 )
+                self._ingress.publish_url(
+                    relation, f"https://{data.app.model}-{data.app.name}:data.app.port"
+                )
             self.unit.status = ops.ActiveStatus()
         except configurator.UndefinedModeError:
             logger.exception("Invalid mode")

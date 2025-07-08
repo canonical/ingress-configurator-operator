@@ -4,7 +4,7 @@
 """Helper methods for integration tests."""
 
 import ipaddress
-import subprocess
+import subprocess  # nosec
 from urllib.parse import urlparse
 
 from requests import Session

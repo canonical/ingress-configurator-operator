@@ -11,15 +11,12 @@ import pytest
 from state import configurator
 
 
-def test_config_changed_no_haproxy_route_relation(monkeypatch: pytest.MonkeyPatch, context):
+def test_config_changed_no_haproxy_route_relation(context):
     """
     arrange: prepare some valid state without haproxy-route relation.
     act: run start.
     assert: status is blocked.
     """
-    monkeypatch.setattr(
-        configurator, "get_mode", MagicMock(return_value=configurator.Mode.INTEGRATOR)
-    )
     state = ops.testing.State(config={"backend_address": "127.0.0.2", "backend_port": 8080})
 
     out = context.run(context.on.config_changed(), state)
@@ -36,7 +33,9 @@ def test_config_changed_invalid_mode(monkeypatch: pytest.MonkeyPatch, context):
     monkeypatch.setattr(
         configurator, "get_mode", MagicMock(side_effect=configurator.UndefinedModeError)
     )
-    state = ops.testing.State()
+    state = ops.testing.State(
+        relations=[ops.testing.Relation("haproxy-route")],
+    )
 
     out = context.run(context.on.config_changed(), state)
 

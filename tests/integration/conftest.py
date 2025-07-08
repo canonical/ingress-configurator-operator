@@ -30,9 +30,11 @@ def charm_fixture(pytestconfig: pytest.Config):
 
 
 @pytest.fixture(scope="module", name="juju")
-def juju_fixture():
+def juju_fixture(request: pytest.FixtureRequest):
     """Pytest fixture that wraps :meth:`jubilant.with_model`."""
-    with jubilant.temp_model() as juju:
+    keep_models = bool(request.config.getoption("--keep-models"))
+    with jubilant.temp_model(keep=keep_models) as juju:
+        juju.wait_timeout = 10 * 60
         yield juju
 
 
@@ -79,7 +81,7 @@ def haproxy_fixture(juju: jubilant.Juju):
     juju.deploy(charm="self-signed-certificates", channel="1/stable", revision=263)
     juju.integrate("self-signed-certificates:certificates", f"{haproxy_app_name}:certificates")
     juju.wait(
-        lambda status: jubilant.all_active(status, haproxy_app_name, "self-signed-certificates")
+        lambda status: jubilant.all_active(status, haproxy_app_name, "self-signed-certificates"),
     )
     yield haproxy_app_name
 

@@ -44,8 +44,15 @@ class IngressConfiguratorCharm(ops.CharmBase):
     @validate_config
     def _reconcile(self, _: ops.EventBase) -> None:
         """Refresh haproxy-route requirer data."""
-        mode = configurator.get_mode(self, self.model.get_relation(self._ingress.relation_name))
-
+        mode = None
+        try:
+            mode = configurator.get_mode(
+                self, self.model.get_relation(self._ingress.relation_name)
+            )
+        except configurator.UndefinedModeError:
+            logger.exception("Invalid mode")
+            self.unit.status = ops.BlockedStatus("Mode is invalid.")
+            return
         if not self._haproxy_route.relation:
             self.unit.status = ops.BlockedStatus("haproxy-route relation missing.")
             return

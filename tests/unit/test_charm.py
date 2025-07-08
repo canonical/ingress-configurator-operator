@@ -6,14 +6,13 @@
 import ops.testing
 
 
-def test_config_changed(context, base_state):
+def test_config_changed(context, base_integrator_state):
     """
     arrange: prepare some state with peer relation
     act: run start
     assert: status is active
     """
-    state = ops.testing.State(**base_state)
-    out = context.run(context.on.config_changed(), state)
+    out = context.run(context.on.config_changed(), base_integrator_state)
     assert out.unit_status == ops.testing.BlockedStatus(
         (
             "Missing configuration for integrator mode, "

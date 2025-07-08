@@ -21,9 +21,9 @@ def context_fixture():
     yield Context(charm_type=IngressConfiguratorCharm)
 
 
-@pytest.fixture(name="base_state")
-def base_state_fixture():
-    """Base state fixture.
+@pytest.fixture(name="base_integrator_state")
+def base_integrator_state_fixture():
+    """Base integrator state fixture.
 
     Returns:
         The base state.

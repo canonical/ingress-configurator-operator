@@ -13,7 +13,8 @@ import pytest
 import yaml
 
 MOCK_HAPROXY_HOSTNAME = "haproxy.internal"
-HAPROXY_ROUTE_REQUIRER_SRC = "tests/integration/any_charm_requirer.py"
+HAPROXY_HTTP_REQUIRER_SRC = "tests/integration/any_charm_http_requirer.py"
+HAPROXY_INGRESS_REQUIRER_SRC = "tests/integration/any_charm_ingress_requirer.py"
 APT_LIB_SRC = "lib/charms/operator_libs_linux/v0/apt.py"
 
 
@@ -82,7 +83,7 @@ def haproxy_fixture(juju: jubilant.Juju):
 
 @pytest.fixture(scope="module", name="http_requirer")
 def http_requirer_fixture(juju: jubilant.Juju):
-    """Deploy any-charm and configure it to serve as a requirer for the http interface."""
+    """Deploy and configure any-charm to serve as a requirer for the http interface."""
     app_name = "ingress-requirer"
     juju.deploy(
         charm="any-charm",
@@ -91,7 +92,30 @@ def http_requirer_fixture(juju: jubilant.Juju):
         config={
             "src-overwrite": json.dumps(
                 {
-                    "any_charm.py": pathlib.Path(HAPROXY_ROUTE_REQUIRER_SRC).read_text(
+                    "any_charm.py": pathlib.Path(HAPROXY_HTTP_REQUIRER_SRC).read_text(
+                        encoding="utf-8"
+                    )
+                }
+            ),
+        },
+    )
+    juju.wait(lambda status: jubilant.all_active(status, app_name, "self-signed-certificates"))
+    juju.run(f"{app_name}/0", "rpc", {"method": "start_server"})
+    yield app_name
+
+
+@pytest.fixture(scope="module", name="ingress_requirer")
+def ingress_requirer_fixture(juju: jubilant.Juju):
+    """Deploy and configure any-charm to serve as an ingress requirer for the ingress interface."""
+    app_name = "ingress-requirer"
+    juju.deploy(
+        charm="any-charm",
+        channel="beta",
+        app=app_name,
+        config={
+            "src-overwrite": json.dumps(
+                {
+                    "any_charm.py": pathlib.Path(HAPROXY_INGRESS_REQUIRER_SRC).read_text(
                         encoding="utf-8"
                     )
                 }

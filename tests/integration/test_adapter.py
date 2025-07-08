@@ -5,31 +5,24 @@
 
 """Test the charm in integrator mode."""
 
-import ipaddress
-
 import jubilant
 
 from .helper import haproxy_request
 
 
-def test_integrator(juju: jubilant.Juju, application: str, haproxy: str, http_requirer: str):
+def test_adapter(juju: jubilant.Juju, application: str, haproxy: str, ingress_requirer: str):
     """Test for integrator mode.
 
     Args:
         juju: Jubilant juju fixture
         application: Name of the ingress-configurator application.
         haproxy: Name of the haproxy application.
-        http_requirer: Any charm running an apache webserver.
+        ingress_requirer: Any charm running an apache webserver.
     """
     juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
-    any_charm_address = ipaddress.ip_address(
-        juju.status().apps[http_requirer].units[f"{http_requirer}/0"].public_address
-    )
-    juju.config(
-        app=application, values={"backend_address": str(any_charm_address), "backend_port": 80}
-    )
+    juju.integrate(f"{ingress_requirer}:ingress", f"{application}:ingress")
     juju.wait(
-        lambda status: jubilant.all_active(status, haproxy, application, http_requirer),
+        lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
         error=jubilant.any_error,
     )
 

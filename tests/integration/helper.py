@@ -3,9 +3,14 @@
 
 """Helper methods for integration tests."""
 
+import ipaddress
+import subprocess
 from urllib.parse import urlparse
 
+from requests import Session
 from requests.adapters import DEFAULT_POOLBLOCK, DEFAULT_POOLSIZE, DEFAULT_RETRIES, HTTPAdapter
+
+from .conftest import MOCK_HAPROXY_HOSTNAME
 
 
 class DNSResolverHTTPSAdapter(HTTPAdapter):
@@ -66,3 +71,39 @@ class DNSResolverHTTPSAdapter(HTTPAdapter):
                 connection_pool_kwargs.pop("assert_hostname", None)
 
         return super().send(request, stream, timeout, verify, cert, proxies)
+
+
+def haproxy_request(public_address: str):
+    """Make a request to the HAPRoxy server.
+
+    Args:
+        public_address: the IP address of HAProxy.
+
+    Returns: the response for the request.
+    """
+    haproxy_address = ipaddress.ip_address(public_address)
+    session = Session()
+    session.mount(
+        "https://",
+        DNSResolverHTTPSAdapter(MOCK_HAPROXY_HOSTNAME, str(haproxy_address)),
+    )
+    response = session.get(
+        f"https://{MOCK_HAPROXY_HOSTNAME}",
+        timeout=30,
+        verify=False,  # nosec - calling charm ingress URL
+    )
+    return response
+
+
+def start_http_server():
+    """Start apache2 webserver."""
+    update = ["apt-get", "update", "--error-on=any"]
+    subprocess.run(update, capture_output=True, check=True)  # nosec
+    install = [
+        "apt-get",
+        "install",
+        "-y",
+        "--option=Dpkg::Options::=--force-confold",
+        "apache2",
+    ]
+    subprocess.run(install, capture_output=True, check=True)  # nosec

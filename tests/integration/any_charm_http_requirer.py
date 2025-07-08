@@ -5,11 +5,11 @@
 # We use subprocess and subprocess.run to install apache
 # No external inputs is parsed, ignoring bandit errors with nosec
 
-"""haproxy-route requirer source."""
-
-import subprocess  # nosec
+"""HTTP requirer source."""
 
 from any_charm_base import AnyCharmBase  # type: ignore
+
+from .helper import start_http_server
 
 
 class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
@@ -17,13 +17,4 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
 
     def start_server(self):
         """Start apache2 webserver."""
-        update = ["apt-get", "update", "--error-on=any"]
-        subprocess.run(update, capture_output=True, check=True)  # nosec
-        install = [
-            "apt-get",
-            "install",
-            "-y",
-            "--option=Dpkg::Options::=--force-confold",
-            "apache2",
-        ]
-        subprocess.run(install, capture_output=True, check=True)  # nosec
+        start_http_server()

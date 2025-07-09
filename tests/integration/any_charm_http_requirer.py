@@ -1,15 +1,15 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-# pylint: disable=import-error
+# pylint: disable=duplicate-code,import-error
 # We use subprocess and subprocess.run to install apache
 # No external inputs is parsed, ignoring bandit errors with nosec
 
 """HTTP requirer source."""
 
-from any_charm_base import AnyCharmBase  # type: ignore
+import subprocess  # nosec
 
-from helper import start_http_server
+from any_charm_base import AnyCharmBase  # type: ignore
 
 
 class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
@@ -17,4 +17,13 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
 
     def start_server(self):
         """Start apache2 webserver."""
-        start_http_server()
+        update = ["apt-get", "update", "--error-on=any"]
+        subprocess.run(update, capture_output=True, check=True)  # nosec
+        install = [
+            "apt-get",
+            "install",
+            "-y",
+            "--option=Dpkg::Options::=--force-confold",
+            "apache2",
+        ]
+        subprocess.run(install, capture_output=True, check=True)  # nosec

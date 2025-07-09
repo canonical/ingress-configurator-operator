@@ -94,8 +94,7 @@ def http_requirer_fixture(juju: jubilant.Juju):
                 {
                     "any_charm.py": pathlib.Path(HAPROXY_HTTP_REQUIRER_SRC).read_text(
                         encoding="utf-8"
-                    ),
-                    "helper.py": pathlib.Path(HELPER_SRC).read_text(encoding="utf-8"),
+                    )
                 }
             ),
         },
@@ -119,7 +118,6 @@ def ingress_requirer_fixture(juju: jubilant.Juju):
                     "any_charm.py": pathlib.Path(HAPROXY_INGRESS_REQUIRER_SRC).read_text(
                         encoding="utf-8"
                     ),
-                    "helper.py": pathlib.Path(HELPER_SRC).read_text(encoding="utf-8"),
                     "ingress.py": pathlib.Path(INGRESS_LIB_SRC).read_text(encoding="utf-8"),
                 }
             ),

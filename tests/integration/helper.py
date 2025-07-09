@@ -4,7 +4,6 @@
 """Helper methods for integration tests."""
 
 import ipaddress
-import subprocess  # nosec
 from urllib.parse import urlparse
 
 from requests import Session
@@ -93,17 +92,3 @@ def haproxy_request(public_address: str):
         verify=False,  # nosec - calling charm ingress URL
     )
     return response
-
-
-def start_http_server():
-    """Start apache2 webserver."""
-    update = ["apt-get", "update", "--error-on=any"]
-    subprocess.run(update, capture_output=True, check=True)  # nosec
-    install = [
-        "apt-get",
-        "install",
-        "-y",
-        "--option=Dpkg::Options::=--force-confold",
-        "apache2",
-    ]
-    subprocess.run(install, capture_output=True, check=True)  # nosec

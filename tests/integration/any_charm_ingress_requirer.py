@@ -1,17 +1,17 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-# pylint: disable=import-error
+# pylint: disable=duplicate-code,import-error
 # We use subprocess and subprocess.run to install apache
 # No external inputs is parsed, ignoring bandit errors with nosec
 
 """Ingress requirer source."""
 
+import subprocess  # nosec
+
 import ops
 from any_charm_base import AnyCharmBase  # type: ignore
 from ingress import IngressPerAppRequirer
-
-from helper import start_http_server
 
 
 class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
@@ -31,7 +31,16 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
 
     def start_server(self):
         """Start apache2 webserver."""
-        start_http_server()
+        update = ["apt-get", "update", "--error-on=any"]
+        subprocess.run(update, capture_output=True, check=True)  # nosec
+        install = [
+            "apt-get",
+            "install",
+            "-y",
+            "--option=Dpkg::Options::=--force-confold",
+            "apache2",
+        ]
+        subprocess.run(install, capture_output=True, check=True)  # nosec
 
     def _on_ingress_relation_changed(self, _: ops.ConfigChangedEvent):
         """Relation changed handler."""

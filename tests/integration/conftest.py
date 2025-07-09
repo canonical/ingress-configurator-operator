@@ -13,6 +13,7 @@ import yaml
 MOCK_HAPROXY_HOSTNAME = "haproxy.internal"
 HAPROXY_HTTP_REQUIRER_SRC = "tests/integration/any_charm_http_requirer.py"
 HAPROXY_INGRESS_REQUIRER_SRC = "tests/integration/any_charm_ingress_requirer.py"
+HELPER_SRC = "tests/integration/helper.py"
 APT_LIB_SRC = "lib/charms/operator_libs_linux/v0/apt.py"
 
 
@@ -92,7 +93,8 @@ def http_requirer_fixture(juju: jubilant.Juju):
                 {
                     "any_charm.py": pathlib.Path(HAPROXY_HTTP_REQUIRER_SRC).read_text(
                         encoding="utf-8"
-                    )
+                    ),
+                    "helper.py": pathlib.Path(HELPER_SRC).read_text(encoding="utf-8"),
                 }
             ),
         },
@@ -115,7 +117,8 @@ def ingress_requirer_fixture(juju: jubilant.Juju):
                 {
                     "any_charm.py": pathlib.Path(HAPROXY_INGRESS_REQUIRER_SRC).read_text(
                         encoding="utf-8"
-                    )
+                    ),
+                    "helper.py": pathlib.Path(HELPER_SRC).read_text(encoding="utf-8"),
                 }
             ),
         },

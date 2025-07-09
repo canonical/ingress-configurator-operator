@@ -45,9 +45,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
             return
         self._haproxy_route.provide_haproxy_route_requirements(
             service=f"{self.model.name}-{self.app.name}",
+            ports=[integrator_information.backend_port],
             paths=integrator_information.paths,
             subdomains=integrator_information.subdomains,
-            ports=[integrator_information.backend_port],
             unit_address=str(integrator_information.backend_address),
         )
         self.unit.status = ops.ActiveStatus()

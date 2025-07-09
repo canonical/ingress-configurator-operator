@@ -8,6 +8,7 @@
 import ipaddress
 import json
 import pathlib
+from typing import cast
 
 import jubilant
 import pytest
@@ -32,14 +33,43 @@ def charm_fixture(pytestconfig: pytest.Config):
 @pytest.fixture(scope="module", name="juju")
 def juju_fixture(request: pytest.FixtureRequest):
     """Pytest fixture that wraps :meth:`jubilant.with_model`."""
-    keep_models = bool(request.config.getoption("--keep-models"))
+
+    def show_debug_log(juju: jubilant.Juju):
+        """Show the debug log if tests failed.
+
+        Args:
+            juju: Jubilant juju instance.
+        """
+        if request.session.testsfailed:
+            log = juju.debug_log(limit=1000)
+            print(log, end="")
+
+    use_existing = request.config.getoption("--use-existing", default=False)
+    if use_existing:
+        juju = jubilant.Juju()
+        juju.wait_timeout = 10 * 60
+        yield juju
+        show_debug_log(juju)
+        return
+
+    model = request.config.getoption("--model")
+    if model:
+        juju = jubilant.Juju(model=model)
+        juju.wait_timeout = 10 * 60
+        yield juju
+        show_debug_log(juju)
+        return
+
+    keep_models = cast(bool, request.config.getoption("--keep-models"))
     with jubilant.temp_model(keep=keep_models) as juju:
         juju.wait_timeout = 10 * 60
         yield juju
+        show_debug_log(juju)
+        return
 
 
 @pytest.fixture(scope="module", name="application")
-def application_fixture(juju: jubilant.Juju, charm: str):
+def application_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, charm: str):
     """Deploy the ingress-configurator application.
 
     Args:
@@ -51,6 +81,9 @@ def application_fixture(juju: jubilant.Juju, charm: str):
     """
     metadata = yaml.safe_load(pathlib.Path("./charmcraft.yaml").read_text(encoding="UTF-8"))
     app_name = metadata["name"]
+    if pytestconfig.getoption("--no-deploy") and app_name in juju.status().apps:
+        yield app_name
+        return
     juju.deploy(
         charm=charm,
         app=app_name,
@@ -60,7 +93,7 @@ def application_fixture(juju: jubilant.Juju, charm: str):
 
 
 @pytest.fixture(scope="module", name="haproxy")
-def haproxy_fixture(juju: jubilant.Juju):
+def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     """_summary_
 
     Args:
@@ -70,6 +103,9 @@ def haproxy_fixture(juju: jubilant.Juju):
         The haproxy app name.
     """
     haproxy_app_name = "haproxy"
+    if pytestconfig.getoption("--no-deploy") and haproxy_app_name in juju.status().apps:
+        yield haproxy_app_name
+        return
     juju.deploy(
         charm="haproxy",
         app=haproxy_app_name,
@@ -87,9 +123,12 @@ def haproxy_fixture(juju: jubilant.Juju):
 
 
 @pytest.fixture(scope="module", name="ingress_requirer")
-def ingress_requirer_fixture(juju: jubilant.Juju):
+def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     """Deploy any-charm and configure it to serve as a requirer for the http interface."""
     app_name = "ingress-requirer"
+    if pytestconfig.getoption("--no-deploy") and app_name in juju.status().apps:
+        yield app_name
+        return
     juju.deploy(
         charm="any-charm",
         channel="beta",
@@ -106,11 +145,11 @@ def ingress_requirer_fixture(juju: jubilant.Juju):
 
 
 @pytest.fixture(scope="module", name="session")
-def modified_session_fixture(juju: jubilant.Juju, haproxy: str):
+def modified_session_fixture(juju: jubilant.Juju):
     """Fixture to provide a session with a custom HTTPS adapter."""
-    haproxy_address = ipaddress.ip_address(
-        juju.status().apps[haproxy].units[f"{haproxy}/0"].public_address
-    )
+    haproxy_app = juju.status().apps["haproxy"]
+    _, haproxy_unit = next(iter(haproxy_app.units.items()))
+    haproxy_address = ipaddress.ip_address(haproxy_unit.public_address)
 
     session = Session()
     session.mount(

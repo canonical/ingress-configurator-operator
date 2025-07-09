@@ -68,7 +68,7 @@ def haproxy_fixture(juju: jubilant.Juju):
         charm="haproxy",
         app=haproxy_app_name,
         channel="2.8/edge",
-        revision=158,
+        revision=194,
         config={"external-hostname": MOCK_HAPROXY_HOSTNAME},
         base="ubuntu@24.04",
     )
@@ -80,9 +80,9 @@ def haproxy_fixture(juju: jubilant.Juju):
     yield haproxy_app_name
 
 
-@pytest.fixture(scope="module", name="ingress_requirer")
-def haproxy_route_requirer_fixture(juju: jubilant.Juju):
-    """Deploy any-charm and configure it to serve as a requirer for the http interface."""
+@pytest.fixture(scope="module", name="any_charm_backend")
+def any_charm_backend_fixture(juju: jubilant.Juju):
+    """Deploy any-charm and configure it to spin up an apache web server."""
     app_name = "ingress-requirer"
     juju.deploy(
         charm="any-charm",
@@ -97,7 +97,10 @@ def haproxy_route_requirer_fixture(juju: jubilant.Juju):
                 }
             ),
         },
+        num_units=2,
     )
     juju.wait(lambda status: jubilant.all_active(status, app_name, "self-signed-certificates"))
-    juju.run(f"{app_name}/0", "rpc", {"method": "start_server"})
+    for unit in juju.status().apps[app_name].units.keys():
+        juju.run(unit, "rpc", {"method": "start_server"})
+    juju.wait(lambda status: jubilant.all_active(status, app_name))
     yield app_name

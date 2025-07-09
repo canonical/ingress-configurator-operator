@@ -110,7 +110,7 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
         charm="haproxy",
         app=haproxy_app_name,
         channel="2.8/edge",
-        revision=158,
+        revision=190,
         config={"external-hostname": MOCK_HAPROXY_HOSTNAME},
         base="ubuntu@24.04",
     )
@@ -148,12 +148,14 @@ def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
 def modified_session_fixture(juju: jubilant.Juju):
     """Fixture to provide a session with a custom HTTPS adapter."""
     haproxy_app = juju.status().apps["haproxy"]
-    _, haproxy_unit = next(iter(haproxy_app.units.items()))
-    haproxy_address = ipaddress.ip_address(haproxy_unit.public_address)
+    unit_entry = next(iter(haproxy_app.units.items()), None)
+    if unit_entry is not None:
+        _, haproxy_unit = unit_entry
+        haproxy_address = ipaddress.ip_address(haproxy_unit.public_address)
 
-    session = Session()
-    session.mount(
-        "https://",
-        DNSResolverHTTPSAdapter(MOCK_HAPROXY_HOSTNAME, str(haproxy_address)),
-    )
-    yield session
+        session = Session()
+        session.mount(
+            "https://",
+            DNSResolverHTTPSAdapter(MOCK_HAPROXY_HOSTNAME, str(haproxy_address)),
+        )
+        yield session

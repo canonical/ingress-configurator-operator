@@ -5,29 +5,45 @@
 
 from urllib.parse import urlparse
 
-from requests.adapters import DEFAULT_POOLBLOCK, DEFAULT_POOLSIZE, DEFAULT_RETRIES, HTTPAdapter
+from requests.adapters import DEFAULT_POOLBLOCK, DEFAULT_POOLSIZE, HTTPAdapter
+from urllib3.util.retry import Retry
 
 
 class DNSResolverHTTPSAdapter(HTTPAdapter):
-    """A simple mounted DNS resolver for HTTP requests."""
+    """A simple mounted DNS resolver for HTTP requests, with retry support."""
 
     def __init__(
         self,
         hostname,
         ip,
+        retries: int = 5,
+        backoff_factor: float = 1.0,
+        status_forcelist: tuple = (502, 503, 504),
     ):
-        """Initialize the dns resolver.
+        """Initialize the DNS resolver with retry configuration.
 
         Args:
             hostname: DNS entry to resolve.
             ip: Target IP address.
+            retries: Number of times to retry on failure.
+            backoff_factor: Time to wait between retries (with exponential backoff).
+            status_forcelist: HTTP status codes that should trigger a retry.
         """
         self.hostname = hostname
         self.ip = ip
+
+        retry_strategy = Retry(
+            total=retries,
+            backoff_factor=backoff_factor,
+            status_forcelist=status_forcelist,
+            allowed_methods=["GET"],
+            raise_on_status=False,
+        )
+
         super().__init__(
+            max_retries=retry_strategy,
             pool_connections=DEFAULT_POOLSIZE,
             pool_maxsize=DEFAULT_POOLSIZE,
-            max_retries=DEFAULT_RETRIES,
             pool_block=DEFAULT_POOLBLOCK,
         )
 

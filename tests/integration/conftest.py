@@ -5,6 +5,7 @@
 
 import json
 import pathlib
+import typing
 
 import jubilant
 import pytest
@@ -27,10 +28,41 @@ def charm_fixture(pytestconfig: pytest.Config):
 
 
 @pytest.fixture(scope="module", name="juju")
-def juju_fixture():
+def juju_fixture(request: pytest.FixtureRequest):
     """Pytest fixture that wraps :meth:`jubilant.with_model`."""
-    with jubilant.temp_model() as juju:
+
+    def show_debug_log(juju: jubilant.Juju):
+        """Show the debug log if tests failed.
+
+        Args:
+            juju: Jubilant juju instance.
+        """
+        if request.session.testsfailed:
+            log = juju.debug_log(limit=1000)
+            print(log, end="")
+
+    use_existing = request.config.getoption("--use-existing", default=False)
+    if use_existing:
+        juju = jubilant.Juju()
+        juju.wait_timeout = 10 * 60
         yield juju
+        show_debug_log(juju)
+        return
+
+    model = request.config.getoption("--model")
+    if model:
+        juju = jubilant.Juju(model=model)
+        juju.wait_timeout = 10 * 60
+        yield juju
+        show_debug_log(juju)
+        return
+
+    keep_models = typing.cast(bool, request.config.getoption("--keep-models"))
+    with jubilant.temp_model(keep=keep_models) as juju:
+        juju.wait_timeout = 10 * 60
+        yield juju
+        show_debug_log(juju)
+        return
 
 
 @pytest.fixture(scope="module", name="application")

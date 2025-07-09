@@ -7,7 +7,7 @@ import logging
 import typing
 
 import ops
-from pydantic import Field, ValidationError, field_validator
+from pydantic import Field, ValidationError
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
@@ -31,27 +31,9 @@ class IntegratorInformation:
     backend_addresses: list[IPvAnyAddress] = Field(
         description="Configured list of backend ip addresses in integrator mode."
     )
-    backend_ports: list[int] = Field(
+    backend_ports: list[typing.Annotated[int, Field(gt=0, le=65535)]] = Field(
         description="Configured list of backend ports in integrator mode."
     )
-
-    @field_validator("backend_ports")
-    @classmethod
-    def validate_ports(cls, value: list[int]) -> list[int]:
-        """Validate if the given list of ports is valid.
-
-        Args:
-            value: Configured list of ports to validate.
-
-        Raises:
-            ValueError: When the list contains invalid port(s).
-
-        Returns:
-            list[int]: The validated list of ports
-        """
-        if not all(map(lambda x: 0 < x < 65535, value)):
-            raise ValueError(f"List {value} contains invalid port.")
-        return value
 
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> "IntegratorInformation":

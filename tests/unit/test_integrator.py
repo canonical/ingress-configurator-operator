@@ -49,5 +49,5 @@ def test_config_changed_invalid_port(context, base_state):
     )
     out = context.run(context.on.config_changed(), state)
     assert out.unit_status == ops.testing.BlockedStatus(
-        "Invalid integrator configuration: backend_ports"
+        "Invalid integrator configuration: backend_ports-0"
     )

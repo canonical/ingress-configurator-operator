@@ -5,6 +5,7 @@
 
 """Test the charm in integrator mode."""
 import ipaddress
+from typing import Callable
 
 import jubilant
 from requests import Session
@@ -13,7 +14,11 @@ from .conftest import MOCK_HAPROXY_HOSTNAME
 
 
 def test_integrator(
-    juju: jubilant.Juju, application: str, haproxy: str, ingress_requirer: str, session: Session
+    juju: jubilant.Juju,
+    application: str,
+    haproxy: str,
+    ingress_requirer: str,
+    make_session: Callable[..., Session],
 ):
     """Test for integrator mode.
 
@@ -22,7 +27,7 @@ def test_integrator(
         application: Name of the ingress-configurator application.
         haproxy: Name of the haproxy application.
         ingress_requirer: Any charm running an apache webserver.
-        session: Modified requests session fixture for making HTTP requests.
+        make_session: Modified requests session fixture for making HTTP requests.
     """
     juju.integrate("haproxy:haproxy-route", f"{application}:haproxy-route")
     any_charm_address = ipaddress.ip_address(
@@ -35,7 +40,7 @@ def test_integrator(
         lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
         error=jubilant.any_error,
     )
-
+    session = make_session()
     response = session.get(
         f"https://{MOCK_HAPROXY_HOSTNAME}",
         timeout=30,
@@ -45,7 +50,11 @@ def test_integrator(
 
 
 def test_config(
-    juju: jubilant.Juju, application: str, haproxy: str, ingress_requirer: str, session: Session
+    juju: jubilant.Juju,
+    application: str,
+    haproxy: str,
+    ingress_requirer: str,
+    make_session: Callable[..., Session],
 ):
     """Test the charm configuration in integrator mode.
 
@@ -54,23 +63,23 @@ def test_config(
         application: Name of the ingress-configurator application.
         haproxy: Name of the haproxy application.
         ingress_requirer: Any charm running an apache webserver.
-        session: Modified requests session fixture for making HTTP requests.
+        make_session: Modified requests session fixture for making HTTP requests.
     """
     juju.config(app=application, values={"paths": "/api/v1,/api/v2", "subdomains": "api"})
     juju.wait(
         lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
         error=jubilant.any_error,
     )
-
+    session = make_session(f"api.{MOCK_HAPROXY_HOSTNAME}")
     response = session.get(
-        f"https://api.{MOCK_HAPROXY_HOSTNAME}/api/v1",
+        f"https://api.{MOCK_HAPROXY_HOSTNAME}/api/v1/",
         timeout=30,
         verify=False,  # nosec - calling charm ingress URL
     )
     assert response.status_code == 200
     assert "v1 ok!" in response.text
     response = session.get(
-        f"https://api.{MOCK_HAPROXY_HOSTNAME}/api/v2",
+        f"https://api.{MOCK_HAPROXY_HOSTNAME}/api/v2/",
         timeout=30,
         verify=False,  # nosec - calling charm ingress URL
     )

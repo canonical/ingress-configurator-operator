@@ -12,6 +12,7 @@ from urllib3.util.retry import Retry
 class DNSResolverHTTPSAdapter(HTTPAdapter):
     """A simple mounted DNS resolver for HTTP requests, with retry support."""
 
+    # pylint: disable=too-many-arguments, too-many-positional-arguments
     def __init__(
         self,
         hostname,

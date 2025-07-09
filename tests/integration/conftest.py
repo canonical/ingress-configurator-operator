@@ -8,7 +8,7 @@
 import ipaddress
 import json
 import pathlib
-from typing import cast
+from typing import Callable, Optional, cast
 
 import jubilant
 import pytest
@@ -144,18 +144,25 @@ def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     yield app_name
 
 
-@pytest.fixture(scope="module", name="session")
-def modified_session_fixture(juju: jubilant.Juju):
-    """Fixture to provide a session with a custom HTTPS adapter."""
+@pytest.fixture(scope="module")
+def make_session(juju: jubilant.Juju) -> Callable[[Optional[str]], Session]:
+    """Create a requests session with custom DNS resolution."""
     haproxy_app = juju.status().apps["haproxy"]
     unit_entry = next(iter(haproxy_app.units.items()), None)
+
     if unit_entry is not None:
         _, haproxy_unit = unit_entry
         haproxy_address = ipaddress.ip_address(haproxy_unit.public_address)
 
-        session = Session()
-        session.mount(
-            "https://",
-            DNSResolverHTTPSAdapter(MOCK_HAPROXY_HOSTNAME, str(haproxy_address)),
-        )
-        yield session
+        def _make_session(hostname: Optional[str] = MOCK_HAPROXY_HOSTNAME) -> Session:
+            """Create a requests session with custom DNS resolution."""
+            session = Session()
+            session.mount(
+                "https://",
+                DNSResolverHTTPSAdapter(hostname, str(haproxy_address)),
+            )
+            return session
+
+        return _make_session
+
+    raise RuntimeError("No haproxy unit found to determine public address")

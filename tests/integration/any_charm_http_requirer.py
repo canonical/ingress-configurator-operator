@@ -9,7 +9,7 @@
 
 from any_charm_base import AnyCharmBase  # type: ignore
 
-from .helper import start_http_server
+from helper import start_http_server
 
 
 class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods

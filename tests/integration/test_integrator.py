@@ -13,14 +13,14 @@ from requests import Session
 from .conftest import MOCK_HAPROXY_HOSTNAME
 
 
-def test_integrator(
+def test_ingress_integrator_end_to_end_routing(
     juju: jubilant.Juju,
     application: str,
     haproxy: str,
     ingress_requirer: str,
     make_session: Callable[..., Session],
 ):
-    """Test for integrator mode.
+    """Test the integrator reaches the backend successfully through integrator mode.
 
     Args:
         juju: Jubilant juju fixture
@@ -49,7 +49,7 @@ def test_integrator(
     assert "Apache2 Default Page" in response.text
 
 
-def test_config(
+def test_config_subdomains_and_paths(
     juju: jubilant.Juju,
     application: str,
     haproxy: str,

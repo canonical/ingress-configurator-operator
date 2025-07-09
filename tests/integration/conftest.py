@@ -20,6 +20,14 @@ from .helper import DNSResolverHTTPSAdapter
 MOCK_HAPROXY_HOSTNAME = "haproxy.internal"
 INGRESS_REQUIRER_SRC = "tests/integration/any_charm_requirer.py"
 APT_LIB_SRC = "lib/charms/operator_libs_linux/v0/apt.py"
+JUJU_WAIT_TIMEOUT = 10 * 60  # 10 minutes
+HAPROXY_APP_NAME = "haproxy"
+HAPROXY_CHANNEL = "2.8/edge"
+HAPROXY_REVISION = 194
+HAPROXY_BASE = "ubuntu@24.04"
+CERTIFICATES_APP_NAME = "self-signed-certificates"
+CERTIFICATES_CHANNEL = "1/stable"
+CERTIFICATES_REVISION = 263
 
 
 @pytest.fixture(scope="session", name="charm")
@@ -47,7 +55,7 @@ def juju_fixture(request: pytest.FixtureRequest):
     use_existing = request.config.getoption("--use-existing", default=False)
     if use_existing:
         juju = jubilant.Juju()
-        juju.wait_timeout = 10 * 60
+        juju.wait_timeout = JUJU_WAIT_TIMEOUT
         yield juju
         show_debug_log(juju)
         return
@@ -55,14 +63,14 @@ def juju_fixture(request: pytest.FixtureRequest):
     model = request.config.getoption("--model")
     if model:
         juju = jubilant.Juju(model=model)
-        juju.wait_timeout = 10 * 60
+        juju.wait_timeout = JUJU_WAIT_TIMEOUT
         yield juju
         show_debug_log(juju)
         return
 
     keep_models = cast(bool, request.config.getoption("--keep-models"))
     with jubilant.temp_model(keep=keep_models) as juju:
-        juju.wait_timeout = 10 * 60
+        juju.wait_timeout = JUJU_WAIT_TIMEOUT
         yield juju
         show_debug_log(juju)
         return
@@ -102,24 +110,28 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     Yields:
         The haproxy app name.
     """
-    haproxy_app_name = "haproxy"
-    if pytestconfig.getoption("--no-deploy") and haproxy_app_name in juju.status().apps:
-        yield haproxy_app_name
+    if pytestconfig.getoption("--no-deploy") and HAPROXY_APP_NAME in juju.status().apps:
+        yield HAPROXY_APP_NAME
         return
     juju.deploy(
         charm="haproxy",
-        app=haproxy_app_name,
-        channel="2.8/edge",
-        revision=190,
+        app=HAPROXY_APP_NAME,
+        channel=HAPROXY_CHANNEL,
+        revision=HAPROXY_REVISION,
         config={"external-hostname": MOCK_HAPROXY_HOSTNAME},
-        base="ubuntu@24.04",
+        base=HAPROXY_BASE,
     )
-    juju.deploy(charm="self-signed-certificates", channel="1/stable", revision=263)
-    juju.integrate("self-signed-certificates:certificates", f"{haproxy_app_name}:certificates")
+    juju.deploy(
+        charm="self-signed-certificates",
+        app=CERTIFICATES_APP_NAME,
+        channel=CERTIFICATES_CHANNEL,
+        revision=CERTIFICATES_REVISION,
+    )
+    juju.integrate(f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates")
     juju.wait(
-        lambda status: jubilant.all_active(status, haproxy_app_name, "self-signed-certificates"),
+        lambda status: jubilant.all_active(status, HAPROXY_APP_NAME, CERTIFICATES_APP_NAME),
     )
-    yield haproxy_app_name
+    yield HAPROXY_APP_NAME
 
 
 @pytest.fixture(scope="module", name="ingress_requirer")
@@ -139,7 +151,7 @@ def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
             ),
         },
     )
-    juju.wait(lambda status: jubilant.all_active(status, app_name, "self-signed-certificates"))
+    juju.wait(lambda status: jubilant.all_active(status, app_name, CERTIFICATES_APP_NAME))
     juju.run(f"{app_name}/0", "rpc", {"method": "start_server"})
     yield app_name
 

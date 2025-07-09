@@ -42,7 +42,7 @@ Apart from these, the ingress-configurator also supports a wide range of haproxy
 - paths
 - subdomains
 
-To obtain the full list of configurations, see the official [CharmHub documentation](to-be-updated)
+To obtain the full list of configurations, see the official [CharmHub documentation](https://charmhub.io/ingress-configurator)
 
 ## (Optional) Integrations
 <!-- Information about particularly relevant interfaces, endpoints or libraries related to the

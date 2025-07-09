@@ -62,7 +62,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 self._haproxy_route.provide_haproxy_route_requirements(
                     service=f"{data.app.model}-{data.app.name}",
                     ports=[data.app.port],
-                    hosts=[str(udata.host) for udata in data.units],
+                    hosts=[str(unit.ip) for unit in data.units],
                 )
                 proxied_endpoints = self._haproxy_route.get_proxied_endpoints()
                 if proxied_endpoints:

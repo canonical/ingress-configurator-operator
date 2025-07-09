@@ -123,6 +123,7 @@ def ingress_requirer_fixture(juju: jubilant.Juju):
                     "ingress.py": pathlib.Path(INGRESS_LIB_SRC).read_text(encoding="utf-8"),
                 }
             ),
+            "python-packages": "pydantic",
         },
     )
     juju.wait(lambda status: jubilant.all_active(status, app_name, "self-signed-certificates"))

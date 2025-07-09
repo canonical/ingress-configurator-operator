@@ -1,8 +1,6 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-# Learn more about testing at: https://juju.is/docs/sdk/testing
-
 """Integration tests configuration."""
 
 import json
@@ -84,7 +82,7 @@ def haproxy_fixture(juju: jubilant.Juju):
 @pytest.fixture(scope="module", name="http_requirer")
 def http_requirer_fixture(juju: jubilant.Juju):
     """Deploy and configure any-charm to serve as a requirer for the http interface."""
-    app_name = "ingress-requirer"
+    app_name = "http-requirer"
     juju.deploy(
         charm="any-charm",
         channel="beta",

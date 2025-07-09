@@ -17,7 +17,9 @@ def test_config_changed_no_haproxy_route_relation(context):
     act: run start.
     assert: status is blocked.
     """
-    state = ops.testing.State(config={"backend_address": "127.0.0.2", "backend_port": 8080})
+    state = ops.testing.State(
+        config={"backend-addresses": ",127.0.0.1,127.0.0.2", "backend-ports": "8080,8081"}
+    )
 
     out = context.run(context.on.config_changed(), state)
 
@@ -58,10 +60,7 @@ def test_config_changed(monkeypatch: pytest.MonkeyPatch, context):
     out = context.run(context.on.config_changed(), state)
 
     assert out.unit_status == ops.testing.BlockedStatus(
-        (
-            "Missing configuration for integrator mode, "
-            "both backend_port and backend_address must be set."
-        )
+        "Missing configuration for integrator mode: backend-addresses backend-ports"
     )
 
 
@@ -75,14 +74,14 @@ def test_config_changed_invalid_address(monkeypatch: pytest.MonkeyPatch, context
         configurator, "get_mode", MagicMock(return_value=configurator.Mode.INTEGRATOR)
     )
     state = ops.testing.State(
-        config={"backend_address": "invalid", "backend_port": 8080},
+        config={"backend-addresses": "10.0.0.1,invalid", "backend-ports": "8080,8081"},
         relations=[ops.testing.Relation("haproxy-route")],
     )
 
     out = context.run(context.on.config_changed(), state)
 
     assert out.unit_status == ops.testing.BlockedStatus(
-        "Invalid integrator configuration: backend_address"
+        "Invalid integrator configuration: backend_addresses-1"
     )
 
 
@@ -96,12 +95,12 @@ def test_config_changed_invalid_port(monkeypatch: pytest.MonkeyPatch, context):
         configurator, "get_mode", MagicMock(return_value=configurator.Mode.INTEGRATOR)
     )
     state = ops.testing.State(
-        config={"backend_address": "10.0.0.1", "backend_port": 99999},
+        config={"backend-addresses": "10.0.0.1,10.0.0.2", "backend-ports": "99999"},
         relations=[ops.testing.Relation("haproxy-route")],
     )
 
     out = context.run(context.on.config_changed(), state)
 
     assert out.unit_status == ops.testing.BlockedStatus(
-        "Invalid integrator configuration: backend_port"
+        "Invalid integrator configuration: backend_ports-0"
     )

@@ -39,15 +39,15 @@ provides:
 
 config:
   options:
-    backend_address:
+    backend-addresses:
       type: string
-      description: (integrator mode) IP address of the backend service.
-    backend_port:
-      type: int
-      description: (integrator mode) Port of the backend service.
+      description: (integrator mode) Comma-separated list of IP addresses of the backend services.
+    backend-ports:
+      type: string
+      description: (integrator mode) Comma-separated list of ports of the backend services.
 
 charm-libs:
   - lib: haproxy.haproxy_route
-    version: "0"
+    version: "1"
   - lib: traefik_k8s.ingress
     version: "2"

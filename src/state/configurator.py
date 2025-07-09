@@ -3,7 +3,6 @@
 
 """ingress-configurator-operator integrator information."""
 
-import itertools
 import logging
 import typing
 from enum import Enum
@@ -47,10 +46,10 @@ def get_mode(charm: ops.CharmBase, ingress_relation: ops.Relation | None) -> Mod
         UndefinedModeError: When we cannot detect the operation mode.
     """
     if (
-        charm.config.get("backend_address") or charm.config.get("backend_port")
+        charm.config.get("backend-addresses") or charm.config.get("backend-ports")
     ) and ingress_relation:
         raise UndefinedModeError("Both integrator and adapter configurations are set.")
-    if charm.config.get("backend_address") or charm.config.get("backend_port"):
+    if charm.config.get("backend-addresses") or charm.config.get("backend-ports"):
         return Mode.INTEGRATOR
     if ingress_relation:
         return Mode.ADAPTER
@@ -66,12 +65,16 @@ class IntegratorInformation:
     """A component of charm state that contains the configuration in integrator mode.
 
     Attributes:
-        backend_address: Configured backend ip address in integrator mode.
-        backend_port: Configured backend port in integrator mode.
+        backend_addresses: Configured list of backend ip addresses in integrator mode.
+        backend_ports: Configured list of backend ports in integrator mode.
     """
 
-    backend_address: IPvAnyAddress
-    backend_port: int = Field(gt=0, le=65535)
+    backend_addresses: list[IPvAnyAddress] = Field(
+        description="Configured list of backend ip addresses in integrator mode."
+    )
+    backend_ports: list[typing.Annotated[int, Field(gt=0, le=65535)]] = Field(
+        description="Configured list of backend ports in integrator mode."
+    )
 
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> "IntegratorInformation":
@@ -86,19 +89,20 @@ class IntegratorInformation:
         Returns:
             IntegratorInformation: Instance of the state component.
         """
-        backend_address = charm.config.get("backend_address")
-        backend_port = charm.config.get("backend_port")
-        if not backend_address or not backend_port:
+        backend_addresses = typing.cast(str, charm.config.get("backend-addresses"))
+        backend_ports = typing.cast(str, charm.config.get("backend-ports"))
+        if not backend_addresses or not backend_ports:
             raise InvalidIntegratorConfigError(
-                (
-                    "Missing configuration for integrator mode, "
-                    "both backend_port and backend_address must be set."
-                )
+                "Missing configuration for integrator mode: "
+                f'{"backend-addresses " if not backend_addresses else ""}'
+                f'{"backend-ports" if not backend_ports else ""}'
             )
         try:
             return cls(
-                backend_address=typing.cast(IPvAnyAddress, charm.config.get("backend_address")),
-                backend_port=typing.cast(int, charm.config.get("backend_port")),
+                backend_addresses=[
+                    typing.cast(IPvAnyAddress, address) for address in backend_addresses.split(",")
+                ],
+                backend_ports=[int(port) for port in backend_ports.split(",")],
             )
         except ValidationError as exc:
             logger.error(str(exc))
@@ -106,9 +110,14 @@ class IntegratorInformation:
             raise InvalidIntegratorConfigError(
                 f"Invalid integrator configuration: {error_field_str}"
             ) from exc
+        except ValueError as exc:
+            logger.error(str(exc))
+            raise InvalidIntegratorConfigError(
+                f"Configured backend-ports contains invalid value(s): {backend_ports}."
+            ) from exc
 
 
-def get_invalid_config_fields(exc: ValidationError) -> typing.Set[int | str]:
+def get_invalid_config_fields(exc: ValidationError) -> list[str]:
     """Return a list on invalid config from pydantic validation error.
 
     Args:
@@ -117,5 +126,6 @@ def get_invalid_config_fields(exc: ValidationError) -> typing.Set[int | str]:
     Returns:
         str: list of fields that failed validation.
     """
-    error_fields = set(itertools.chain.from_iterable(error["loc"] for error in exc.errors()))
+    logger.info(exc.errors())
+    error_fields = ["-".join([str(i) for i in error["loc"]]) for error in exc.errors()]
     return error_fields

@@ -19,8 +19,8 @@ def test_get_mode_integrator():
     """
     charm = Mock(CharmBase)
     charm.config = {
-        "backend_address": "127.0.0.2",
-        "backend_port": "8080",
+        "backend-addresses": "127.0.0.1,127.0.0.2",
+        "backend-ports": "8080,8081",
     }
     assert configurator.Mode.INTEGRATOR == configurator.get_mode(charm, None)
 
@@ -45,8 +45,8 @@ def test_get_mode_invalid():
     """
     charm = Mock(CharmBase)
     charm.config = {
-        "backend_address": "127.0.0.2",
-        "backend_port": "8080",
+        "backend-addresses": "127.0.0.1,127.0.0.2",
+        "backend-ports": "8080,8081",
     }
     relation = Mock(Relation)
     with pytest.raises(configurator.UndefinedModeError):
@@ -61,12 +61,16 @@ def test_get_integrator_information():
     """
     charm = Mock(CharmBase)
     charm.config = {
-        "backend_address": "127.0.0.2",
-        "backend_port": "8080",
+        "backend-addresses": "127.0.0.1,127.0.0.2",
+        "backend-ports": "8080,8081",
     }
     info = configurator.IntegratorInformation.from_charm(charm)
-    assert str(info.backend_address) == charm.config.get("backend_address")
-    assert str(info.backend_port) == charm.config.get("backend_port")
+    assert [str(address) for address in info.backend_addresses] == charm.config.get(
+        "backend-addresses"
+    ).split(",")
+    assert [str(port) for port in info.backend_ports] == charm.config.get("backend-ports").split(
+        ","
+    )
 
 
 def test_get_integrator_information_no_address():
@@ -77,7 +81,7 @@ def test_get_integrator_information_no_address():
     """
     charm = Mock(CharmBase)
     charm.config = {
-        "backend_port": "8080",
+        "backend-ports": "8080,8081",
     }
     with pytest.raises(configurator.InvalidIntegratorConfigError):
         configurator.IntegratorInformation.from_charm(charm)
@@ -91,7 +95,7 @@ def test_get_integrator_information_no_port():
     """
     charm = Mock(CharmBase)
     charm.config = {
-        "backend_address": "127.0.0.2",
+        "backend-addresses": "127.0.0.1,127.0.0.2",
     }
     with pytest.raises(configurator.InvalidIntegratorConfigError):
         configurator.IntegratorInformation.from_charm(charm)

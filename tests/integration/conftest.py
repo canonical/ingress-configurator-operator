@@ -18,7 +18,7 @@ from requests import Session
 from .helper import DNSResolverHTTPSAdapter
 
 MOCK_HAPROXY_HOSTNAME = "haproxy.internal"
-ANY_CHARM_WEB_SERVER_SRC = "tests/integration/any_charm_web_server.py"
+ANY_CHARM_BACKEND_SRC = "tests/integration/any_charm_backend.py"
 APT_LIB_SRC = "lib/charms/operator_libs_linux/v0/apt.py"
 JUJU_WAIT_TIMEOUT = 10 * 60  # 10 minutes
 HAPROXY_APP_NAME = "haproxy"
@@ -28,7 +28,7 @@ HAPROXY_BASE = "ubuntu@24.04"
 CERTIFICATES_APP_NAME = "self-signed-certificates"
 CERTIFICATES_CHANNEL = "1/stable"
 CERTIFICATES_REVISION = 263
-ANY_CHARM_APP_NAME = "any-charm-web-server"
+ANY_CHARM_APP_NAME = "any-charm-backend"
 
 
 @pytest.fixture(scope="session", name="charm")
@@ -135,8 +135,8 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     yield HAPROXY_APP_NAME
 
 
-@pytest.fixture(scope="module", name="any_charm_web_server")
-def any_charm_web_server_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
+@pytest.fixture(scope="module", name="any_charm_backend")
+def any_charm_backend_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     """Deploy any-charm and configure it to serve as a requirer for the http interface."""
     if pytestconfig.getoption("--no-deploy") and ANY_CHARM_APP_NAME in juju.status().apps:
         yield ANY_CHARM_APP_NAME
@@ -147,13 +147,10 @@ def any_charm_web_server_fixture(pytestconfig: pytest.Config, juju: jubilant.Juj
         app=ANY_CHARM_APP_NAME,
         config={
             "src-overwrite": json.dumps(
-                {
-                    "any_charm.py": pathlib.Path(ANY_CHARM_WEB_SERVER_SRC).read_text(
-                        encoding="utf-8"
-                    )
-                }
+                {"any_charm.py": pathlib.Path(ANY_CHARM_BACKEND_SRC).read_text(encoding="utf-8")}
             ),
         },
+        num_units=2,
     )
     juju.wait(
         lambda status: jubilant.all_active(status, ANY_CHARM_APP_NAME, CERTIFICATES_APP_NAME)

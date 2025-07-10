@@ -11,7 +11,7 @@ import logging
 import typing
 
 import ops
-from charms.haproxy.v0.haproxy_route import HaproxyRouteRequirer
+from charms.haproxy.v1.haproxy_route import HaproxyRouteRequirer
 
 from state.integrator import IntegratorInformation
 from state.validation import validate_config
@@ -45,10 +45,10 @@ class IngressConfiguratorCharm(ops.CharmBase):
             return
         self._haproxy_route.provide_haproxy_route_requirements(
             service=f"{self.model.name}-{self.app.name}",
-            ports=[integrator_information.backend_port],
+            ports=integrator_information.backend_ports,
+            hosts=[str(address) for address in integrator_information.backend_addresses],
             paths=integrator_information.paths,
             subdomains=integrator_information.subdomains,
-            unit_address=str(integrator_information.backend_address),
         )
         self.unit.status = ops.ActiveStatus()
 

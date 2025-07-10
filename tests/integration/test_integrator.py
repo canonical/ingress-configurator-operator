@@ -17,7 +17,7 @@ def test_ingress_integrator_end_to_end_routing(
     juju: jubilant.Juju,
     application: str,
     haproxy: str,
-    ingress_requirer: str,
+    any_charm_backend: str,
     make_session: Callable[..., Session],
 ):
     """Test the integrator reaches the backend successfully through integrator mode.
@@ -30,14 +30,14 @@ def test_ingress_integrator_end_to_end_routing(
         make_session: Modified requests session fixture for making HTTP requests.
     """
     juju.integrate("haproxy:haproxy-route", f"{application}:haproxy-route")
-    any_charm_address = ipaddress.ip_address(
-        juju.status().apps[ingress_requirer].units[f"{ingress_requirer}/0"].public_address
+    backend_addresses = ",".join(
+        [unit.public_address for unit in juju.status().apps[any_charm_backend].units.values()]
     )
     juju.config(
-        app=application, values={"backend_address": str(any_charm_address), "backend_port": 80}
+        app=application, values={"backend-addresses": backend_addresses, "backend-ports": 80}
     )
     juju.wait(
-        lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
+        lambda status: jubilant.all_active(status, haproxy, application, any_charm_backend),
         error=jubilant.any_error,
     )
     session = make_session()

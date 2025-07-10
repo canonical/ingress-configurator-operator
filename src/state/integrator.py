@@ -3,7 +3,6 @@
 
 """ingress-configurator-operator integrator information."""
 
-import itertools
 import logging
 from typing import Annotated, Optional, Set, cast
 
@@ -49,14 +48,18 @@ class IntegratorInformation:
     """A component of charm state that contains the configuration in integrator mode.
 
     Attributes:
-        backend_address: Configured backend ip address in integrator mode.
-        backend_port: Configured backend port in integrator mode.
+        backend_addresses: Configured list of backend ip addresses in integrator mode.
+        backend_ports: Configured list of backend ports in integrator mode.
         paths: List of URL paths to route to the service.
         subdomains: List of subdomains to route to the service.
     """
 
-    backend_address: IPvAnyAddress
-    backend_port: int = Field(gt=0, le=65535)
+    backend_addresses: list[IPvAnyAddress] = Field(
+        description="Configured list of backend ip addresses in integrator mode."
+    )
+    backend_ports: list[Annotated[int, Field(gt=0, le=65535)]] = Field(
+        description="Configured list of backend ports in integrator mode."
+    )
     paths: list[VALIDSTR] = Field(default=[])
     subdomains: list[VALIDSTR] = Field(default=[])
 
@@ -73,19 +76,24 @@ class IntegratorInformation:
         Returns:
             IntegratorInformation: Instance of the state component.
         """
-        backend_address = charm.config.get("backend_address")
-        backend_port = charm.config.get("backend_port")
+        backend_addresses = cast(str, charm.config.get("backend-addresses"))
+        backend_ports = cast(str, charm.config.get("backend-ports"))
         paths = cast(str, charm.config.get("paths"))
         subdomains = cast(str, charm.config.get("subdomains"))
-        if not backend_address or not backend_port:
+        if not backend_addresses or not backend_ports:
             raise InvalidIntegratorConfigError(
                 (
-                    "Missing configuration for integrator mode, "
-                    "both backend_port and backend_address must be set."
+                    "Missing configuration for integrator mode: "
+                    f'{"backend-addresses " if not backend_addresses else ""}'
+                    f'{"backend-ports" if not backend_ports else ""}'
                 )
             )
         try:
             return cls(
+                backend_addresses=[
+                    cast(IPvAnyAddress, address) for address in backend_addresses.split(",")
+                ],
+                backend_ports=[int(port) for port in backend_ports.split(",")],
                 backend_address=cast(IPvAnyAddress, charm.config.get("backend_address")),
                 backend_port=cast(int, charm.config.get("backend_port")),
                 paths=(cast(list[str], paths.split(CHARM_CONFIG_DELIMITER)) if paths else []),
@@ -99,9 +107,14 @@ class IntegratorInformation:
             raise InvalidIntegratorConfigError(
                 f"Invalid integrator configuration: {error_field_str}"
             ) from exc
+        except ValueError as exc:
+            logger.error(str(exc))
+            raise InvalidIntegratorConfigError(
+                f"Configured backend-ports contains invalid value(s): {backend_ports}."
+            ) from exc
 
 
-def get_invalid_config_fields(exc: ValidationError) -> Set[int | str]:
+def get_invalid_config_fields(exc: ValidationError) -> list[str]:
     """Return a list on invalid config from pydantic validation error.
 
     Args:
@@ -110,5 +123,6 @@ def get_invalid_config_fields(exc: ValidationError) -> Set[int | str]:
     Returns:
         str: list of fields that failed validation.
     """
-    error_fields = set(itertools.chain.from_iterable(error["loc"] for error in exc.errors()))
+    logger.info(exc.errors())
+    error_fields = ["-".join([str(i) for i in error["loc"]]) for error in exc.errors()]
     return error_fields

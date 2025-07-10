@@ -35,12 +35,12 @@ requires:
 
 config:
   options:
-    backend_address:
+    backend-addresses:
       type: string
-      description: (integrator mode) IP address of the backend service.
-    backend_port:
-      type: int
-      description: (integrator mode) Port of the backend service.
+      description: (integrator mode) Comma-separated list of IP addresses of the backend services.
+    backend-ports:
+      type: string
+      description: (integrator mode) Comma-separated list of ports of the backend services.
     paths:
       type: string
       description: Comma-separated list of URL paths to route to the service.
@@ -50,4 +50,4 @@ config:
 
 charm-libs:
   - lib: haproxy.haproxy_route
-    version: "0"
+    version: "1"

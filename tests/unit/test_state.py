@@ -63,6 +63,9 @@ def test_get_integrator_information():
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
         "backend-ports": "8080,8081",
+        "retry-count": 1,
+        "retry-interval": 10,
+        "retry-redispatch": True,
     }
     info = state.IntegratorInformation.from_charm(charm)
     assert [str(address) for address in info.backend_addresses] == charm.config.get(
@@ -71,6 +74,9 @@ def test_get_integrator_information():
     assert [str(port) for port in info.backend_ports] == charm.config.get("backend-ports").split(
         ","
     )
+    assert info.retry_count == charm.config.get("retry-count")
+    assert info.retry_interval == charm.config.get("retry-interval")
+    assert info.retry_redispatch == charm.config.get("retry-redispatch")
 
 
 def test_get_integrator_information_no_address():
@@ -96,6 +102,34 @@ def test_get_integrator_information_no_port():
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
+    }
+    with pytest.raises(state.InvalidIntegratorConfigError):
+        state.IntegratorInformation.from_charm(charm)
+
+
+def test_get_integrator_information_invalid_retry_count():
+    """
+    arrange: mock a charm with backend address and without retry-count configuration
+    act: instantiate a IntegratorInformation
+    assert: a InvalidIntegratorConfigError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "retry-count": -1,
+    }
+    with pytest.raises(state.InvalidIntegratorConfigError):
+        state.IntegratorInformation.from_charm(charm)
+
+
+def test_get_integrator_information_invalid_retry_interval():
+    """
+    arrange: mock a charm with backend address and without retry-interval configuration
+    act: instantiate a IntegratorInformation
+    assert: a InvalidIntegratorConfigError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "retry-interval": -1,
     }
     with pytest.raises(state.InvalidIntegratorConfigError):
         state.IntegratorInformation.from_charm(charm)

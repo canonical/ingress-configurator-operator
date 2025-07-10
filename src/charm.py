@@ -53,6 +53,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
                     service=f"{self.model.name}-{self.app.name}",
                     ports=integrator_information.backend_ports,
                     hosts=[str(address) for address in integrator_information.backend_addresses],
+                    retry_count=integrator_information.retry_count,
+                    retry_interval=integrator_information.retry_interval,
+                    retry_redispatch=integrator_information.retry_redispatch,
                 )
             elif mode == state.Mode.ADAPTER:
                 relation = self.model.get_relation(self._ingress.relation_name)

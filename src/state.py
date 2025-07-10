@@ -67,6 +67,9 @@ class IntegratorInformation:
     Attributes:
         backend_addresses: Configured list of backend ip addresses in integrator mode.
         backend_ports: Configured list of backend ports in integrator mode.
+        retry_count: Number of times to retry failed requests.
+        retry_interval: Interval between retries in seconds.
+        retry_redispatch: Whether to redispatch failed requests to another server.
     """
 
     backend_addresses: list[IPvAnyAddress] = Field(
@@ -75,6 +78,9 @@ class IntegratorInformation:
     backend_ports: list[typing.Annotated[int, Field(gt=0, le=65535)]] = Field(
         description="Configured list of backend ports in integrator mode."
     )
+    retry_count: int | None = Field(gt=0)
+    retry_interval: int | None = Field(gt=0)
+    retry_redispatch: bool | None
 
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> "IntegratorInformation":
@@ -91,6 +97,21 @@ class IntegratorInformation:
         """
         backend_addresses = typing.cast(str, charm.config.get("backend-addresses"))
         backend_ports = typing.cast(str, charm.config.get("backend-ports"))
+        retry_count = (
+            typing.cast(int, charm.config.get("retry-count"))
+            if charm.config.get("retry-count")
+            else None
+        )
+        retry_interval = (
+            typing.cast(int, charm.config.get("retry-interval"))
+            if charm.config.get("retry-interval")
+            else None
+        )
+        retry_redispatch = (
+            typing.cast(bool, charm.config.get("retry-redispatch"))
+            if charm.config.get("retry-redispatch")
+            else None
+        )
         if not backend_addresses or not backend_ports:
             raise InvalidIntegratorConfigError(
                 "Missing configuration for integrator mode: "
@@ -103,6 +124,9 @@ class IntegratorInformation:
                     typing.cast(IPvAnyAddress, address) for address in backend_addresses.split(",")
                 ],
                 backend_ports=[int(port) for port in backend_ports.split(",")],
+                retry_count=retry_count,
+                retry_interval=retry_interval,
+                retry_redispatch=retry_redispatch,
             )
         except ValidationError as exc:
             logger.error(str(exc))

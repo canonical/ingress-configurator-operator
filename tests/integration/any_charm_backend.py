@@ -5,11 +5,7 @@
 # We use subprocess and subprocess.run to install apache
 # No external inputs is parsed, ignoring bandit errors with nosec
 
-<<<<<<<< HEAD:tests/integration/any_charm_backend.py
-"""Any charm web server source code."""
-========
 """HTTP requirer source."""
->>>>>>>> main:tests/integration/any_charm_http_requirer.py
 
 import pathlib
 import subprocess  # nosec

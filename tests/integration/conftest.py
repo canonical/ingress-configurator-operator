@@ -159,7 +159,7 @@ def any_charm_backend_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
 
 
 @pytest.fixture(scope="module")
-def make_session(juju: jubilant.Juju) -> Callable[[Optional[str]], Session]:
+def http_session(juju: jubilant.Juju) -> Callable[[Optional[str]], Session]:
     """Create a requests session with custom DNS resolution."""
     haproxy_app = juju.status().apps["haproxy"]
     unit_entry = next(iter(haproxy_app.units.items()), None)

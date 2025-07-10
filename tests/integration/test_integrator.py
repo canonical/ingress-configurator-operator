@@ -9,6 +9,7 @@ import pytest
 from requests import Session
 
 from .conftest import MOCK_HAPROXY_HOSTNAME
+from .helper import haproxy_request
 
 
 def test_ingress_integrator_end_to_end_routing(
@@ -16,7 +17,7 @@ def test_ingress_integrator_end_to_end_routing(
     application: str,
     haproxy: str,
     any_charm_backend: str,
-    make_session: Callable[..., Session],
+    http_session: Callable[..., Session],
 ):
     """Test the integrator reaches the backend successfully through integrator mode.
 
@@ -25,9 +26,9 @@ def test_ingress_integrator_end_to_end_routing(
         application: Name of the ingress-configurator application.
         haproxy: Name of the haproxy application.
         any_charm_backend: Any charm running an apache webserver.
-        make_session: Modified requests session fixture for making HTTP requests.
+        http_session: Modified requests session fixture for making HTTP requests.
     """
-    juju.integrate("haproxy:haproxy-route", f"{application}:haproxy-route")
+    juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
     backend_addresses = ",".join(
         [unit.public_address for unit in juju.status().apps[any_charm_backend].units.values()]
     )
@@ -38,12 +39,8 @@ def test_ingress_integrator_end_to_end_routing(
         lambda status: jubilant.all_active(status, haproxy, application, any_charm_backend),
         error=jubilant.any_error,
     )
-    session = make_session()
-    response = session.get(
-        f"https://{MOCK_HAPROXY_HOSTNAME}",
-        timeout=30,
-        verify=False,  # nosec - calling charm ingress URL
-    )
+    session = http_session()
+    response = haproxy_request(session, f"https://{MOCK_HAPROXY_HOSTNAME}")
     assert "Apache2 Default Page" in response.text
 
 
@@ -53,7 +50,7 @@ def test_config_subdomains_and_paths(
     application: str,
     haproxy: str,
     any_charm_backend: str,
-    make_session: Callable[..., Session],
+    http_session: Callable[..., Session],
 ):
     """Test the charm configuration in integrator mode.
 
@@ -62,32 +59,23 @@ def test_config_subdomains_and_paths(
         application: Name of the ingress-configurator application.
         haproxy: Name of the haproxy application.
         any_charm_backend: Any charm running an apache webserver.
-        make_session: Modified requests session fixture for making HTTP requests.
+        http_session: Modified requests session fixture for making HTTP requests.
     """
     juju.config(app=application, values={"paths": "/api/v1,/api/v2", "subdomains": "api"})
     juju.wait(
         lambda status: jubilant.all_active(status, haproxy, application, any_charm_backend),
         error=jubilant.any_error,
     )
-    session = make_session(f"api.{MOCK_HAPROXY_HOSTNAME}")
-    response = session.get(
-        f"https://api.{MOCK_HAPROXY_HOSTNAME}/api/v1/",
-        timeout=30,
-        verify=False,  # nosec - calling charm ingress URL
-    )
+
+    session = http_session(f"api.{MOCK_HAPROXY_HOSTNAME}")
+    response = haproxy_request(session, f"https://api.{MOCK_HAPROXY_HOSTNAME}/api/v1/")
     assert response.status_code == 200
     assert "v1 ok!" in response.text
-    response = session.get(
-        f"https://api.{MOCK_HAPROXY_HOSTNAME}/api/v2/",
-        timeout=30,
-        verify=False,  # nosec - calling charm ingress URL
-    )
+
+    response = haproxy_request(session, f"https://api.{MOCK_HAPROXY_HOSTNAME}/api/v2/")
     assert response.status_code == 200
     assert "v2 ok!" in response.text
-    session = make_session()
-    response = session.get(
-        f"https://{MOCK_HAPROXY_HOSTNAME}",
-        timeout=30,
-        verify=False,  # nosec - calling charm ingress URL
-    )
+
+    session = http_session()
+    response = haproxy_request(session, f"https://{MOCK_HAPROXY_HOSTNAME}")
     assert "Default page for the haproxy-operator charm" in response.text

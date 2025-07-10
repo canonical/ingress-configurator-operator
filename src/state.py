@@ -4,6 +4,7 @@
 """ingress-configurator-operator integrator information."""
 
 import logging
+from enum import Enum
 from typing import Annotated, Optional, cast
 
 import ops

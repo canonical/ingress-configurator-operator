@@ -16,7 +16,7 @@ from requests import Session
 from .helper import DNSResolverHTTPSAdapter
 
 MOCK_HAPROXY_HOSTNAME = "haproxy.internal"
-ANY_CHARM_BACKEND_SRC = "tests/integration/any_charm_backend.py"
+HAPROXY_HTTP_REQUIRER_SRC = "tests/integration/any_charm_http_requirer.py"
 HAPROXY_INGRESS_REQUIRER_SRC = "tests/integration/any_charm_ingress_requirer.py"
 HELPER_SRC = "tests/integration/helper.py"
 INGRESS_LIB_SRC = "lib/charms/traefik_k8s/v2/ingress.py"
@@ -146,7 +146,11 @@ def any_charm_backend_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
         app=ANY_CHARM_APP_NAME,
         config={
             "src-overwrite": json.dumps(
-                {"any_charm.py": pathlib.Path(ANY_CHARM_BACKEND_SRC).read_text(encoding="utf-8")}
+                {
+                    "any_charm.py": pathlib.Path(HAPROXY_HTTP_REQUIRER_SRC).read_text(
+                        encoding="utf-8"
+                    )
+                }
             ),
         },
         num_units=2,

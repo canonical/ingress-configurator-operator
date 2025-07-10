@@ -14,7 +14,7 @@ import ops
 from charms.haproxy.v1.haproxy_route import HaproxyRouteRequirer
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider
 
-from state import configurator
+import state
 
 logger = logging.getLogger(__name__)
 HAPROXY_ROUTE_RELATION = "haproxy-route"
@@ -46,17 +46,15 @@ class IngressConfiguratorCharm(ops.CharmBase):
             if not self._haproxy_route.relation:
                 self.unit.status = ops.BlockedStatus("Missing haproxy-route relation.")
                 return
-            mode = configurator.get_mode(
-                self, self.model.get_relation(self._ingress.relation_name)
-            )
-            if mode == configurator.Mode.INTEGRATOR:
-                integrator_information = configurator.IntegratorInformation.from_charm(self)
+            mode = state.get_mode(self, self.model.get_relation(self._ingress.relation_name))
+            if mode == state.Mode.INTEGRATOR:
+                integrator_information = state.IntegratorInformation.from_charm(self)
                 self._haproxy_route.provide_haproxy_route_requirements(
                     service=f"{self.model.name}-{self.app.name}",
                     ports=integrator_information.backend_ports,
                     hosts=[str(address) for address in integrator_information.backend_addresses],
                 )
-            elif mode == configurator.Mode.ADAPTER:
+            elif mode == state.Mode.ADAPTER:
                 relation = self.model.get_relation(self._ingress.relation_name)
                 data = self._ingress.get_data(relation)
                 self._haproxy_route.provide_haproxy_route_requirements(
@@ -68,10 +66,10 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 if proxied_endpoints:
                     self._ingress.publish_url(relation, proxied_endpoints[0])
             self.unit.status = ops.ActiveStatus()
-        except configurator.UndefinedModeError:
+        except state.UndefinedModeError:
             logger.exception("Invalid mode")
             self.unit.status = ops.BlockedStatus("Mode is invalid.")
-        except configurator.InvalidIntegratorConfigError as ex:
+        except state.InvalidIntegratorConfigError as ex:
             logger.exception("Invalid configuration")
             self.unit.status = ops.BlockedStatus(str(ex))
 

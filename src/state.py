@@ -6,8 +6,11 @@
 import logging
 import typing
 from enum import Enum
+from typing import Annotated
 
 import ops
+from annotated_types import Len
+from charms.traefik_k8s.v2.ingress import IngressRequirerData
 from pydantic import Field, ValidationError
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
@@ -32,70 +35,67 @@ class UndefinedModeError(Exception):
     """Exception raised when the charm is in an undefined state."""
 
 
-def get_mode(charm: ops.CharmBase, ingress_relation: ops.Relation | None) -> Mode:
-    """Detect the operation mode of the charm.
-
-    Args:
-        charm: the charm.
-        ingress_relation: the ingress relation.
-
-    Returns:
-        The operation mode of the charm, either "integrator" or "adapter".
-
-    Raises:
-        UndefinedModeError: When we cannot detect the operation mode.
-    """
-    if (
-        charm.config.get("backend-addresses") or charm.config.get("backend-ports")
-    ) and ingress_relation:
-        raise UndefinedModeError("Both integrator and adapter configurations are set.")
-    if charm.config.get("backend-addresses") and charm.config.get("backend-ports"):
-        return Mode.INTEGRATOR
-    if ingress_relation:
-        return Mode.ADAPTER
-    raise UndefinedModeError("No valid mode detected.")
-
-
 class InvalidIntegratorConfigError(Exception):
     """Exception raised when a configuration in integrator mode is invalid."""
 
 
 @dataclass(frozen=True)
-class IntegratorInformation:
-    """A component of charm state that contains the configuration in integrator mode.
+class BackendState:
+    """Charm state subset that contains the backend configuration.
 
     Attributes:
-        backend_addresses: Configured list of backend ip addresses in integrator mode.
-        backend_ports: Configured list of backend ports in integrator mode.
+        backend_addresses: Configured list of backend ip addresses.
+        backend_ports: Configured list of backend ports.
+    """
+
+    backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
+    backend_ports: Annotated[list[typing.Annotated[int, Field(gt=0, le=65535)]], Len(min_length=1)]
+
+
+@dataclass(frozen=True)
+class State:
+    """Charm state that contains the configuration.
+
+    Attributes:
+        backend_addresses: Configured list of backend ip addresses.
+        backend_ports: Configured list of backend ports.
+        service: The service name.
         retry_count: Number of times to retry failed requests.
         retry_interval: Interval between retries in seconds.
         retry_redispatch: Whether to redispatch failed requests to another server.
     """
 
-    backend_addresses: list[IPvAnyAddress] = Field(
-        description="Configured list of backend ip addresses in integrator mode."
-    )
-    backend_ports: list[typing.Annotated[int, Field(gt=0, le=65535)]] = Field(
-        description="Configured list of backend ports in integrator mode."
-    )
+    _backend_state: BackendState
+    service: str = Field(..., min_length=1)
     retry_count: int | None = Field(gt=0)
     retry_interval: int | None = Field(gt=0)
     retry_redispatch: bool | None = False
 
+    @property
+    def backend_addresses(self) -> list[IPvAnyAddress]:
+        """List of backend addresses."""
+        return self._backend_state.backend_addresses
+
+    @property
+    def backend_ports(self) -> list[int]:
+        """List of backend ports."""
+        return self._backend_state.backend_ports
+
     @classmethod
-    def from_charm(cls, charm: ops.CharmBase) -> "IntegratorInformation":
-        """Create an IntegratorInformation class from a charm instance.
+    def from_charm(cls, charm: ops.CharmBase, ingress_data: IngressRequirerData | None) -> "State":
+        """Create an State class from a charm instance.
 
         Args:
-            charm: The ingress-configurator charm.
+            charm: the ingress-configurator charm.
+            ingress_data: the ingress requirer relation data.
 
         Raises:
-            InvalidIntegratorConfigError: When the integrator mode config is invalid.
+            InvalidIntegratorConfigError: when the integrator mode config is invalid.
 
         Returns:
-            IntegratorInformation: Instance of the state component.
+            State: instance of the state component.
         """
-        backend_addresses = (
+        config_backend_addresses = (
             [
                 typing.cast(IPvAnyAddress, address)
                 for address in typing.cast(str, charm.config.get("backend-addresses")).split(",")
@@ -103,9 +103,15 @@ class IntegratorInformation:
             if charm.config.get("backend-addresses")
             else []
         )
-        backend_ports = (
+        config_backend_ports = (
             [int(port) for port in typing.cast(str, charm.config.get("backend-ports")).split(",")]
             if charm.config.get("backend-ports")
+            else []
+        )
+        ingress_backend_ports = [ingress_data.app.port] if ingress_data else []
+        ingress_backend_addresses = (
+            [typing.cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units]
+            if ingress_data
             else []
         )
         retry_count = (
@@ -124,9 +130,16 @@ class IntegratorInformation:
             else None
         )
         try:
+            config_backend = config_backend_addresses or config_backend_ports
+            ingress_backend = ingress_backend_addresses or ingress_backend_ports
+            # Only backend configuration from a single origin is supported
+            if config_backend == ingress_backend:
+                raise InvalidIntegratorConfigError("No valid mode detected.")
+            backend_addresses = config_backend_addresses or ingress_backend_addresses
+            backend_ports = config_backend_ports or ingress_backend_ports
             return cls(
-                backend_addresses=backend_addresses,
-                backend_ports=backend_ports,
+                _backend_state=BackendState(backend_addresses, backend_ports),
+                service=f"{charm.model.name}-{charm.app.name}",
                 retry_count=retry_count,
                 retry_interval=retry_interval,
                 retry_redispatch=retry_redispatch,
@@ -139,9 +152,7 @@ class IntegratorInformation:
             ) from exc
         except ValueError as exc:
             logger.error(str(exc))
-            raise InvalidIntegratorConfigError(
-                f"Configured backend-ports contains invalid value(s): {backend_ports}."
-            ) from exc
+            raise InvalidIntegratorConfigError("State contains invalid value(s).") from exc
 
 
 def get_invalid_config_fields(exc: ValidationError) -> list[str]:

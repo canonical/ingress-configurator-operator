@@ -46,31 +46,22 @@ class IngressConfiguratorCharm(ops.CharmBase):
             if not self._haproxy_route.relation:
                 self.unit.status = ops.BlockedStatus("Missing haproxy-route relation.")
                 return
-            mode = state.get_mode(self, self.model.get_relation(self._ingress.relation_name))
-            integrator_information = state.IntegratorInformation.from_charm(self)
-            if mode == state.Mode.INTEGRATOR:
-                self._haproxy_route.provide_haproxy_route_requirements(
-                    service=f"{self.model.name}-{self.app.name}",
-                    ports=integrator_information.backend_ports,
-                    hosts=[str(address) for address in integrator_information.backend_addresses],
-                    retry_count=integrator_information.retry_count,
-                    retry_interval=integrator_information.retry_interval,
-                    retry_redispatch=integrator_information.retry_redispatch,
-                )
-            elif mode == state.Mode.ADAPTER:
-                relation = self.model.get_relation(self._ingress.relation_name)
-                data = self._ingress.get_data(relation)
-                self._haproxy_route.provide_haproxy_route_requirements(
-                    service=f"{data.app.model}-{data.app.name}",
-                    ports=[data.app.port],
-                    hosts=[str(unit.ip) for unit in data.units],
-                    retry_count=integrator_information.retry_count,
-                    retry_interval=integrator_information.retry_interval,
-                    retry_redispatch=integrator_information.retry_redispatch,
-                )
-                proxied_endpoints = self._haproxy_route.get_proxied_endpoints()
-                if proxied_endpoints:
-                    self._ingress.publish_url(relation, proxied_endpoints[0])
+            ingress_relation = self.model.get_relation(self._ingress.relation_name)
+            ingress_relation_data = (
+                self._ingress.get_data(ingress_relation) if ingress_relation else None
+            )
+            charm_state = state.State.from_charm(self, ingress_relation_data)
+            self._haproxy_route.provide_haproxy_route_requirements(
+                service=charm_state.service,
+                ports=charm_state.backend_ports,
+                hosts=[str(address) for address in charm_state.backend_addresses],
+                retry_count=charm_state.retry_count,
+                retry_interval=charm_state.retry_interval,
+                retry_redispatch=charm_state.retry_redispatch,
+            )
+            proxied_endpoints = self._haproxy_route.get_proxied_endpoints()
+            if self._ingress:
+                self._ingress.publish_url(ingress_relation, proxied_endpoints[0])
             self.unit.status = ops.ActiveStatus()
         except state.UndefinedModeError:
             logger.exception("Undefined operating mode")

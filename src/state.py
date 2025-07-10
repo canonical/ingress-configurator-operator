@@ -146,9 +146,7 @@ class IntegratorInformation:
             ) from exc
         except ValueError as exc:
             logger.error(str(exc))
-            raise InvalidIntegratorConfigError(
-                f"Configured backend-ports contains invalid value(s): {backend_ports}."
-            ) from exc
+            raise InvalidIntegratorConfigError(str(exc)) from exc
 
 
 def get_invalid_config_fields(exc: ValidationError) -> list[str]:

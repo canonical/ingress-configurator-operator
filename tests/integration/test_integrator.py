@@ -4,10 +4,10 @@
 # Learn more about testing at: https://juju.is/docs/sdk/testing
 
 """Test the charm in integrator mode."""
-import ipaddress
 from typing import Callable
 
 import jubilant
+import pytest
 from requests import Session
 
 from .conftest import MOCK_HAPROXY_HOSTNAME
@@ -49,6 +49,7 @@ def test_ingress_integrator_end_to_end_routing(
     assert "Apache2 Default Page" in response.text
 
 
+@pytest.mark.abort_on_fail
 def test_config_subdomains_and_paths(
     juju: jubilant.Juju,
     application: str,

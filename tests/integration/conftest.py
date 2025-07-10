@@ -90,7 +90,7 @@ def application_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, charm:
     """
     metadata = yaml.safe_load(pathlib.Path("./charmcraft.yaml").read_text(encoding="UTF-8"))
     app_name = metadata["name"]
-    if pytestconfig.getoption("--no-deploy") and app_name in juju.status().apps:
+    if pytestconfig.getoption("--no-setup") and app_name in juju.status().apps:
         yield app_name
         return
     juju.deploy(
@@ -111,7 +111,7 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     Yields:
         The haproxy app name.
     """
-    if pytestconfig.getoption("--no-deploy") and HAPROXY_APP_NAME in juju.status().apps:
+    if pytestconfig.getoption("--no-setup") and HAPROXY_APP_NAME in juju.status().apps:
         yield HAPROXY_APP_NAME
         return
     juju.deploy(
@@ -138,7 +138,7 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
 @pytest.fixture(scope="module", name="any_charm_backend")
 def any_charm_backend_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     """Deploy any-charm and configure it to serve as a requirer for the http interface."""
-    if pytestconfig.getoption("--no-deploy") and ANY_CHARM_APP_NAME in juju.status().apps:
+    if pytestconfig.getoption("--no-setup") and ANY_CHARM_APP_NAME in juju.status().apps:
         yield ANY_CHARM_APP_NAME
         return
     juju.deploy(

@@ -33,6 +33,10 @@ requires:
   haproxy-route:
     interface: haproxy-route
 
+provides:
+  ingress:
+    interface: ingress
+
 config:
   options:
     backend-addresses:
@@ -45,3 +49,5 @@ config:
 charm-libs:
   - lib: haproxy.haproxy_route
     version: "1"
+  - lib: traefik_k8s.ingress
+    version: "2"

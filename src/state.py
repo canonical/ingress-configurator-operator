@@ -5,6 +5,7 @@
 
 import logging
 import typing
+from enum import Enum
 
 import ops
 from pydantic import Field, ValidationError
@@ -13,6 +14,46 @@ from pydantic.networks import IPvAnyAddress
 
 logger = logging.getLogger()
 CHARM_CONFIG_DELIMITER = ","
+
+
+class Mode(Enum):
+    """Enum representing the mode of the charm.
+
+    Attrs:
+        INTEGRATOR: integrator mode.
+        ADAPTER: afapter mode.
+    """
+
+    INTEGRATOR = "integrator"
+    ADAPTER = "adapter"
+
+
+class UndefinedModeError(Exception):
+    """Exception raised when the charm is in an undefined state."""
+
+
+def get_mode(charm: ops.CharmBase, ingress_relation: ops.Relation | None) -> Mode:
+    """Detect the operation mode of the charm.
+
+    Args:
+        charm: the charm.
+        ingress_relation: the ingress relation.
+
+    Returns:
+        The operation mode of the charm, either "integrator" or "adapter".
+
+    Raises:
+        UndefinedModeError: When we cannot detect the operation mode.
+    """
+    if (
+        charm.config.get("backend-addresses") or charm.config.get("backend-ports")
+    ) and ingress_relation:
+        raise UndefinedModeError("Both integrator and adapter configurations are set.")
+    if charm.config.get("backend-addresses") or charm.config.get("backend-ports"):
+        return Mode.INTEGRATOR
+    if ingress_relation:
+        return Mode.ADAPTER
+    raise UndefinedModeError("No valid mode detected.")
 
 
 class InvalidIntegratorConfigError(Exception):
@@ -52,11 +93,9 @@ class IntegratorInformation:
         backend_ports = typing.cast(str, charm.config.get("backend-ports"))
         if not backend_addresses or not backend_ports:
             raise InvalidIntegratorConfigError(
-                (
-                    "Missing configuration for integrator mode: "
-                    f'{"backend-addresses " if not backend_addresses else ""}'
-                    f'{"backend-ports" if not backend_ports else ""}'
-                )
+                "Missing configuration for integrator mode: "
+                f'{"backend-addresses " if not backend_addresses else ""}'
+                f'{"backend-ports" if not backend_ports else ""}'
             )
         try:
             return cls(

@@ -63,10 +63,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             if self._ingress:
                 self._ingress.publish_url(ingress_relation, proxied_endpoints[0])
             self.unit.status = ops.ActiveStatus()
-        except state.UndefinedModeError:
-            logger.exception("Undefined operating mode")
-            self.unit.status = ops.BlockedStatus("Operating mode is undefined.")
-        except state.InvalidIntegratorConfigError as ex:
+        except state.InvalidStateError as ex:
             logger.exception("Invalid configuration")
             self.unit.status = ops.BlockedStatus(str(ex))
 

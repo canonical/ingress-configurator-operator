@@ -6,54 +6,43 @@
 from unittest.mock import Mock
 
 import pytest
-from ops import CharmBase, Relation
+from charms.traefik_k8s.v2.ingress import (
+    IngressRequirerAppData,
+    IngressRequirerData,
+    IngressRequirerUnitData,
+)
+from ops import CharmBase
 
 import state
 
 
-def test_get_mode_integrator():
+def test_adapter_state_from_charm():
     """
-    arrange: mock a charm with backend configuration
-    act: get mode
-    assert: mode is 'integrator'
-    """
-    charm = Mock(CharmBase)
-    charm.config = {
-        "backend-addresses": "127.0.0.1,127.0.0.2",
-        "backend-ports": "8080,8081",
-    }
-    assert state.Mode.INTEGRATOR == state.get_mode(charm, None)
-
-
-def test_get_mode_adapter():
-    """
-    arrange: mock a charm without backend configuration and a relation
-    act: get mode
-    assert: mode is 'adapter'
-    """
-    charm = Mock(CharmBase)
-    charm.config = {}
-    relation = Mock(Relation)
-    assert state.Mode.ADAPTER == state.get_mode(charm, relation)
-
-
-def test_get_mode_invalid():
-    """
-    arrange: mock a charm with backend configuration and a relation
-    act: get mode
-    assert: a UndefinedModeError is raised
+    arrange: mock a charm with an ingress relation
+    act: instantiate a State
+    assert: the data matches the charm configuration
     """
     charm = Mock(CharmBase)
     charm.config = {
-        "backend-addresses": "127.0.0.1,127.0.0.2",
-        "backend-ports": "8080,8081",
+        "retry-count": 1,
+        "retry-interval": 10,
+        "retry-redispatch": True,
     }
-    relation = Mock(Relation)
-    with pytest.raises(state.UndefinedModeError):
-        state.get_mode(charm, relation)
+    ingress_relation_data = IngressRequirerData(
+        app=IngressRequirerAppData(model="model", name="name", port=8080),
+        units=[IngressRequirerUnitData(host="sample.host", ip="127.0.0.1")],
+    )
+    charm_state = state.State.from_charm(charm, ingress_relation_data)
+    assert [str(address) for address in charm_state.backend_addresses] == list(
+        ingress_relation_data.units[0].ip
+    )
+    assert list(port for port in charm_state.backend_ports) == list(ingress_relation_data.app.port)
+    assert charm_state.retry_count == charm.config.get("retry-count")
+    assert charm_state.retry_interval == charm.config.get("retry-interval")
+    assert charm_state.retry_redispatch == charm.config.get("retry-redispatch")
 
 
-def test_integrator_information_from_charm():
+def test_integrator_state_from_charm():
     """
     arrange: mock a charm with backend configuration
     act: instantiate a State
@@ -67,71 +56,83 @@ def test_integrator_information_from_charm():
         "retry-interval": 10,
         "retry-redispatch": True,
     }
-    info = state.State.from_charm(charm)
-    assert [str(address) for address in info.backend_addresses] == charm.config.get(
+    charm_state = state.State.from_charm(charm, None)
+    assert [str(address) for address in charm_state.backend_addresses] == charm.config.get(
         "backend-addresses"
     ).split(",")
-    assert [str(port) for port in info.backend_ports] == charm.config.get("backend-ports").split(
-        ","
-    )
-    assert info.retry_count == charm.config.get("retry-count")
-    assert info.retry_interval == charm.config.get("retry-interval")
-    assert info.retry_redispatch == charm.config.get("retry-redispatch")
+    assert [str(port) for port in charm_state.backend_ports] == charm.config.get(
+        "backend-ports"
+    ).split(",")
+    assert charm_state.retry_count == charm.config.get("retry-count")
+    assert charm_state.retry_interval == charm.config.get("retry-interval")
+    assert charm_state.retry_redispatch == charm.config.get("retry-redispatch")
 
 
-def test_get_integrator_information_invalid_address():
+def test_state_from_charm_no_backend():
+    """
+    arrange: mock a charm with backend address and without backend configuration not ingress
+    act: instantiate a State
+    assert: a InvalidStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {}
+    with pytest.raises(state.InvalidStateError):
+        state.State.from_charm(charm, None)
+
+
+def test_state_from_charm_invalid_address():
     """
     arrange: mock a charm with backend port and without address configuration
     act: instantiate a State
-    assert: a InvalidIntegratorConfigError is raised
+    assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "invalid",
         "backend-ports": "8080",
     }
-    with pytest.raises(state.InvalidIntegratorConfigError):
-        state.State.from_charm(charm)
+    with pytest.raises(state.InvalidStateError):
+        state.State.from_charm(charm, None)
 
 
-def test_get_integrator_information_invalid_port():
+def test_state_from_charm_invalid_port():
     """
     arrange: mock a charm with backend address and without port configuration
     act: instantiate a State
-    assert: a InvalidIntegratorConfigError is raised
+    assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
         "backend-ports": "99999",
     }
-    with pytest.raises(state.InvalidIntegratorConfigError):
-        state.State.from_charm(charm)
+    with pytest.raises(state.InvalidStateError):
+        state.State.from_charm(charm, None)
 
 
-def test_get_integrator_information_invalid_retry_count():
+def test_state_from_charm_invalid_retry_count():
     """
     arrange: mock a charm with backend address and without retry-count configuration
     act: instantiate a State
-    assert: a InvalidIntegratorConfigError is raised
+    assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
     charm.config = {
         "retry-count": -1,
     }
-    with pytest.raises(state.InvalidIntegratorConfigError):
-        state.State.from_charm(charm)
+    with pytest.raises(state.InvalidStateError):
+        state.State.from_charm(charm, None)
 
 
-def test_get_integrator_information_invalid_retry_interval():
+def test_state_from_charm_invalid_retry_interval():
     """
     arrange: mock a charm with backend address and without retry-interval configuration
     act: instantiate a State
-    assert: a InvalidIntegratorConfigError is raised
+    assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
     charm.config = {
         "retry-interval": -1,
     }
-    with pytest.raises(state.InvalidIntegratorConfigError):
-        state.State.from_charm(charm)
+    with pytest.raises(state.InvalidStateError):
+        state.State.from_charm(charm, None)

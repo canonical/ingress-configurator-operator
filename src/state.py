@@ -5,7 +5,6 @@
 
 import logging
 import typing
-from enum import Enum
 from typing import Annotated
 
 import ops
@@ -19,24 +18,8 @@ logger = logging.getLogger()
 CHARM_CONFIG_DELIMITER = ","
 
 
-class Mode(Enum):
-    """Enum representing the mode of the charm.
-
-    Attrs:
-        INTEGRATOR: integrator mode.
-        ADAPTER: afapter mode.
-    """
-
-    INTEGRATOR = "integrator"
-    ADAPTER = "adapter"
-
-
-class UndefinedModeError(Exception):
-    """Exception raised when the charm is in an undefined state."""
-
-
-class InvalidIntegratorConfigError(Exception):
-    """Exception raised when a configuration in integrator mode is invalid."""
+class InvalidStateError(Exception):
+    """Exception raised when the state is invalid."""
 
 
 @dataclass(frozen=True)
@@ -82,6 +65,7 @@ class State:
         return self._backend_state.backend_ports
 
     @classmethod
+    # pylint: disable=too-many-locals
     def from_charm(cls, charm: ops.CharmBase, ingress_data: IngressRequirerData | None) -> "State":
         """Create an State class from a charm instance.
 
@@ -90,7 +74,7 @@ class State:
             ingress_data: the ingress requirer relation data.
 
         Raises:
-            InvalidIntegratorConfigError: when the integrator mode config is invalid.
+            InvalidStateError: when the integrator mode config is invalid.
 
         Returns:
             State: instance of the state component.
@@ -134,7 +118,7 @@ class State:
             ingress_backend = ingress_backend_addresses or ingress_backend_ports
             # Only backend configuration from a single origin is supported
             if config_backend == ingress_backend:
-                raise InvalidIntegratorConfigError("No valid mode detected.")
+                raise InvalidStateError("No valid mode detected.")
             backend_addresses = config_backend_addresses or ingress_backend_addresses
             backend_ports = config_backend_ports or ingress_backend_ports
             return cls(
@@ -147,12 +131,12 @@ class State:
         except ValidationError as exc:
             logger.error(str(exc))
             error_field_str = ",".join(f"{field}" for field in get_invalid_config_fields(exc))
-            raise InvalidIntegratorConfigError(
+            raise InvalidStateError(
                 f"Invalid integrator configuration: {error_field_str}"
             ) from exc
         except ValueError as exc:
             logger.error(str(exc))
-            raise InvalidIntegratorConfigError("State contains invalid value(s).") from exc
+            raise InvalidStateError("State contains invalid value(s).") from exc
 
 
 def get_invalid_config_fields(exc: ValidationError) -> list[str]:

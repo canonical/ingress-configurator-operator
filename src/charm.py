@@ -46,9 +46,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
             if not self._haproxy_route.relation:
                 self.unit.status = ops.BlockedStatus("Missing haproxy-route relation.")
                 return
+            integrator_information = state.IntegratorInformation.from_charm(self)
             mode = state.get_mode(self, self.model.get_relation(self._ingress.relation_name))
             if mode == state.Mode.INTEGRATOR:
-                integrator_information = state.IntegratorInformation.from_charm(self)
                 self._haproxy_route.provide_haproxy_route_requirements(
                     service=f"{self.model.name}-{self.app.name}",
                     ports=integrator_information.backend_ports,
@@ -64,6 +64,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
                     service=f"{data.app.model}-{data.app.name}",
                     ports=[data.app.port],
                     hosts=[str(unit.ip) for unit in data.units],
+                    retry_count=integrator_information.retry_count,
+                    retry_interval=integrator_information.retry_interval,
+                    retry_redispatch=integrator_information.retry_redispatch,
                 )
                 proxied_endpoints = self._haproxy_route.get_proxied_endpoints()
                 if proxied_endpoints:

@@ -49,7 +49,7 @@ def get_mode(charm: ops.CharmBase, ingress_relation: ops.Relation | None) -> Mod
         charm.config.get("backend-addresses") or charm.config.get("backend-ports")
     ) and ingress_relation:
         raise UndefinedModeError("Both integrator and adapter configurations are set.")
-    if charm.config.get("backend-addresses") or charm.config.get("backend-ports"):
+    if charm.config.get("backend-addresses") and charm.config.get("backend-ports"):
         return Mode.INTEGRATOR
     if ingress_relation:
         return Mode.ADAPTER
@@ -80,7 +80,7 @@ class IntegratorInformation:
     )
     retry_count: int | None = Field(gt=0)
     retry_interval: int | None = Field(gt=0)
-    retry_redispatch: bool | None
+    retry_redispatch: bool | None = False
 
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> "IntegratorInformation":
@@ -95,8 +95,19 @@ class IntegratorInformation:
         Returns:
             IntegratorInformation: Instance of the state component.
         """
-        backend_addresses = typing.cast(str, charm.config.get("backend-addresses"))
-        backend_ports = typing.cast(str, charm.config.get("backend-ports"))
+        backend_addresses = (
+            [
+                typing.cast(IPvAnyAddress, address)
+                for address in typing.cast(str, charm.config.get("backend-addresses")).split(",")
+            ]
+            if charm.config.get("backend-addresses")
+            else []
+        )
+        backend_ports = (
+            [int(port) for port in typing.cast(str, charm.config.get("backend-ports")).split(",")]
+            if charm.config.get("backend-ports")
+            else []
+        )
         retry_count = (
             typing.cast(int, charm.config.get("retry-count"))
             if charm.config.get("retry-count")
@@ -112,18 +123,10 @@ class IntegratorInformation:
             if charm.config.get("retry-redispatch")
             else None
         )
-        if not backend_addresses or not backend_ports:
-            raise InvalidIntegratorConfigError(
-                "Missing configuration for integrator mode: "
-                f'{"backend-addresses " if not backend_addresses else ""}'
-                f'{"backend-ports" if not backend_ports else ""}'
-            )
         try:
             return cls(
-                backend_addresses=[
-                    typing.cast(IPvAnyAddress, address) for address in backend_addresses.split(",")
-                ],
-                backend_ports=[int(port) for port in backend_ports.split(",")],
+                backend_addresses=backend_addresses,
+                backend_ports=backend_ports,
                 retry_count=retry_count,
                 retry_interval=retry_interval,
                 retry_redispatch=retry_redispatch,

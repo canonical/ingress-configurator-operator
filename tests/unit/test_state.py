@@ -79,7 +79,7 @@ def test_get_integrator_information():
     assert info.retry_redispatch == charm.config.get("retry-redispatch")
 
 
-def test_get_integrator_information_no_address():
+def test_get_integrator_information_invalid_address():
     """
     arrange: mock a charm with backend port and without address configuration
     act: instantiate a IntegratorInformation
@@ -87,13 +87,14 @@ def test_get_integrator_information_no_address():
     """
     charm = Mock(CharmBase)
     charm.config = {
-        "backend-ports": "8080,8081",
+        "backend-addresses": "invalid",
+        "backend-ports": "8080",
     }
     with pytest.raises(state.InvalidIntegratorConfigError):
         state.IntegratorInformation.from_charm(charm)
 
 
-def test_get_integrator_information_no_port():
+def test_get_integrator_information_invalid_port():
     """
     arrange: mock a charm with backend address and without port configuration
     act: instantiate a IntegratorInformation
@@ -102,6 +103,7 @@ def test_get_integrator_information_no_port():
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
+        "backend-ports": "99999",
     }
     with pytest.raises(state.InvalidIntegratorConfigError):
         state.IntegratorInformation.from_charm(charm)

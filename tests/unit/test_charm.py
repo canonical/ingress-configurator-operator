@@ -42,24 +42,6 @@ def test_config_changed_invalid_mode(monkeypatch: pytest.MonkeyPatch, context):
     assert out.unit_status == ops.testing.BlockedStatus("Operating mode is undefined.")
 
 
-def test_config_changed_integrator_missing_config(monkeypatch: pytest.MonkeyPatch, context):
-    """
-    arrange: prepare some state with haproxy-route relation and no configuration.
-    act: trigger a config changed event.
-    assert: status is blocked.
-    """
-    monkeypatch.setattr(state, "get_mode", MagicMock(return_value=state.Mode.INTEGRATOR))
-    charm_state = ops.testing.State(
-        relations=[ops.testing.Relation("haproxy-route")],
-    )
-
-    out = context.run(context.on.config_changed(), charm_state)
-
-    assert out.unit_status == ops.testing.BlockedStatus(
-        "Missing configuration for integrator mode: backend-addresses backend-ports"
-    )
-
-
 def test_config_changed_integrator_invalid_addresses(monkeypatch: pytest.MonkeyPatch, context):
     """
     arrange: prepare some state with invalid backend-addresses.

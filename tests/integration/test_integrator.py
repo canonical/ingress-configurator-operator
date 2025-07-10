@@ -85,3 +85,9 @@ def test_config_subdomains_and_paths(
     )
     assert response.status_code == 200
     assert "v2 ok!" in response.text
+    response = session.get(
+        f"https://{MOCK_HAPROXY_HOSTNAME}",
+        timeout=30,
+        verify=False,  # nosec - calling charm ingress URL
+    )
+    assert "Default page for the haproxy-operator charm" in response.text

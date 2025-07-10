@@ -18,7 +18,7 @@ from requests import Session
 from .helper import DNSResolverHTTPSAdapter
 
 MOCK_HAPROXY_HOSTNAME = "haproxy.internal"
-INGRESS_REQUIRER_SRC = "tests/integration/any_charm_requirer.py"
+ANY_CHARM_WEB_SERVER_SRC = "tests/integration/any_charm_web_server.py"
 APT_LIB_SRC = "lib/charms/operator_libs_linux/v0/apt.py"
 JUJU_WAIT_TIMEOUT = 10 * 60  # 10 minutes
 HAPROXY_APP_NAME = "haproxy"
@@ -28,6 +28,7 @@ HAPROXY_BASE = "ubuntu@24.04"
 CERTIFICATES_APP_NAME = "self-signed-certificates"
 CERTIFICATES_CHANNEL = "1/stable"
 CERTIFICATES_REVISION = 263
+ANY_CHARM_APP_NAME = "any-charm-web-server"
 
 
 @pytest.fixture(scope="session", name="charm")
@@ -134,26 +135,31 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     yield HAPROXY_APP_NAME
 
 
-@pytest.fixture(scope="module", name="ingress_requirer")
-def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
+@pytest.fixture(scope="module", name="any_charm_web_server")
+def any_charm_web_server_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     """Deploy any-charm and configure it to serve as a requirer for the http interface."""
-    app_name = "ingress-requirer"
-    if pytestconfig.getoption("--no-deploy") and app_name in juju.status().apps:
-        yield app_name
+    if pytestconfig.getoption("--no-deploy") and ANY_CHARM_APP_NAME in juju.status().apps:
+        yield ANY_CHARM_APP_NAME
         return
     juju.deploy(
         charm="any-charm",
         channel="beta",
-        app=app_name,
+        app=ANY_CHARM_APP_NAME,
         config={
             "src-overwrite": json.dumps(
-                {"any_charm.py": pathlib.Path(INGRESS_REQUIRER_SRC).read_text(encoding="utf-8")}
+                {
+                    "any_charm.py": pathlib.Path(ANY_CHARM_WEB_SERVER_SRC).read_text(
+                        encoding="utf-8"
+                    )
+                }
             ),
         },
     )
-    juju.wait(lambda status: jubilant.all_active(status, app_name, CERTIFICATES_APP_NAME))
-    juju.run(f"{app_name}/0", "rpc", {"method": "start_server"})
-    yield app_name
+    juju.wait(
+        lambda status: jubilant.all_active(status, ANY_CHARM_APP_NAME, CERTIFICATES_APP_NAME)
+    )
+    juju.run(f"{ANY_CHARM_APP_NAME}/0", "rpc", {"method": "start_server"})
+    yield ANY_CHARM_APP_NAME
 
 
 @pytest.fixture(scope="module")

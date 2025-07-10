@@ -5,7 +5,7 @@
 # We use subprocess and subprocess.run to install apache
 # No external inputs is parsed, ignoring bandit errors with nosec
 
-"""haproxy-route requirer source."""
+"""Any charm web server source code."""
 
 import pathlib
 import subprocess  # nosec
@@ -15,7 +15,7 @@ from any_charm_base import AnyCharmBase  # type: ignore
 
 
 class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
-    """Ingress requirer charm src."""
+    """Apache web sever charm src."""
 
     def start_server(self):
         """Start apache2 webserver."""

@@ -86,6 +86,7 @@ def test_config_subdomains_and_paths(
     )
     assert response.status_code == 200
     assert "v2 ok!" in response.text
+    session = make_session()
     response = session.get(
         f"https://{MOCK_HAPROXY_HOSTNAME}",
         timeout=30,

@@ -1,8 +1,6 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-# Learn more about testing at: https://juju.is/docs/sdk/testing
-
 # pylint: disable=duplicate-code,missing-function-docstring
 """Unit tests."""
 
@@ -19,13 +17,3 @@ def context_fixture():
     Yield: The charm context.
     """
     yield Context(charm_type=IngressConfiguratorCharm)
-
-
-@pytest.fixture(name="base_state")
-def base_state_fixture():
-    """Base state fixture.
-
-    Returns:
-        The base state.
-    """
-    return {}

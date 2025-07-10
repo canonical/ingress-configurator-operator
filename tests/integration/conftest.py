@@ -1,8 +1,6 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-# Learn more about testing at: https://juju.is/docs/sdk/testing
-
 """Integration tests configuration."""
 
 import ipaddress
@@ -19,6 +17,9 @@ from .helper import DNSResolverHTTPSAdapter
 
 MOCK_HAPROXY_HOSTNAME = "haproxy.internal"
 ANY_CHARM_BACKEND_SRC = "tests/integration/any_charm_backend.py"
+HAPROXY_INGRESS_REQUIRER_SRC = "tests/integration/any_charm_ingress_requirer.py"
+HELPER_SRC = "tests/integration/helper.py"
+INGRESS_LIB_SRC = "lib/charms/traefik_k8s/v2/ingress.py"
 APT_LIB_SRC = "lib/charms/operator_libs_linux/v0/apt.py"
 JUJU_WAIT_TIMEOUT = 10 * 60  # 10 minutes
 HAPROXY_APP_NAME = "haproxy"
@@ -73,8 +74,6 @@ def juju_fixture(request: pytest.FixtureRequest):
     with jubilant.temp_model(keep=keep_models) as juju:
         juju.wait_timeout = JUJU_WAIT_TIMEOUT
         yield juju
-        show_debug_log(juju)
-        return
 
 
 @pytest.fixture(scope="module", name="application")
@@ -181,3 +180,28 @@ def make_session(juju: jubilant.Juju) -> Callable[[Optional[str]], Session]:
         return _make_session
 
     raise RuntimeError("No haproxy unit found to determine public address")
+
+
+@pytest.fixture(scope="module", name="ingress_requirer")
+def ingress_requirer_fixture(juju: jubilant.Juju):
+    """Deploy and configure any-charm to serve as an ingress requirer for the ingress interface."""
+    app_name = "ingress-requirer"
+    juju.deploy(
+        charm="any-charm",
+        channel="beta",
+        app=app_name,
+        config={
+            "src-overwrite": json.dumps(
+                {
+                    "any_charm.py": pathlib.Path(HAPROXY_INGRESS_REQUIRER_SRC).read_text(
+                        encoding="utf-8"
+                    ),
+                    "ingress.py": pathlib.Path(INGRESS_LIB_SRC).read_text(encoding="utf-8"),
+                }
+            ),
+            "python-packages": "pydantic",
+        },
+    )
+    juju.wait(lambda status: jubilant.all_active(status, app_name, "self-signed-certificates"))
+    juju.run(f"{app_name}/0", "rpc", {"method": "start_server"})
+    yield app_name

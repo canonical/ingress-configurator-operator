@@ -5,21 +5,29 @@
 # We use subprocess and subprocess.run to install apache
 # No external inputs is parsed, ignoring bandit errors with nosec
 
-<<<<<<<< HEAD:tests/integration/any_charm_backend.py
-"""Any charm web server source code."""
-========
-"""HTTP requirer source."""
->>>>>>>> main:tests/integration/any_charm_http_requirer.py
+"""Ingress requirer source."""
 
-import pathlib
 import subprocess  # nosec
 
 import ops
 from any_charm_base import AnyCharmBase  # type: ignore
+from ingress import IngressPerAppRequirer
 
 
 class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
-    """Apache web sever charm src."""
+    """Ingress requirer charm src."""
+
+    def __init__(self, *args, **kwargs):
+        """Init.
+
+        Args:
+            args: args.
+            kwargs: kwargs.
+        """
+        super().__init__(*args, **kwargs)
+        self.ingress = IngressPerAppRequirer(self, port=80)
+        self.unit.status = ops.BlockedStatus("Waiting for ingress relation")
+        self.framework.observe(self.on.ingress_relation_changed, self._on_ingress_relation_changed)
 
     def start_server(self):
         """Start apache2 webserver."""
@@ -33,9 +41,7 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
             "apache2",
         ]
         subprocess.run(install, capture_output=True, check=True)  # nosec
-        base = pathlib.Path("/var/www/html/api")
-        (base / "v1").mkdir(parents=True, exist_ok=True)
-        (base / "v2").mkdir(parents=True, exist_ok=True)
-        (base / "v1" / "index.html").write_text("v1 ok!")
-        (base / "v2" / "index.html").write_text("v2 ok!")
-        self.unit.status = ops.ActiveStatus("Server ready")
+
+    def _on_ingress_relation_changed(self, _: ops.ConfigChangedEvent):
+        """Relation changed handler."""
+        self.unit.status = ops.ActiveStatus()

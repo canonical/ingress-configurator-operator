@@ -14,7 +14,7 @@ import state
 def test_config_changed_no_haproxy_route_relation(context):
     """
     arrange: prepare some valid state without haproxy-route relation.
-    act: run start.
+    act: trigger a config changed event.
     assert: status is blocked.
     """
     charm_state = ops.testing.State(
@@ -29,7 +29,7 @@ def test_config_changed_no_haproxy_route_relation(context):
 def test_config_changed_invalid_mode(monkeypatch: pytest.MonkeyPatch, context):
     """
     arrange: prepare some state and patch invalid mode.
-    act: run start.
+    act: trigger a config changed event.
     assert: status is blocked.
     """
     monkeypatch.setattr(state, "get_mode", MagicMock(side_effect=state.UndefinedModeError))
@@ -39,14 +39,14 @@ def test_config_changed_invalid_mode(monkeypatch: pytest.MonkeyPatch, context):
 
     out = context.run(context.on.config_changed(), charm_state)
 
-    assert out.unit_status == ops.testing.BlockedStatus("Mode is invalid.")
+    assert out.unit_status == ops.testing.BlockedStatus("Operating mode is undefined.")
 
 
-def test_config_changed(monkeypatch: pytest.MonkeyPatch, context):
+def test_config_changed_integrator_missing_config(monkeypatch: pytest.MonkeyPatch, context):
     """
-    arrange: prepare some state with haproxy-route relation.
-    act: run start.
-    assert: status is active.
+    arrange: prepare some state with haproxy-route relation and no configuration.
+    act: trigger a config changed event.
+    assert: status is blocked.
     """
     monkeypatch.setattr(state, "get_mode", MagicMock(return_value=state.Mode.INTEGRATOR))
     charm_state = ops.testing.State(
@@ -60,11 +60,11 @@ def test_config_changed(monkeypatch: pytest.MonkeyPatch, context):
     )
 
 
-def test_config_changed_invalid_address(monkeypatch: pytest.MonkeyPatch, context):
+def test_config_changed_integrator_invalid_addresses(monkeypatch: pytest.MonkeyPatch, context):
     """
-    arrange: prepare some state.
-    act: run start with invalid backend_address configuration.
-    assert: status is active.
+    arrange: prepare some state with invalid backend-addresses.
+    act: trigger a config changed event.
+    assert: status is bllocked.
     """
     monkeypatch.setattr(state, "get_mode", MagicMock(return_value=state.Mode.INTEGRATOR))
     charm_state = ops.testing.State(
@@ -79,10 +79,10 @@ def test_config_changed_invalid_address(monkeypatch: pytest.MonkeyPatch, context
     )
 
 
-def test_config_changed_invalid_port(monkeypatch: pytest.MonkeyPatch, context):
+def test_config_changed_integrator_invalid_ports(monkeypatch: pytest.MonkeyPatch, context):
     """
-    arrange: prepare some state.
-    act: run start with invalid port configuration.
+    arrange: prepare some state with invalid ports.
+    act: trigger a config changed event with invalid port configuration.
     assert: status is blocked with the correct message.
     """
     monkeypatch.setattr(state, "get_mode", MagicMock(return_value=state.Mode.INTEGRATOR))

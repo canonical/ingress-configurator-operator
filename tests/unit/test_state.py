@@ -53,7 +53,7 @@ def test_get_mode_invalid():
         state.get_mode(charm, relation)
 
 
-def test_get_integrator_information():
+def test_integrator_information_from_charm():
     """
     arrange: mock a charm with backend configuration
     act: instantiate a IntegratorInformation

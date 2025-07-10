@@ -4,7 +4,7 @@
 """ingress-configurator-operator integrator information."""
 
 import logging
-from typing import Annotated, Optional, Set, cast
+from typing import Annotated, Optional, cast
 
 import ops
 from pydantic import BeforeValidator, Field, ValidationError
@@ -94,8 +94,6 @@ class IntegratorInformation:
                     cast(IPvAnyAddress, address) for address in backend_addresses.split(",")
                 ],
                 backend_ports=[int(port) for port in backend_ports.split(",")],
-                backend_address=cast(IPvAnyAddress, charm.config.get("backend_address")),
-                backend_port=cast(int, charm.config.get("backend_port")),
                 paths=(cast(list[str], paths.split(CHARM_CONFIG_DELIMITER)) if paths else []),
                 subdomains=(
                     cast(list[str], subdomains.split(CHARM_CONFIG_DELIMITER)) if subdomains else []

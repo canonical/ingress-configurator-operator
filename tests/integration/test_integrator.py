@@ -26,7 +26,7 @@ def test_ingress_integrator_end_to_end_routing(
         juju: Jubilant juju fixture
         application: Name of the ingress-configurator application.
         haproxy: Name of the haproxy application.
-        ingress_requirer: Any charm running an apache webserver.
+        any_charm_backend: Any charm running an apache webserver.
         make_session: Modified requests session fixture for making HTTP requests.
     """
     juju.integrate("haproxy:haproxy-route", f"{application}:haproxy-route")
@@ -54,7 +54,7 @@ def test_config_subdomains_and_paths(
     juju: jubilant.Juju,
     application: str,
     haproxy: str,
-    ingress_requirer: str,
+    any_charm_backend: str,
     make_session: Callable[..., Session],
 ):
     """Test the charm configuration in integrator mode.
@@ -63,12 +63,12 @@ def test_config_subdomains_and_paths(
         juju: Jubilant juju fixture
         application: Name of the ingress-configurator application.
         haproxy: Name of the haproxy application.
-        ingress_requirer: Any charm running an apache webserver.
+        any_charm_backend: Any charm running an apache webserver.
         make_session: Modified requests session fixture for making HTTP requests.
     """
     juju.config(app=application, values={"paths": "/api/v1,/api/v2", "subdomains": "api"})
     juju.wait(
-        lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
+        lambda status: jubilant.all_active(status, haproxy, application, any_charm_backend),
         error=jubilant.any_error,
     )
     session = make_session(f"api.{MOCK_HAPROXY_HOSTNAME}")

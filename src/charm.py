@@ -53,18 +53,23 @@ class IngressConfiguratorCharm(ops.CharmBase):
                     service=f"{self.model.name}-{self.app.name}",
                     ports=integrator_information.backend_ports,
                     hosts=[str(address) for address in integrator_information.backend_addresses],
+                    paths=integrator_information.paths,
+                    subdomains=integrator_information.subdomains,
                 )
             elif mode == state.Mode.ADAPTER:
-                relation = self.model.get_relation(self._ingress.relation_name)
-                data = self._ingress.get_data(relation)
+                ingress_relation = self.model.get_relation(self._ingress.relation_name)
+                ingress_data = self._ingress.get_data(ingress_relation)
+                adapter_information = state.AdapterInformation.from_charm(self, ingress_data)
                 self._haproxy_route.provide_haproxy_route_requirements(
-                    service=f"{data.app.model}-{data.app.name}",
-                    ports=[data.app.port],
-                    hosts=[str(unit.ip) for unit in data.units],
+                    service=f"{ingress_data.app.model}-{ingress_data.app.name}",
+                    ports=adapter_information.app_port,
+                    hosts=[str(address) for address in adapter_information.unit_ips],
+                    paths=adapter_information.paths,
+                    subdomains=adapter_information.subdomains,
                 )
                 proxied_endpoints = self._haproxy_route.get_proxied_endpoints()
                 if proxied_endpoints:
-                    self._ingress.publish_url(relation, proxied_endpoints[0])
+                    self._ingress.publish_url(ingress_relation, proxied_endpoints[0])
             self.unit.status = ops.ActiveStatus()
         except state.UndefinedModeError:
             logger.exception("Undefined operating mode")

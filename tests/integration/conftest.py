@@ -150,7 +150,9 @@ def any_charm_backend_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     juju.wait(
         lambda status: jubilant.all_active(status, ANY_CHARM_APP_NAME, CERTIFICATES_APP_NAME)
     )
-    juju.run(f"{ANY_CHARM_APP_NAME}/0", "rpc", {"method": "start_server"})
+    for unit in juju.status().apps[ANY_CHARM_APP_NAME].units.keys():
+        juju.run(unit, "rpc", {"method": "start_server"})
+    juju.wait(lambda status: jubilant.all_active(status, ANY_CHARM_APP_NAME))
     yield ANY_CHARM_APP_NAME
 
 
@@ -199,5 +201,7 @@ def ingress_requirer_fixture(juju: jubilant.Juju):
         },
     )
     juju.wait(lambda status: jubilant.all_active(status, app_name, "self-signed-certificates"))
-    juju.run(f"{app_name}/0", "rpc", {"method": "start_server"})
+    for unit in juju.status().apps[app_name].units.keys():
+        juju.run(unit, "rpc", {"method": "start_server"})
+    juju.wait(lambda status: jubilant.all_active(status, app_name))
     yield app_name

@@ -210,5 +210,5 @@ def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     )
     for unit in juju.status().apps[INGRESS_REQUIRER_APP_NAME].units.keys():
         juju.run(unit, "rpc", {"method": "start_server"})
-    juju.wait(lambda status: jubilant.all_active(status, INGRESS_REQUIRER_APP_NAME))
+    juju.wait(lambda status: jubilant.all_blocked(status, INGRESS_REQUIRER_APP_NAME))
     yield INGRESS_REQUIRER_APP_NAME

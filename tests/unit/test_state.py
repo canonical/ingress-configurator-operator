@@ -33,10 +33,10 @@ def test_adapter_state_from_charm():
         units=[IngressRequirerUnitData(host="sample.host", ip="127.0.0.1")],
     )
     charm_state = state.State.from_charm(charm, ingress_relation_data)
-    assert [str(address) for address in charm_state.backend_addresses] == list(
+    assert [str(address) for address in charm_state.backend_addresses] == [
         ingress_relation_data.units[0].ip
-    )
-    assert list(port for port in charm_state.backend_ports) == list(ingress_relation_data.app.port)
+    ]
+    assert charm_state.backend_ports == [ingress_relation_data.app.port]
     assert charm_state.retry_count == charm.config.get("retry-count")
     assert charm_state.retry_interval == charm.config.get("retry-interval")
     assert charm_state.retry_redispatch == charm.config.get("retry-redispatch")

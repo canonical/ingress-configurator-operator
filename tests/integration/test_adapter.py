@@ -29,7 +29,6 @@ def test_adapter_end_to_end_routing(
         http_session: Modified requests session fixture for making HTTP requests.
     """
     juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
-    juju.integrate(f"{ingress_requirer}:ingress", f"{application}:ingress")
     juju.wait(
         lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
         error=jubilant.any_error,

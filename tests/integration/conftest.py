@@ -182,7 +182,7 @@ def http_session(juju: jubilant.Juju) -> Callable[[Optional[str]], Session]:
 
 
 @pytest.fixture(scope="module", name="ingress_requirer")
-def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
+def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, application: str):
     """Deploy and configure any-charm to serve as an ingress requirer for the ingress interface."""
     if pytestconfig.getoption("--no-setup") and INGRESS_REQUIRER_APP_NAME in juju.status().apps:
         yield INGRESS_REQUIRER_APP_NAME
@@ -210,5 +210,6 @@ def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     )
     for unit in juju.status().apps[INGRESS_REQUIRER_APP_NAME].units.keys():
         juju.run(unit, "rpc", {"method": "start_server"})
-    juju.wait(lambda status: jubilant.all_blocked(status, INGRESS_REQUIRER_APP_NAME))
+    juju.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{application}:ingress")
+    juju.wait(lambda status: jubilant.all_active(status, INGRESS_REQUIRER_APP_NAME))
     yield INGRESS_REQUIRER_APP_NAME

@@ -1,7 +1,7 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Helper methods for the state module."""
+"""Helper methods to validate the charm state."""
 
 import logging
 import re

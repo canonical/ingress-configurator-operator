@@ -63,6 +63,8 @@ def test_get_integrator_information():
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
         "backend-ports": "8080,8081",
+        "paths": "/api/v1,/api/v2",
+        "subdomains": "api",
     }
     info = state.IntegratorInformation.from_charm(charm)
     assert [str(address) for address in info.backend_addresses] == charm.config.get(
@@ -71,6 +73,8 @@ def test_get_integrator_information():
     assert [str(port) for port in info.backend_ports] == charm.config.get("backend-ports").split(
         ","
     )
+    assert info.paths == charm.config.get("paths", "").split(",")
+    assert info.subdomains == charm.config.get("subdomains", "").split(",")
 
 
 def test_get_integrator_information_no_address():

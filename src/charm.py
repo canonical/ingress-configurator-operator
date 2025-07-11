@@ -60,7 +60,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 retry_redispatch=charm_state.retry_redispatch,
             )
             proxied_endpoints = self._haproxy_route.get_proxied_endpoints()
-            if self._ingress:
+            if ingress_relation:
                 self._ingress.publish_url(ingress_relation, proxied_endpoints[0])
             self.unit.status = ops.ActiveStatus()
         except state.InvalidStateError as ex:

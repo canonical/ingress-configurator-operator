@@ -99,3 +99,35 @@ def test_get_integrator_information_no_port():
     }
     with pytest.raises(state.InvalidIntegratorConfigError):
         state.IntegratorInformation.from_charm(charm)
+
+
+def test_config_changed_integrator_invalid_paths():
+    """
+    arrange: mock a charm with backend address, port configuration and invalid paths.
+    act: instantiate a State
+    assert: a InvalidIntegratorConfigError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1,127.0.0.2",
+        "backend-ports": "8080,8081",
+        "paths": "invalid path",
+    }
+    with pytest.raises(state.InvalidIntegratorConfigError):
+        state.IntegratorInformation.from_charm(charm)
+
+
+def test_config_changed_integrator_invalid_subdomains():
+    """
+    arrange: mock a charm with backend address, port configuration and invalid subdomains.
+    act: instantiate a State
+    assert: a InvalidIntegratorConfigError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1,127.0.0.2",
+        "backend-ports": "8080,8081",
+        "subdomains": "invalid$subdomains",
+    }
+    with pytest.raises(state.InvalidIntegratorConfigError):
+        state.IntegratorInformation.from_charm(charm)

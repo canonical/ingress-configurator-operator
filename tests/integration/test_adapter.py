@@ -12,7 +12,7 @@ from .conftest import MOCK_HAPROXY_HOSTNAME
 from .helper import haproxy_request
 
 
-def test_adapter(
+def test_adapter_end_to_end_routing(
     juju: jubilant.Juju,
     application: str,
     haproxy: str,

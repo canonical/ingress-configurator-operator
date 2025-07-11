@@ -13,7 +13,7 @@ from pydantic import BeforeValidator, Field, ValidationError
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
-from helper import get_invalid_config_fields, validate_path, validate_subdomain
+from validators import get_invalid_config_fields, validate_path, validate_subdomain
 
 logger = logging.getLogger()
 CHARM_CONFIG_DELIMITER = ","

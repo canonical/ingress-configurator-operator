@@ -55,9 +55,11 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 service=charm_state.service,
                 ports=charm_state.backend_ports,
                 hosts=[str(address) for address in charm_state.backend_addresses],
+                paths=charm_state.paths,
                 retry_count=charm_state.retry_count,
                 retry_interval=charm_state.retry_interval,
                 retry_redispatch=charm_state.retry_redispatch,
+                subdomains=charm_state.subdomains,
             )
             proxied_endpoints = self._haproxy_route.get_proxied_endpoints()
             if ingress_relation:

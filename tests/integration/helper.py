@@ -3,24 +3,21 @@
 
 """Helper methods for integration tests."""
 
-import ipaddress
 from urllib.parse import urlparse
 
-from requests import Session
+from requests import Response, Session
 from requests.adapters import DEFAULT_POOLBLOCK, DEFAULT_POOLSIZE, DEFAULT_RETRIES, HTTPAdapter
-
-from .conftest import MOCK_HAPROXY_HOSTNAME
 
 
 class DNSResolverHTTPSAdapter(HTTPAdapter):
-    """A simple mounted DNS resolver for HTTP requests."""
+    """A simple mounted DNS resolver for HTTP requests, with retry support."""
 
     def __init__(
         self,
         hostname,
         ip,
     ):
-        """Initialize the dns resolver.
+        """Initialize the DNS resolver with retry configuration.
 
         Args:
             hostname: DNS entry to resolve.
@@ -28,10 +25,11 @@ class DNSResolverHTTPSAdapter(HTTPAdapter):
         """
         self.hostname = hostname
         self.ip = ip
+
         super().__init__(
+            max_retries=DEFAULT_RETRIES,
             pool_connections=DEFAULT_POOLSIZE,
             pool_maxsize=DEFAULT_POOLSIZE,
-            max_retries=DEFAULT_RETRIES,
             pool_block=DEFAULT_POOLBLOCK,
         )
 
@@ -72,23 +70,18 @@ class DNSResolverHTTPSAdapter(HTTPAdapter):
         return super().send(request, stream, timeout, verify, cert, proxies)
 
 
-def haproxy_request(public_address: str):
-    """Make a request to the HAPRoxy server.
+def haproxy_request(session: Session, url: str) -> Response:
+    """Make a request to the HAProxy service.
 
     Args:
-        public_address: the IP address of HAProxy.
+        session: Requests session with custom DNS resolution.
+        url: URL to request from the HAProxy service.
 
-    Returns: the response for the request.
+    Returns:
+        Response: HTTP response from the HAProxy service.
     """
-    haproxy_address = ipaddress.ip_address(public_address)
-    session = Session()
-    session.mount(
-        "https://",
-        DNSResolverHTTPSAdapter(MOCK_HAPROXY_HOSTNAME, str(haproxy_address)),
-    )
-    response = session.get(
-        f"https://{MOCK_HAPROXY_HOSTNAME}",
+    return session.get(
+        url,
         timeout=30,
         verify=False,  # nosec - calling charm ingress URL
     )
-    return response

@@ -11,24 +11,6 @@ def pytest_addoption(parser):
         parser: Pytest parser.
     """
     parser.addoption("--charm-file", action="store")
-    parser.addoption(
-        "--keep-models",
-        action="store_true",
-        default=False,
-        help="keep temporarily-created models",
-    )
-    parser.addoption(
-        "--model",
-        action="store",
-        help="Juju model to use; if not provided, a new model "
-        "will be created for each test which requires one",
-    )
-    parser.addoption(
-        "--no-deploy",
-        action="store_true",
-        default=False,
-        help="do not deploy the charm, assume it is already deployed",
-    )
 
 
 def pytest_configure(config):

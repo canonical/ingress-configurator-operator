@@ -15,3 +15,10 @@ Each revision is versioned by the date of the revision.
 ### Added 
 
 - Add ingress integration support
+
+
+## 2025-07-09
+
+### Added 
+
+- Add path and subdomain configuration to the `ingress-configurator` charm.

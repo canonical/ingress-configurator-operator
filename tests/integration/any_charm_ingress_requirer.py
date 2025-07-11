@@ -44,4 +44,4 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
 
     def _on_ingress_relation_changed(self, _: ops.ConfigChangedEvent):
         """Relation changed handler."""
-        self.unit.status = ops.ActiveStatus()
+        self.unit.status = ops.ActiveStatus("Server Ready")

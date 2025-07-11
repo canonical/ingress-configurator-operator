@@ -4,15 +4,16 @@
 """ingress-configurator-operator integrator information."""
 
 import logging
-import typing
-from typing import Annotated
+from typing import Annotated, cast
 
 import ops
 from annotated_types import Len
 from charms.traefik_k8s.v2.ingress import IngressRequirerData
-from pydantic import Field, ValidationError
+from pydantic import BeforeValidator, Field, ValidationError
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
+
+from validators import get_invalid_config_fields, value_has_valid_characters
 
 logger = logging.getLogger()
 CHARM_CONFIG_DELIMITER = ","
@@ -32,7 +33,7 @@ class BackendState:
     """
 
     backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
-    backend_ports: Annotated[list[typing.Annotated[int, Field(gt=0, le=65535)]], Len(min_length=1)]
+    backend_ports: Annotated[list[Annotated[int, Field(gt=0, le=65535)]], Len(min_length=1)]
 
 
 @dataclass(frozen=True)
@@ -46,6 +47,8 @@ class State:
         retry_count: Number of times to retry failed requests.
         retry_interval: Interval between retries in seconds.
         retry_redispatch: Whether to redispatch failed requests to another server.
+        paths: List of URL paths to route to the service.
+        subdomains: List of subdomains to route to the service.
     """
 
     _backend_state: BackendState
@@ -53,6 +56,10 @@ class State:
     retry_count: int | None = Field(gt=0)
     retry_interval: int | None = Field(gt=0)
     retry_redispatch: bool | None = False
+    paths: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(default=[])
+    subdomains: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(
+        default=[]
+    )
 
     @property
     def backend_addresses(self) -> list[IPvAnyAddress]:
@@ -81,37 +88,43 @@ class State:
         """
         config_backend_addresses = (
             [
-                typing.cast(IPvAnyAddress, address)
-                for address in typing.cast(str, charm.config.get("backend-addresses")).split(",")
+                cast(IPvAnyAddress, address)
+                for address in cast(str, charm.config.get("backend-addresses")).split(",")
             ]
             if charm.config.get("backend-addresses")
             else []
         )
         config_backend_ports = (
-            [int(port) for port in typing.cast(str, charm.config.get("backend-ports")).split(",")]
+            [int(port) for port in cast(str, charm.config.get("backend-ports")).split(",")]
             if charm.config.get("backend-ports")
             else []
         )
         ingress_backend_ports = [ingress_data.app.port] if ingress_data else []
         ingress_backend_addresses = (
-            [typing.cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units]
-            if ingress_data
+            [cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units] if ingress_data else []
+        )
+        paths = (
+            cast(str, charm.config.get("paths")).split(CHARM_CONFIG_DELIMITER)
+            if charm.config.get("paths")
             else []
         )
         retry_count = (
-            typing.cast(int, charm.config.get("retry-count"))
-            if charm.config.get("retry-count")
-            else None
+            cast(int, charm.config.get("retry-count")) if charm.config.get("retry-count") else None
         )
         retry_interval = (
-            typing.cast(int, charm.config.get("retry-interval"))
+            cast(int, charm.config.get("retry-interval"))
             if charm.config.get("retry-interval")
             else None
         )
         retry_redispatch = (
-            typing.cast(bool, charm.config.get("retry-redispatch"))
+            cast(bool, charm.config.get("retry-redispatch"))
             if charm.config.get("retry-redispatch")
             else None
+        )
+        subdomains = (
+            cast(str, charm.config.get("subdomains")).split(CHARM_CONFIG_DELIMITER)
+            if charm.config.get("subdomains")
+            else []
         )
         try:
             config_backend = config_backend_addresses or config_backend_ports
@@ -123,10 +136,12 @@ class State:
             backend_ports = config_backend_ports or ingress_backend_ports
             return cls(
                 _backend_state=BackendState(backend_addresses, backend_ports),
-                service=f"{charm.model.name}-{charm.app.name}",
+                paths=paths,
                 retry_count=retry_count,
                 retry_interval=retry_interval,
                 retry_redispatch=retry_redispatch,
+                service=f"{charm.model.name}-{charm.app.name}",
+                subdomains=subdomains,
             )
         except ValidationError as exc:
             logger.error(str(exc))
@@ -137,17 +152,3 @@ class State:
         except ValueError as exc:
             logger.error(str(exc))
             raise InvalidStateError("State contains invalid value(s).") from exc
-
-
-def get_invalid_config_fields(exc: ValidationError) -> list[str]:
-    """Return a list on invalid config from pydantic validation error.
-
-    Args:
-        exc: The validation error exception.
-
-    Returns:
-        str: list of fields that failed validation.
-    """
-    logger.info(exc.errors())
-    error_fields = ["-".join([str(i) for i in error["loc"]]) for error in exc.errors()]
-    return error_fields

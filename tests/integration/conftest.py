@@ -54,14 +54,6 @@ def juju_fixture(request: pytest.FixtureRequest):
             log = juju.debug_log(limit=1000)
             print(log, end="")
 
-    use_existing = request.config.getoption("--use-existing", default=False)
-    if use_existing:
-        juju = jubilant.Juju()
-        juju.wait_timeout = JUJU_WAIT_TIMEOUT
-        yield juju
-        show_debug_log(juju)
-        return
-
     model = request.config.getoption("--model")
     if model:
         juju = jubilant.Juju(model=model)

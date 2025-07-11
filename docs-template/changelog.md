@@ -10,6 +10,10 @@ Each revision is versioned by the date of the revision.
 
 ### Added 
 
+- Add retry-count, retry-interval and retry-redispatch configurations
+
+### Added 
+
 - Add ingress integration support
 
 

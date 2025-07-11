@@ -30,6 +30,7 @@ CERTIFICATES_APP_NAME = "self-signed-certificates"
 CERTIFICATES_CHANNEL = "1/stable"
 CERTIFICATES_REVISION = 263
 ANY_CHARM_APP_NAME = "any-charm-backend"
+INGRESS_REQUIRER_APP_NAME = "ingress-requirer"
 
 
 @pytest.fixture(scope="session", name="charm")
@@ -181,13 +182,15 @@ def http_session(juju: jubilant.Juju) -> Callable[[Optional[str]], Session]:
 
 
 @pytest.fixture(scope="module", name="ingress_requirer")
-def ingress_requirer_fixture(juju: jubilant.Juju):
+def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     """Deploy and configure any-charm to serve as an ingress requirer for the ingress interface."""
-    app_name = "ingress-requirer"
+    if pytestconfig.getoption("--no-setup") and INGRESS_REQUIRER_APP_NAME in juju.status().apps:
+        yield INGRESS_REQUIRER_APP_NAME
+        return
     juju.deploy(
         charm="any-charm",
         channel="beta",
-        app=app_name,
+        app=INGRESS_REQUIRER_APP_NAME,
         config={
             "src-overwrite": json.dumps(
                 {
@@ -200,8 +203,12 @@ def ingress_requirer_fixture(juju: jubilant.Juju):
             "python-packages": "pydantic",
         },
     )
-    juju.wait(lambda status: jubilant.all_active(status, app_name, "self-signed-certificates"))
-    for unit in juju.status().apps[app_name].units.keys():
+    juju.wait(
+        lambda status: jubilant.all_active(
+            status, INGRESS_REQUIRER_APP_NAME, "self-signed-certificates"
+        )
+    )
+    for unit in juju.status().apps[INGRESS_REQUIRER_APP_NAME].units.keys():
         juju.run(unit, "rpc", {"method": "start_server"})
-    juju.wait(lambda status: jubilant.all_active(status, app_name))
-    yield app_name
+    juju.wait(lambda status: jubilant.all_active(status, INGRESS_REQUIRER_APP_NAME))
+    yield INGRESS_REQUIRER_APP_NAME

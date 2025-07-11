@@ -13,7 +13,7 @@ from pydantic import BeforeValidator, Field, ValidationError
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
-from validators import get_invalid_config_fields, validate_path, validate_subdomain
+from validators import get_invalid_config_fields, value_has_valid_characters
 
 logger = logging.getLogger()
 CHARM_CONFIG_DELIMITER = ","
@@ -80,8 +80,10 @@ class IntegratorInformation:
     backend_ports: list[Annotated[int, Field(gt=0, le=65535)]] = Field(
         description="Configured list of backend ports in integrator mode."
     )
-    paths: list[Annotated[str, BeforeValidator(validate_path)]] = Field(default=[])
-    subdomains: list[Annotated[str, BeforeValidator(validate_subdomain)]] = Field(default=[])
+    paths: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(default=[])
+    subdomains: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(
+        default=[]
+    )
 
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> "IntegratorInformation":
@@ -147,8 +149,10 @@ class AdapterInformation:
     app_port: list[Annotated[int, Field(gt=0, le=65535)]] = Field(
         description="App port from the ingress relation in adapter mode."
     )
-    paths: list[Annotated[str, BeforeValidator(validate_path)]] = Field(default=[])
-    subdomains: list[Annotated[str, BeforeValidator(validate_subdomain)]] = Field(default=[])
+    paths: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(default=[])
+    subdomains: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(
+        default=[]
+    )
 
     @classmethod
     def from_charm(

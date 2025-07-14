@@ -93,6 +93,48 @@ class HealthCheck:
 
 
 @dataclass(frozen=True)
+class Timeout:
+    """Charm state that contains the timeout configuration.
+
+    Attributes:
+        server: Timeout for requests from haproxy to backend servers in seconds.
+        connect: Timeout for client requests to haproxy in seconds.
+        queue: Timeout for requests waiting in queue in seconds.
+    """
+
+    server: int | None = Field(gt=0)
+    connect: int | None = Field(gt=0)
+    queue: int | None = Field(gt=0)
+
+    @classmethod
+    def from_charm(cls, charm: ops.CharmBase) -> "Timeout":
+        """Create an Timeout class from a charm instance.
+
+        Args:
+            charm: the ingress-configurator charm.
+
+        Returns:
+            Retry: instance of the timeout component.
+        """
+        server = (
+            cast(int, charm.config.get("timeout-server"))
+            if charm.config.get("timeout-server")
+            else None
+        )
+        connect = (
+            cast(int, charm.config.get("timeout-connect"))
+            if charm.config.get("timeout-connect")
+            else None
+        )
+        queue = (
+            cast(int, charm.config.get("timeout-queue"))
+            if charm.config.get("timeout-queue")
+            else None
+        )
+        return cls(server=server, connect=connect, queue=queue)
+
+
+@dataclass(frozen=True)
 class Retry:
     """Charm state that contains the retry configuration.
 
@@ -143,6 +185,7 @@ class State:
         backend_ports: Configured list of backend ports.
         health_check: Health check configuration.
         retry: Retry configuration.
+        timeout: The timeout configuration.
         service: The service name.
         paths: List of URL paths to route to the service.
         subdomains: List of subdomains to route to the service.
@@ -151,6 +194,7 @@ class State:
     _backend_state: BackendState
     health_check: HealthCheck
     retry: Retry
+    timeout: Timeout
     service: str = Field(..., min_length=1)
     paths: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(default=[])
     subdomains: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(
@@ -221,6 +265,7 @@ class State:
                 paths=paths,
                 health_check=HealthCheck.from_charm(charm),
                 retry=Retry.from_charm(charm),
+                timeout=Timeout.from_charm(charm),
                 service=f"{charm.model.name}-{charm.app.name}",
                 subdomains=subdomains,
             )

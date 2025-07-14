@@ -73,6 +73,15 @@ config:
       type: boolean
       default: false
       description: Whether to redispatch failed requests to another server.
+    timeout-server:
+      type: int
+      description: Timeout for requests from haproxy to backend servers in seconds.
+    timeout-connect:
+      type: int
+      description: Timeout for client requests to haproxy in seconds.
+    timeout-queue:
+      type: int
+      description: Timeout for requests waiting in queue in seconds.
     subdomains:
       type: string
       description: Comma-separated list of subdomains to route to the service.

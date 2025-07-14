@@ -52,13 +52,18 @@ class IngressConfiguratorCharm(ops.CharmBase):
             )
             charm_state = state.State.from_charm(self, ingress_relation_data)
             self._haproxy_route.provide_haproxy_route_requirements(
-                service=charm_state.service,
-                ports=charm_state.backend_ports,
                 hosts=[str(address) for address in charm_state.backend_addresses],
+                check_interval=charm_state.health_check.interval,
+                check_rise=charm_state.health_check.rise,
+                check_fall=charm_state.health_check.fall,
+                check_path=charm_state.health_check.path,
+                check_port=charm_state.health_check.port,
                 paths=charm_state.paths,
-                retry_count=charm_state.retry_count,
-                retry_interval=charm_state.retry_interval,
-                retry_redispatch=charm_state.retry_redispatch,
+                ports=charm_state.backend_ports,
+                retry_count=charm_state.retry.count,
+                retry_interval=charm_state.retry.interval,
+                retry_redispatch=charm_state.retry.redispatch,
+                service=charm_state.service,
                 subdomains=charm_state.subdomains,
             )
             proxied_endpoints = self._haproxy_route.get_proxied_endpoints()

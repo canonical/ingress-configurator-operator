@@ -45,19 +45,19 @@ config:
     backend-ports:
       type: string
       description: (integrator mode) Comma-separated list of ports of the backend services.
-    check_interval:
+    check-interval:
       type: int
       description: Interval between health checks in seconds.
-    check_rise:
+    check-rise:
       type: int
       description: Number of successful health checks before server is considered up.
-    check_fall:
+    check-fall:
       type: int
       description: Number of failed health checks before server is considered down.
-    check_path:
-      type: str
+    check-path:
+      type: string
       description: The path to use for server health checks.
-    check_port:
+    check-port:
       type: int
       description: The port to use for http-check.
     paths:

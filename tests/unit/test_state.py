@@ -141,6 +141,38 @@ def test_state_from_charm_invalid_port():
         state.State.from_charm(charm, None)
 
 
+def test_state_from_charm_invalid_check_path():
+    """
+    arrange: mock a charm with backend address and invalid check-path configuration
+    act: instantiate a State
+    assert: a InvalidStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1,127.0.0.2",
+        "backend-ports": "8080,8081",
+        "check-path": "invalid$path",
+    }
+    with pytest.raises(state.InvalidStateError):
+        state.State.from_charm(charm, None)
+
+
+def test_state_from_charm_invalid_check_port():
+    """
+    arrange: mock a charm with backend address and invalid check-port configuration
+    act: instantiate a State
+    assert: a InvalidStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1,127.0.0.2",
+        "backend-ports": "8080,8081",
+        "check-port": 99999,
+    }
+    with pytest.raises(state.InvalidStateError):
+        state.State.from_charm(charm, None)
+
+
 def test_state_from_charm_invalid_check_interval():
     """
     arrange: mock a charm with backend address and invalid check-interval configuration
@@ -151,7 +183,7 @@ def test_state_from_charm_invalid_check_interval():
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
         "backend-ports": "8080,8081",
-        "check-interval": -1,
+        "check-interval": 0,
     }
     with pytest.raises(state.InvalidStateError):
         state.State.from_charm(charm, None)

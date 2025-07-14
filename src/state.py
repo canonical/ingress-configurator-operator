@@ -48,11 +48,11 @@ class HealthCheck:
         fall: Number of failed health checks before server is considered down.
     """
 
-    path: str | None
-    port: int | None
-    interval: int | None = Field(gt=1)
-    rise: int | None = Field(gt=1)
-    fall: int | None = Field(gt=1)
+    path: Annotated[str, BeforeValidator(value_has_valid_characters)] | None
+    port: int | None = Field(gt=0, le=65536)
+    interval: int | None = Field(gt=0)
+    rise: int | None = Field(gt=0)
+    fall: int | None = Field(gt=0)
 
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> "HealthCheck":

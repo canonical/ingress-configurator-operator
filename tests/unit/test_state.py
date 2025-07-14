@@ -56,6 +56,7 @@ def test_adapter_state_from_charm():
     assert charm_state.retry.count == charm.config.get("retry-count")
     assert charm_state.retry.interval == charm.config.get("retry-interval")
     assert charm_state.retry.redispatch == charm.config.get("retry-redispatch")
+    
     assert charm_state.timeout.server == charm.config.get("timeout-server")
     assert charm_state.timeout.connect == charm.config.get("timeout-connect")
     assert charm_state.timeout.queue == charm.config.get("timeout-queue")

@@ -92,7 +92,6 @@ class HealthCheck:
         return cls(interval=interval, rise=rise, fall=fall, path=path, port=port)
 
 
-@dataclass(frozen=True)
 class Timeout:
     """Charm state that contains the timeout configuration.
 

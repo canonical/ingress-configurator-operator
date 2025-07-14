@@ -66,20 +66,28 @@ class HealthCheck:
         """
         interval = (
             cast(int, charm.config.get("check-interval"))
-            if charm.config.get("check-interval")
+            if charm.config.get("check-interval") is not None
             else None
         )
         rise = (
-            cast(int, charm.config.get("check-rise")) if charm.config.get("check-rise") else None
+            cast(int, charm.config.get("check-rise"))
+            if charm.config.get("check-rise") is not None
+            else None
         )
         fall = (
-            cast(int, charm.config.get("check-fall")) if charm.config.get("check-fall") else None
+            cast(int, charm.config.get("check-fall"))
+            if charm.config.get("check-fall") is not None
+            else None
         )
         path = (
-            cast(str, charm.config.get("check-path")) if charm.config.get("check-path") else None
+            cast(str, charm.config.get("check-path"))
+            if charm.config.get("check-path") is not None
+            else None
         )
         port = (
-            cast(int, charm.config.get("check-port")) if charm.config.get("check-port") else None
+            cast(int, charm.config.get("check-port"))
+            if charm.config.get("check-port") is not None
+            else None
         )
         return cls(interval=interval, rise=rise, fall=fall, path=path, port=port)
 
@@ -109,16 +117,18 @@ class Retry:
             Retry: instance of the retry component.
         """
         count = (
-            cast(int, charm.config.get("retry-count")) if charm.config.get("retry-count") else None
+            cast(int, charm.config.get("retry-count"))
+            if charm.config.get("retry-count") is not None
+            else None
         )
         interval = (
             cast(int, charm.config.get("retry-interval"))
-            if charm.config.get("retry-interval")
+            if charm.config.get("retry-interval") is not None
             else None
         )
         redispatch = (
             cast(bool, charm.config.get("retry-redispatch"))
-            if charm.config.get("retry-redispatch")
+            if charm.config.get("retry-redispatch") is not None
             else None
         )
         return cls(count=count, interval=interval, redispatch=redispatch)

@@ -231,7 +231,7 @@ def test_state_from_charm_invalid_retry_count():
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
         "backend-ports": "8080,8081",
-        "retry-count": -1,
+        "retry-count": 0,
     }
     with pytest.raises(state.InvalidStateError):
         state.State.from_charm(charm, None)

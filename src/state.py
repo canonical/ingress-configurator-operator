@@ -104,7 +104,7 @@ class Retry:
 
     count: int | None = Field(gt=0)
     interval: int | None = Field(gt=0)
-    redispatch: bool | None = False
+    redispatch: bool | None = None
 
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> "Retry":

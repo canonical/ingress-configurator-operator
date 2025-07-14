@@ -48,11 +48,11 @@ class HealthCheck:
         fall: Number of failed health checks before server is considered down.
     """
 
-    path: str | None
-    port: int | None
-    interval: int | None = Field(gt=1)
-    rise: int | None = Field(gt=1)
-    fall: int | None = Field(gt=1)
+    path: Annotated[str, BeforeValidator(value_has_valid_characters)] | None
+    port: int | None = Field(gt=0, le=65536)
+    interval: int | None = Field(gt=0)
+    rise: int | None = Field(gt=0)
+    fall: int | None = Field(gt=0)
 
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> "HealthCheck":
@@ -65,21 +65,29 @@ class HealthCheck:
             HealthCheck: instance of the health check component.
         """
         interval = (
-            cast(int, charm.config.get("check-interval"))
-            if charm.config.get("check-interval")
+            cast(int, charm.config.get("health-check-interval"))
+            if charm.config.get("health-check-interval") is not None
             else None
         )
         rise = (
-            cast(int, charm.config.get("check-rise")) if charm.config.get("check-rise") else None
+            cast(int, charm.config.get("health-check-rise"))
+            if charm.config.get("health-check-rise") is not None
+            else None
         )
         fall = (
-            cast(int, charm.config.get("check-fall")) if charm.config.get("check-fall") else None
+            cast(int, charm.config.get("health-check-fall"))
+            if charm.config.get("health-check-fall") is not None
+            else None
         )
         path = (
-            cast(str, charm.config.get("check-path")) if charm.config.get("check-path") else None
+            cast(str, charm.config.get("health-check-path"))
+            if charm.config.get("health-check-path") is not None
+            else None
         )
         port = (
-            cast(int, charm.config.get("check-port")) if charm.config.get("check-port") else None
+            cast(int, charm.config.get("health-check-port"))
+            if charm.config.get("health-check-port") is not None
+            else None
         )
         return cls(interval=interval, rise=rise, fall=fall, path=path, port=port)
 
@@ -99,14 +107,14 @@ class Timeout:
     queue: int | None = Field(gt=0)
 
     @classmethod
-    def from_charm(cls, charm: ops.CharmBase) -> "Retry":
-        """Create an Retry class from a charm instance.
+    def from_charm(cls, charm: ops.CharmBase) -> "Timeout":
+        """Create an Timeout class from a charm instance.
 
         Args:
             charm: the ingress-configurator charm.
 
         Returns:
-            Retry: instance of the retry component.
+            Retry: instance of the timeout component.
         """
         server = (
             cast(int, charm.config.get("timeout-server"))
@@ -138,7 +146,7 @@ class Retry:
 
     count: int | None = Field(gt=0)
     interval: int | None = Field(gt=0)
-    redispatch: bool | None = False
+    redispatch: bool | None = None
 
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> "Retry":
@@ -151,16 +159,18 @@ class Retry:
             Retry: instance of the retry component.
         """
         count = (
-            cast(int, charm.config.get("retry-count")) if charm.config.get("retry-count") else None
+            cast(int, charm.config.get("retry-count"))
+            if charm.config.get("retry-count") is not None
+            else None
         )
         interval = (
             cast(int, charm.config.get("retry-interval"))
-            if charm.config.get("retry-interval")
+            if charm.config.get("retry-interval") is not None
             else None
         )
         redispatch = (
             cast(bool, charm.config.get("retry-redispatch"))
-            if charm.config.get("retry-redispatch")
+            if charm.config.get("retry-redispatch") is not None
             else None
         )
         return cls(count=count, interval=interval, redispatch=redispatch)
@@ -173,7 +183,7 @@ class State:
     Attributes:
         backend_addresses: Configured list of backend ip addresses.
         backend_ports: Configured list of backend ports.
-        check: Health check configuration.
+        health_check: Health check configuration.
         retry: Retry configuration.
         timeout: The timeout configuration.
         service: The service name.
@@ -182,7 +192,7 @@ class State:
     """
 
     _backend_state: BackendState
-    check: HealthCheck
+    health_check: HealthCheck
     retry: Retry
     timeout: Timeout
     service: str = Field(..., min_length=1)
@@ -253,7 +263,7 @@ class State:
             return cls(
                 _backend_state=BackendState(backend_addresses, backend_ports),
                 paths=paths,
-                check=HealthCheck.from_charm(charm),
+                health_check=HealthCheck.from_charm(charm),
                 retry=Retry.from_charm(charm),
                 timeout=Timeout.from_charm(charm),
                 service=f"{charm.model.name}-{charm.app.name}",

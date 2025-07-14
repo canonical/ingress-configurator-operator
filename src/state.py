@@ -141,7 +141,7 @@ class State:
     Attributes:
         backend_addresses: Configured list of backend ip addresses.
         backend_ports: Configured list of backend ports.
-        check: Health check configuration.
+        health_check: Health check configuration.
         retry: Retry configuration.
         service: The service name.
         paths: List of URL paths to route to the service.
@@ -149,7 +149,7 @@ class State:
     """
 
     _backend_state: BackendState
-    check: HealthCheck
+    health_check: HealthCheck
     retry: Retry
     service: str = Field(..., min_length=1)
     paths: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(default=[])
@@ -219,7 +219,7 @@ class State:
             return cls(
                 _backend_state=BackendState(backend_addresses, backend_ports),
                 paths=paths,
-                check=HealthCheck.from_charm(charm),
+                health_check=HealthCheck.from_charm(charm),
                 retry=Retry.from_charm(charm),
                 service=f"{charm.model.name}-{charm.app.name}",
                 subdomains=subdomains,

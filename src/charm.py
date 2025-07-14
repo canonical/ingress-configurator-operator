@@ -63,6 +63,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 retry_count=charm_state.retry.count,
                 retry_interval=charm_state.retry.interval,
                 retry_redispatch=charm_state.retry.redispatch,
+                server_timeout=charm_state.timeout.server,
+                connect_timeout=charm_state.timeout.connect,
+                queue_timeout=charm_state.timeout.queue,
                 service=charm_state.service,
                 subdomains=charm_state.subdomains,
             )

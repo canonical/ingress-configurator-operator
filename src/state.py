@@ -65,28 +65,28 @@ class HealthCheck:
             HealthCheck: instance of the health check component.
         """
         interval = (
-            cast(int, charm.config.get("check-interval"))
-            if charm.config.get("check-interval") is not None
+            cast(int, charm.config.get("health-check-interval"))
+            if charm.config.get("health-check-interval") is not None
             else None
         )
         rise = (
-            cast(int, charm.config.get("check-rise"))
-            if charm.config.get("check-rise") is not None
+            cast(int, charm.config.get("health-check-rise"))
+            if charm.config.get("health-check-rise") is not None
             else None
         )
         fall = (
-            cast(int, charm.config.get("check-fall"))
-            if charm.config.get("check-fall") is not None
+            cast(int, charm.config.get("health-check-fall"))
+            if charm.config.get("health-check-fall") is not None
             else None
         )
         path = (
-            cast(str, charm.config.get("check-path"))
-            if charm.config.get("check-path") is not None
+            cast(str, charm.config.get("health-check-path"))
+            if charm.config.get("health-check-path") is not None
             else None
         )
         port = (
-            cast(int, charm.config.get("check-port"))
-            if charm.config.get("check-port") is not None
+            cast(int, charm.config.get("health-check-port"))
+            if charm.config.get("health-check-port") is not None
             else None
         )
         return cls(interval=interval, rise=rise, fall=fall, path=path, port=port)

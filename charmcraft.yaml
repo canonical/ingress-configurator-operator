@@ -82,9 +82,12 @@ config:
     timeout-queue:
       type: int
       description: Timeout for requests waiting in queue in seconds.
-    subdomains:
+    hostname:
       type: string
-      description: Comma-separated list of subdomains to route to the service.
+      description: The hostname to route to the service.
+    additional-hostnames:
+      type: string
+      description: Comma-separated list of additional_hostnames to route to the service. Will be ignored if hostname is not set.
 
 charm-libs:
   - lib: haproxy.haproxy_route

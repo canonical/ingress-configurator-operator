@@ -67,7 +67,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 "connect_timeout": charm_state.timeout.connect,
                 "queue_timeout": charm_state.timeout.queue,
                 "service": charm_state.service,
-                "subdomains": charm_state.subdomains,
+                "hostname": charm_state.hostname,
+                "additional_hostnames": charm_state.additional_hostnames,
             }
             not_none_params = {k: v for k, v in params.items() if v is not None}
             self._haproxy_route.provide_haproxy_route_requirements(**not_none_params)

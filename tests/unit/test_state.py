@@ -36,7 +36,8 @@ def test_adapter_state_from_charm():
         "timeout-connect": 12,
         "timeout-queue": 13,
         "paths": "/api/v1,/api/v2",
-        "subdomains": "api",
+        "hostname": "api.example.com",
+        "additional-hostnames": "api2.example.com,api3.example.com",
     }
     ingress_relation_data = IngressRequirerData(
         app=IngressRequirerAppData(model="model", name="name", port=8080),
@@ -60,7 +61,8 @@ def test_adapter_state_from_charm():
     assert charm_state.timeout.connect == charm.config.get("timeout-connect")
     assert charm_state.timeout.queue == charm.config.get("timeout-queue")
     assert charm_state.paths == charm.config.get("paths").split(",")
-    assert charm_state.subdomains == charm.config.get("subdomains").split(",")
+    assert charm_state.hostname == charm.config.get("hostname")
+    assert charm_state.additional_hostnames == charm.config.get("additional-hostnames").split(",")
 
 
 def test_integrator_state_from_charm():
@@ -307,9 +309,9 @@ def test_state_from_charm_invalid_timeout_queue():
         state.State.from_charm(charm, None)
 
 
-def test_state_from_charm_invalid_subdomains():
+def test_state_from_charm_invalid_hostname():
     """
-    arrange: mock a charm with backend addresses, ports configuration and invalid subdomains
+    arrange: mock a charm with backend addresses, ports configuration and invalid hostname
     act: instantiate a State
     assert: a InvalidStateError is raised
     """
@@ -317,7 +319,7 @@ def test_state_from_charm_invalid_subdomains():
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
         "backend-ports": "8080,8081",
-        "subdomains": "invalid$subdomains",
+        "hostname": "invalid$hostname",
     }
     with pytest.raises(state.InvalidStateError):
         state.State.from_charm(charm, None)

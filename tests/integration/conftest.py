@@ -3,10 +3,10 @@
 
 """Integration tests configuration."""
 
-import ipaddress
 import json
 import pathlib
-from typing import Callable, Optional, cast
+from ipaddress import IPv4Address, IPv6Address, ip_address
+from typing import Callable, cast
 
 import jubilant
 import pytest
@@ -158,27 +158,20 @@ def any_charm_backend_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
 
 
 @pytest.fixture(scope="module")
-def http_session(juju: jubilant.Juju) -> Callable[[Optional[str]], Session]:
+def http_session() -> Callable[[list[tuple[str, IPv4Address | IPv6Address]]], Session]:
     """Create a requests session with custom DNS resolution."""
-    haproxy_app = juju.status().apps["haproxy"]
-    unit_entry = next(iter(haproxy_app.units.items()), None)
 
-    if unit_entry is not None:
-        _, haproxy_unit = unit_entry
-        haproxy_address = ipaddress.ip_address(haproxy_unit.public_address)
-
-        def _make_session(hostname: Optional[str] = MOCK_HAPROXY_HOSTNAME) -> Session:
-            """Create a requests session with custom DNS resolution."""
-            session = Session()
+    def _make_session(dns_entries: list[tuple[str, IPv4Address | IPv6Address]]) -> Session:
+        """Create a requests session with custom DNS resolution."""
+        session = Session()
+        for hostname, address in dns_entries:
             session.mount(
                 "https://",
-                DNSResolverHTTPSAdapter(hostname, str(haproxy_address)),
+                DNSResolverHTTPSAdapter(hostname, str(address)),
             )
-            return session
+        return session
 
-        return _make_session
-
-    raise RuntimeError("No haproxy unit found to determine public address")
+    return _make_session
 
 
 @pytest.fixture(scope="module", name="ingress_requirer")
@@ -213,3 +206,20 @@ def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, a
     juju.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{application}:ingress")
     juju.wait(lambda status: jubilant.all_active(status, INGRESS_REQUIRER_APP_NAME))
     yield INGRESS_REQUIRER_APP_NAME
+
+
+def get_unit_addresses(juju: jubilant.Juju, application: str) -> list[IPv4Address | IPv6Address]:
+    """Fetch all unit addresses from juju status.
+
+    Args:
+        juju: jubilant Juju class.
+        application: Name of the application
+
+    Returns:
+        The list of addresses of all the units of the application.
+    """
+    unit_addresses: list[IPv4Address | IPv6Address] = []
+    if application_status := juju.status().apps.get(application):
+        for unit_status in application_status.units.values():
+            unit_addresses.append(ip_address(unit_status.public_address))
+    return unit_addresses

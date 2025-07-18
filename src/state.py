@@ -246,7 +246,9 @@ class State:
             )
             ingress_backend_ports = [ingress_data.app.port] if ingress_data else []
             ingress_backend_addresses = (
-                [cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units] if ingress_data else []
+                [cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units]
+                if ingress_data
+                else []
             )
             paths = (
                 cast(str, charm.config.get("paths")).split(CHARM_CONFIG_DELIMITER)

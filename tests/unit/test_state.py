@@ -342,7 +342,7 @@ def test_state_from_charm_invalid_additional_hostnames():
         state.State.from_charm(charm, None)
 
 
-def test_state_from_charm_invalid_port():
+def test_state_from_charm_port_invalid_int():
     """
     arrange: mock a charm with invalid port config (not an integer)
     act: instantiate a State

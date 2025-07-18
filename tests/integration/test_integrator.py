@@ -8,44 +8,11 @@ import jubilant
 import pytest
 from requests import Session
 
-from .conftest import MOCK_HAPROXY_HOSTNAME
-from .helper import haproxy_request
-
-
-def test_ingress_integrator_end_to_end_routing(
-    juju: jubilant.Juju,
-    application: str,
-    haproxy: str,
-    any_charm_backend: str,
-    http_session: Callable[..., Session],
-):
-    """Test the integrator reaches the backend successfully through integrator mode.
-
-    Args:
-        juju: Jubilant juju fixture
-        application: Name of the ingress-configurator application.
-        haproxy: Name of the haproxy application.
-        any_charm_backend: Any charm running an apache webserver.
-        http_session: Modified requests session fixture for making HTTP requests.
-    """
-    juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
-    backend_addresses = ",".join(
-        [unit.public_address for unit in juju.status().apps[any_charm_backend].units.values()]
-    )
-    juju.config(
-        app=application, values={"backend-addresses": backend_addresses, "backend-ports": 80}
-    )
-    juju.wait(
-        lambda status: jubilant.all_active(status, haproxy, application, any_charm_backend),
-        error=jubilant.any_error,
-    )
-    session = http_session()
-    response = haproxy_request(session, f"https://{MOCK_HAPROXY_HOSTNAME}")
-    assert "Apache2 Default Page" in response.text
+from .conftest import MOCK_HAPROXY_HOSTNAME, get_unit_addresses
 
 
 @pytest.mark.abort_on_fail
-def test_config_subdomains_and_paths(
+def test_config_hostnames_and_paths(
     juju: jubilant.Juju,
     application: str,
     haproxy: str,
@@ -61,21 +28,54 @@ def test_config_subdomains_and_paths(
         any_charm_backend: Any charm running an apache webserver.
         http_session: Modified requests session fixture for making HTTP requests.
     """
-    juju.config(app=application, values={"paths": "/api/v1,/api/v2", "subdomains": "api"})
+    juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
+    backend_addresses = ",".join(
+        [str(address) for address in get_unit_addresses(juju, any_charm_backend)]
+    )
+    juju.config(
+        app=application,
+        values={
+            "backend-addresses": backend_addresses,
+            "backend-ports": 80,
+            "paths": "/api/v1,/api/v2",
+        },
+    )
     juju.wait(
         lambda status: jubilant.all_active(status, haproxy, application, any_charm_backend),
         error=jubilant.any_error,
     )
 
-    session = http_session(f"api.{MOCK_HAPROXY_HOSTNAME}")
-    response = haproxy_request(session, f"https://api.{MOCK_HAPROXY_HOSTNAME}/api/v1/")
-    assert response.status_code == 200
-    assert "v1 ok!" in response.text
+    haproxy_address = str(get_unit_addresses(juju, haproxy)[0])
+    session = http_session(
+        dns_entries=[
+            (MOCK_HAPROXY_HOSTNAME, haproxy_address),
+            (f"api.{MOCK_HAPROXY_HOSTNAME}", haproxy_address),
+            (f"api2.{MOCK_HAPROXY_HOSTNAME}", haproxy_address),
+            (f"api3.{MOCK_HAPROXY_HOSTNAME}", haproxy_address),
+        ]
+    )
 
-    response = haproxy_request(session, f"https://api.{MOCK_HAPROXY_HOSTNAME}/api/v2/")
-    assert response.status_code == 200
-    assert "v2 ok!" in response.text
+    for path_component in ["v1", "v2"]:
+        response = session.get(
+            f"https://{MOCK_HAPROXY_HOSTNAME}/api/{path_component}/", timeout=30, verify=False
+        )
+        assert response.status_code == 200 and f"{path_component} ok!" in response.text
 
-    session = http_session()
-    response = haproxy_request(session, f"https://{MOCK_HAPROXY_HOSTNAME}")
-    assert "Default page for the haproxy-operator charm" in response.text
+    juju.config(
+        app=application,
+        values={
+            "paths": "/api/v1",
+            "hostname": f"api.{MOCK_HAPROXY_HOSTNAME}",
+            "additional-hostnames": f"api2.{MOCK_HAPROXY_HOSTNAME},api3.{MOCK_HAPROXY_HOSTNAME}",
+        },
+    )
+    juju.wait(
+        lambda status: jubilant.all_active(status, haproxy, application, any_charm_backend),
+        error=jubilant.any_error,
+    )
+
+    for subdomain in ["api", "api2", "api3"]:
+        response = session.get(
+            f"https://{subdomain}.{MOCK_HAPROXY_HOSTNAME}/api/v1/", timeout=30, verify=False
+        )
+        assert response.status_code == 200 and "v1 ok!" in response.text

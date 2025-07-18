@@ -4,7 +4,7 @@
 """ingress-configurator-operator integrator information."""
 
 import logging
-from typing import Annotated, cast
+from typing import Annotated, Optional, cast
 
 import ops
 from annotated_types import Len
@@ -176,6 +176,7 @@ class Retry:
         return cls(count=count, interval=interval, redispatch=redispatch)
 
 
+# pylint: disable=too-many-instance-attributes,too-many-locals
 @dataclass(frozen=True)
 class State:
     """Charm state that contains the configuration.
@@ -188,7 +189,8 @@ class State:
         timeout: The timeout configuration.
         service: The service name.
         paths: List of URL paths to route to the service.
-        subdomains: List of subdomains to route to the service.
+        hostname: The hostname to route to the service.
+        additional_hostnames: List of additional hostnames to route to the service.
     """
 
     _backend_state: BackendState
@@ -197,8 +199,11 @@ class State:
     timeout: Timeout
     service: str = Field(..., min_length=1)
     paths: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(default=[])
-    subdomains: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(
-        default=[]
+    hostname: Optional[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(
+        default=None
+    )
+    additional_hostnames: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = (
+        Field(default=[])
     )
 
     @property
@@ -225,34 +230,38 @@ class State:
         Returns:
             State: instance of the state component.
         """
-        config_backend_addresses = (
-            [
-                cast(IPvAnyAddress, address)
-                for address in cast(str, charm.config.get("backend-addresses")).split(",")
-            ]
-            if charm.config.get("backend-addresses")
-            else []
-        )
-        config_backend_ports = (
-            [int(port) for port in cast(str, charm.config.get("backend-ports")).split(",")]
-            if charm.config.get("backend-ports")
-            else []
-        )
-        ingress_backend_ports = [ingress_data.app.port] if ingress_data else []
-        ingress_backend_addresses = (
-            [cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units] if ingress_data else []
-        )
-        paths = (
-            cast(str, charm.config.get("paths")).split(CHARM_CONFIG_DELIMITER)
-            if charm.config.get("paths")
-            else []
-        )
-        subdomains = (
-            cast(str, charm.config.get("subdomains")).split(CHARM_CONFIG_DELIMITER)
-            if charm.config.get("subdomains")
-            else []
-        )
         try:
+            config_backend_addresses = (
+                [
+                    cast(IPvAnyAddress, address)
+                    for address in cast(str, charm.config.get("backend-addresses")).split(",")
+                ]
+                if charm.config.get("backend-addresses")
+                else []
+            )
+            config_backend_ports = (
+                [int(port) for port in cast(str, charm.config.get("backend-ports")).split(",")]
+                if charm.config.get("backend-ports")
+                else []
+            )
+            ingress_backend_ports = [ingress_data.app.port] if ingress_data else []
+            ingress_backend_addresses = (
+                [cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units]
+                if ingress_data
+                else []
+            )
+            paths = (
+                cast(str, charm.config.get("paths")).split(CHARM_CONFIG_DELIMITER)
+                if charm.config.get("paths")
+                else []
+            )
+            hostname = cast(Optional[str], charm.config.get("hostname"))
+            additional_hostnames = (
+                cast(str, charm.config.get("additional-hostnames")).split(CHARM_CONFIG_DELIMITER)
+                if charm.config.get("additional-hostnames")
+                else []
+            )
+
             config_backend = config_backend_addresses or config_backend_ports
             ingress_backend = ingress_backend_addresses or ingress_backend_ports
             # Only backend configuration from a single origin is supported
@@ -267,7 +276,8 @@ class State:
                 retry=Retry.from_charm(charm),
                 timeout=Timeout.from_charm(charm),
                 service=f"{charm.model.name}-{charm.app.name}",
-                subdomains=subdomains,
+                hostname=hostname,
+                additional_hostnames=additional_hostnames,
             )
         except ValidationError as exc:
             logger.error(str(exc))

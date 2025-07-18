@@ -8,8 +8,7 @@ from typing import Callable
 import jubilant
 from requests import Session
 
-from .conftest import MOCK_HAPROXY_HOSTNAME
-from .helper import haproxy_request
+from .conftest import MOCK_HAPROXY_HOSTNAME, get_unit_addresses
 
 
 def test_adapter_end_to_end_routing(
@@ -34,6 +33,8 @@ def test_adapter_end_to_end_routing(
         error=jubilant.any_error,
     )
 
-    session = http_session()
-    response = haproxy_request(session, f"https://{MOCK_HAPROXY_HOSTNAME}")
+    session = http_session(
+        dns_entries=[(MOCK_HAPROXY_HOSTNAME, str(get_unit_addresses(juju, haproxy)[0]))]
+    )
+    response = session.get(f"https://{MOCK_HAPROXY_HOSTNAME}", verify=False, timeout=30)
     assert "Apache2 Default Page" in response.text

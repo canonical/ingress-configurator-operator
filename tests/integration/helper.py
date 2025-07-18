@@ -5,7 +5,6 @@
 
 from urllib.parse import urlparse
 
-from requests import Response, Session
 from requests.adapters import DEFAULT_POOLBLOCK, DEFAULT_POOLSIZE, DEFAULT_RETRIES, HTTPAdapter
 
 
@@ -68,20 +67,3 @@ class DNSResolverHTTPSAdapter(HTTPAdapter):
                 connection_pool_kwargs.pop("assert_hostname", None)
 
         return super().send(request, stream, timeout, verify, cert, proxies)
-
-
-def haproxy_request(session: Session, url: str) -> Response:
-    """Make a request to the HAProxy service.
-
-    Args:
-        session: Requests session with custom DNS resolution.
-        url: URL to request from the HAProxy service.
-
-    Returns:
-        Response: HTTP response from the HAProxy service.
-    """
-    return session.get(
-        url,
-        timeout=30,
-        verify=False,  # nosec - calling charm ingress URL
-    )

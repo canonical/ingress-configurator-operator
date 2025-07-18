@@ -166,7 +166,7 @@ def http_session() -> Callable[[list[tuple[str, IPv4Address | IPv6Address]]], Se
         session = Session()
         for hostname, address in dns_entries:
             session.mount(
-                "https://",
+                f"https://{hostname}",
                 DNSResolverHTTPSAdapter(hostname, str(address)),
             )
         return session

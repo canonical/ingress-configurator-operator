@@ -323,3 +323,35 @@ def test_state_from_charm_invalid_hostname():
     }
     with pytest.raises(state.InvalidStateError):
         state.State.from_charm(charm, None)
+
+
+def test_state_from_charm_invalid_additional_hostnames():
+    """
+    arrange: mock a charm with invalid additional-hostnames config
+    act: instantiate a State
+    assert: a InvalidStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1,127.0.0.2",
+        "backend-ports": "8080,8081",
+        "hostname": "valid.example.com",
+        "additional-hostnames": "invalid$\\",
+    }
+    with pytest.raises(state.InvalidStateError):
+        state.State.from_charm(charm, None)
+
+
+def test_state_from_charm_invalid_port():
+    """
+    arrange: mock a charm with invalid port config (not an integer)
+    act: instantiate a State
+    assert: a InvalidStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1,127.0.0.2",
+        "backend-ports": "invalid",
+    }
+    with pytest.raises(state.InvalidStateError):
+        state.State.from_charm(charm, None)

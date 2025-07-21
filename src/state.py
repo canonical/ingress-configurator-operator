@@ -95,7 +95,8 @@ class HealthCheck:
         all_or_none_health_checks_set = bool(interval) == bool(rise) == bool(fall)
         if not all_or_none_health_checks_set:
             raise InvalidStateError(
-                "Health check configuration is incomplete: interval, rise, and fall must all be set if any one of them is specified."
+                "Health check configuration is incomplete: interval, rise, and fall "
+                "must all be set if any one of them is specified."
             )
         return cls(interval=interval, rise=rise, fall=fall, path=path, port=port)
 

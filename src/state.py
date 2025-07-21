@@ -9,7 +9,7 @@ from typing import Annotated, Optional, cast
 import ops
 from annotated_types import Len
 from charms.traefik_k8s.v2.ingress import IngressRequirerData
-from pydantic import BeforeValidator, Field, ValidationError
+from pydantic import BeforeValidator, Field, ValidationError, model_validator
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
@@ -54,6 +54,23 @@ class HealthCheck:
     rise: int | None = Field(gt=0)
     fall: int | None = Field(gt=0)
 
+    @model_validator(mode="after")
+    def validate_health_check_all_set(self) -> "HealthCheck":
+        """Perform additional validations.
+
+        Returns: this class instance.
+
+        Raises:
+            ValueError: if the validation doesn't pass.
+        """
+        all_or_none_health_checks_set = bool(self.interval) == bool(self.rise) == bool(self.fall)
+        if not all_or_none_health_checks_set:
+            raise ValueError(
+                "Health check configuration is incomplete: interval, rise, and fall "
+                "must all be set if any one of them is specified."
+            )
+        return self
+
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> "HealthCheck":
         """Create an HealthCheck class from a charm instance.
@@ -63,9 +80,6 @@ class HealthCheck:
 
         Returns:
             HealthCheck: instance of the health check component.
-
-        Raises:
-            InvalidStateError: when the configuration is invalid.
         """
         interval = (
             cast(int, charm.config.get("health-check-interval"))
@@ -92,12 +106,6 @@ class HealthCheck:
             if charm.config.get("health-check-port") is not None
             else None
         )
-        all_or_none_health_checks_set = bool(interval) == bool(rise) == bool(fall)
-        if not all_or_none_health_checks_set:
-            raise InvalidStateError(
-                "Health check configuration is incomplete: interval, rise, and fall "
-                "must all be set if any one of them is specified."
-            )
         return cls(interval=interval, rise=rise, fall=fall, path=path, port=port)
 
 

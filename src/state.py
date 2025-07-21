@@ -63,6 +63,9 @@ class HealthCheck:
 
         Returns:
             HealthCheck: instance of the health check component.
+
+        Raises:
+            InvalidStateError: when the configuration is invalid.
         """
         interval = (
             cast(int, charm.config.get("health-check-interval"))
@@ -89,6 +92,11 @@ class HealthCheck:
             if charm.config.get("health-check-port") is not None
             else None
         )
+        all_or_none_heatth_checks_set = bool(interval) == bool(rise) == bool(fall)
+        if not all_or_none_heatth_checks_set:
+            raise InvalidStateError(
+                "Interval, raise and fall configurations need all to be defined if one is set."
+            )
         return cls(interval=interval, rise=rise, fall=fall, path=path, port=port)
 
 

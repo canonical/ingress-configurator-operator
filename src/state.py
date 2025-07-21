@@ -92,8 +92,8 @@ class HealthCheck:
             if charm.config.get("health-check-port") is not None
             else None
         )
-        all_or_none_heatth_checks_set = bool(interval) == bool(rise) == bool(fall)
-        if not all_or_none_heatth_checks_set:
+        all_or_none_health_checks_set = bool(interval) == bool(rise) == bool(fall)
+        if not all_or_none_health_checks_set:
             raise InvalidStateError(
                 "Interval, raise and fall configurations need all to be defined if one is set."
             )

@@ -229,6 +229,57 @@ def test_state_from_charm_invalid_check_fall():
         state.State.from_charm(charm, None)
 
 
+def test_state_from_charm_invalid_missing_check_interval():
+    """
+    arrange: mock a charm with backend address and unset health-check-interval configuration
+    act: instantiate a State
+    assert: a InvalidStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1,127.0.0.2",
+        "backend-ports": "8080,8081",
+        "health-check-rise": 3,
+        "health-check-fall": 4,
+    }
+    with pytest.raises(state.InvalidStateError):
+        state.State.from_charm(charm, None)
+
+
+def test_state_from_charm_invalid_missing_check_rise():
+    """
+    arrange: mock a charm with backend address and unset health-check-rise configuration
+    act: instantiate a State
+    assert: a InvalidStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1,127.0.0.2",
+        "backend-ports": "8080,8081",
+        "health-check-interval": 20,
+        "health-check-fall": 4,
+    }
+    with pytest.raises(state.InvalidStateError):
+        state.State.from_charm(charm, None)
+
+
+def test_state_from_charm_invalid_missing_check_fall():
+    """
+    arrange: mock a charm with backend address and unset health-check-fall configuration
+    act: instantiate a State
+    assert: a InvalidStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1,127.0.0.2",
+        "backend-ports": "8080,8081",
+        "health-check-interval": 20,
+        "health-check-rise": 3,
+    }
+    with pytest.raises(state.InvalidStateError):
+        state.State.from_charm(charm, None)
+
+
 def test_state_from_charm_invalid_retry_count():
     """
     arrange: mock a charm with backend address and invalid retry-count configuration

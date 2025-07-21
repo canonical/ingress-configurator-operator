@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Each revision is versioned by the date of the revision.
 
+## 2025-07-21
+
+### Changed
+
+ - Require interval, fall and rise health checks to either be all set or none
+
+
 ## 2025-07-14
 
 ### Added 

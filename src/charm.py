@@ -61,7 +61,6 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 "paths": charm_state.paths,
                 "ports": charm_state.backend_ports,
                 "retry_count": charm_state.retry.count,
-                "retry_interval": charm_state.retry.interval,
                 "retry_redispatch": charm_state.retry.redispatch,
                 "server_timeout": charm_state.timeout.server,
                 "connect_timeout": charm_state.timeout.connect,
@@ -74,7 +73,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self._haproxy_route.provide_haproxy_route_requirements(**not_none_params)
             proxied_endpoints = self._haproxy_route.get_proxied_endpoints()
             if ingress_relation and proxied_endpoints:
-                self._ingress.publish_url(ingress_relation, proxied_endpoints[0])
+                self._ingress.publish_url(ingress_relation, str(proxied_endpoints[0]))
             self.unit.status = ops.ActiveStatus()
         except state.InvalidStateError as ex:
             logger.exception("Invalid configuration")

@@ -50,7 +50,6 @@ class SomeCharm(CharmBase):
         upload_limit=<optional>,
         download_limit=<optional>,
         retry_count=<optional>,
-        retry_interval=<optional>,
         retry_redispatch=<optional>,
         deny_paths=<optional>,
         server_timeout=<optional>,
@@ -144,7 +143,7 @@ LIBAPI = 1
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 1
+LIBPATCH = 3
 
 logger = logging.getLogger(__name__)
 HAPROXY_ROUTE_RELATION_NAME = "haproxy-route"
@@ -396,12 +395,10 @@ class Retry(BaseModel):
 
     Attributes:
         count: How many times should a request retry.
-        interval: Interval (in seconds) between retries.
         redispatch: Whether to redispatch failed requests to another server.
     """
 
     count: int = Field(description="How many times should a request retry.")
-    interval: int = Field(description="Interval (in seconds) between retries.")
     redispatch: bool = Field(
         description="Whether to redispatch failed requests to another server.", default=False
     )
@@ -771,7 +768,12 @@ class HaproxyRouteProvider(Object):
         requirer_units_data: list[RequirerUnitData] = []
 
         for unit in relation.units:
-            databag = relation.data[unit]
+            databag = relation.data.get(unit)
+            if not databag:
+                logger.error(
+                    "Requirer unit data does not exist even though the unit is still present."
+                )
+                continue
             try:
                 data = cast(RequirerUnitData, RequirerUnitData.load(databag))
                 requirer_units_data.append(data)
@@ -867,7 +869,6 @@ class HaproxyRouteRequirer(Object):
         upload_limit: Optional[int] = None,
         download_limit: Optional[int] = None,
         retry_count: Optional[int] = None,
-        retry_interval: Optional[int] = None,
         retry_redispatch: bool = False,
         deny_paths: Optional[list[str]] = None,
         server_timeout: int = 60,
@@ -903,7 +904,6 @@ class HaproxyRouteRequirer(Object):
             upload_limit: Maximum upload bandwidth in bytes per second.
             download_limit: Maximum download bandwidth in bytes per second.
             retry_count: Number of times to retry failed requests.
-            retry_interval: Interval between retries in seconds.
             retry_redispatch: Whether to redispatch failed requests to another server.
             deny_paths: List of paths that should not be routed to the backend.
             server_timeout: Timeout for requests from haproxy to backend servers in seconds.
@@ -942,7 +942,6 @@ class HaproxyRouteRequirer(Object):
             upload_limit,
             download_limit,
             retry_count,
-            retry_interval,
             retry_redispatch,
             deny_paths,
             server_timeout,
@@ -995,7 +994,6 @@ class HaproxyRouteRequirer(Object):
         upload_limit: Optional[int] = None,
         download_limit: Optional[int] = None,
         retry_count: Optional[int] = None,
-        retry_interval: Optional[int] = None,
         retry_redispatch: bool = False,
         deny_paths: Optional[list[str]] = None,
         server_timeout: int = 60,
@@ -1029,7 +1027,6 @@ class HaproxyRouteRequirer(Object):
             upload_limit: Maximum upload bandwidth in bytes per second.
             download_limit: Maximum download bandwidth in bytes per second.
             retry_count: Number of times to retry failed requests.
-            retry_interval: Interval between retries in seconds.
             retry_redispatch: Whether to redispatch failed requests to another server.
             deny_paths: List of paths that should not be routed to the backend.
             server_timeout: Timeout for requests from haproxy to backend servers in seconds.
@@ -1061,7 +1058,6 @@ class HaproxyRouteRequirer(Object):
             upload_limit,
             download_limit,
             retry_count,
-            retry_interval,
             retry_redispatch,
             deny_paths,
             server_timeout,
@@ -1095,7 +1091,6 @@ class HaproxyRouteRequirer(Object):
         upload_limit: Optional[int] = None,
         download_limit: Optional[int] = None,
         retry_count: Optional[int] = None,
-        retry_interval: Optional[int] = None,
         retry_redispatch: bool = False,
         deny_paths: Optional[list[str]] = None,
         server_timeout: int = 60,
@@ -1128,7 +1123,6 @@ class HaproxyRouteRequirer(Object):
             upload_limit: Maximum upload bandwidth in bytes per second.
             download_limit: Maximum download bandwidth in bytes per second.
             retry_count: Number of times to retry failed requests.
-            retry_interval: Interval between retries in seconds.
             retry_redispatch: Whether to redispatch failed requests to another server.
             deny_paths: List of paths that should not be routed to the backend.
             server_timeout: Timeout for requests from haproxy to backend servers in seconds.
@@ -1196,9 +1190,7 @@ class HaproxyRouteRequirer(Object):
         ):
             application_data["rate_limit"] = rate_limit
 
-        if retry := self._generate_retry_configuration(
-            retry_count, retry_interval, retry_redispatch
-        ):
+        if retry := self._generate_retry_configuration(retry_count, retry_redispatch):
             application_data["retry"] = retry
         return application_data
 
@@ -1290,23 +1282,21 @@ class HaproxyRouteRequirer(Object):
         return rate_limit_configuration
 
     def _generate_retry_configuration(
-        self, count: Optional[int], interval: Optional[int], redispatch: bool
+        self, count: Optional[int], redispatch: bool
     ) -> dict[str, Any]:
         """Generate retry configuration.
 
         Args:
             count: Number of times to retry failed requests.
-            interval: Interval between retries in seconds.
             redispatch: Whether to redispatch failed requests to another server.
 
         Returns:
             dict[str, Any]: Retry configuration dictionary, or empty dict if retry not configured.
         """
         retry_configuration = {}
-        if count and interval:
+        if count:
             retry_configuration = {
                 "count": count,
-                "interval": interval,
                 "redispatch": redispatch,
             }
         return retry_configuration

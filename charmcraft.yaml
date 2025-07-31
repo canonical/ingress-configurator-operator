@@ -66,9 +66,7 @@ config:
     retry-count:
       type: int
       description: Number of times to retry failed requests.
-    retry-interval:
-      type: int
-      description: Interval between retries in seconds.
+      default: 0
     retry-redispatch:
       type: boolean
       default: false

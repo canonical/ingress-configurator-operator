@@ -279,8 +279,8 @@ class State:
                 else []
             )
 
-            config_backend = config_backend_addresses or config_backend_ports
-            ingress_backend = ingress_backend_addresses or ingress_backend_ports
+            config_backend = bool(config_backend_addresses or config_backend_ports)
+            ingress_backend = bool(ingress_backend_addresses or ingress_backend_ports)
             # Only backend configuration from a single origin is supported
             if config_backend == ingress_backend:
                 raise InvalidStateError("No valid mode detected.")

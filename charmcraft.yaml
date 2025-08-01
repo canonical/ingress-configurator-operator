@@ -45,6 +45,9 @@ config:
     backend-ports:
       type: string
       description: (integrator mode) Comma-separated list of ports of the backend services.
+    backend-protocol:
+      type: string
+      description: The protocol that the backend service speaks. "http" (default) or "https".
     health-check-interval:
       type: int
       description: Interval between health checks in seconds.

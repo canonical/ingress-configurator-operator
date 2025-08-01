@@ -60,6 +60,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 "check_port": charm_state.health_check.port,
                 "paths": charm_state.paths,
                 "ports": charm_state.backend_ports,
+                "protocol": charm_state.backend_protocol,
                 "retry_count": charm_state.retry.count,
                 "retry_interval": charm_state.retry.interval,
                 "retry_redispatch": charm_state.retry.redispatch,

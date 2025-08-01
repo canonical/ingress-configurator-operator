@@ -30,7 +30,6 @@ def test_adapter_state_from_charm():
         "health-check-path": "/health",
         "health-check-port": 8080,
         "retry-count": 1,
-        "retry-interval": 10,
         "retry-redispatch": True,
         "timeout-server": 11,
         "timeout-connect": 12,
@@ -55,7 +54,6 @@ def test_adapter_state_from_charm():
     assert charm_state.health_check.path == charm.config.get("health-check-path")
     assert charm_state.health_check.port == charm.config.get("health-check-port")
     assert charm_state.retry.count == charm.config.get("retry-count")
-    assert charm_state.retry.interval == charm.config.get("retry-interval")
     assert charm_state.retry.redispatch == charm.config.get("retry-redispatch")
     assert charm_state.timeout.server == charm.config.get("timeout-server")
     assert charm_state.timeout.connect == charm.config.get("timeout-connect")
@@ -76,7 +74,6 @@ def test_integrator_state_from_charm():
         "backend-addresses": "127.0.0.1,127.0.0.2",
         "backend-ports": "8080,8081",
         "retry-count": 1,
-        "retry-interval": 10,
         "retry-redispatch": True,
     }
     charm_state = state.State.from_charm(charm, None)
@@ -87,7 +84,6 @@ def test_integrator_state_from_charm():
         "backend-ports"
     ).split(",")
     assert charm_state.retry.count == charm.config.get("retry-count")
-    assert charm_state.retry.interval == charm.config.get("retry-interval")
     assert charm_state.retry.redispatch == charm.config.get("retry-redispatch")
 
 
@@ -291,22 +287,6 @@ def test_state_from_charm_invalid_retry_count():
         "backend-addresses": "127.0.0.1,127.0.0.2",
         "backend-ports": "8080,8081",
         "retry-count": 0,
-    }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
-
-
-def test_state_from_charm_invalid_retry_interval():
-    """
-    arrange: mock a charm with backend address and invalid retry-interval configuration
-    act: instantiate a State
-    assert: a InvalidStateError is raised
-    """
-    charm = Mock(CharmBase)
-    charm.config = {
-        "backend-addresses": "127.0.0.1,127.0.0.2",
-        "backend-ports": "8080,8081",
-        "retry-interval": -1,
     }
     with pytest.raises(state.InvalidStateError):
         state.State.from_charm(charm, None)

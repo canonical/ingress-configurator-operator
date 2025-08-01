@@ -161,7 +161,7 @@ class Retry:
     """
 
     count: Optional[int] = Field(gt=0)
-    redispatch: Optional[bool]
+    redispatch: Optional[bool] = None
 
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> "Retry":

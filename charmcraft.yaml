@@ -66,7 +66,6 @@ config:
     retry-count:
       type: int
       description: Number of times to retry failed requests.
-      default: 0
     retry-redispatch:
       type: boolean
       default: false

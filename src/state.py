@@ -159,13 +159,11 @@ class Retry:
 
     Attributes:
         count: Number of times to retry failed requests.
-        interval: Interval between retries in seconds.
         redispatch: Whether to redispatch failed requests to another server.
     """
 
-    count: int | None = Field(gt=0)
-    interval: int | None = Field(gt=0)
-    redispatch: bool | None = None
+    count: Optional[int] = Field(gt=0)
+    redispatch: Optional[bool] = None
 
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> "Retry":
@@ -177,22 +175,10 @@ class Retry:
         Returns:
             Retry: instance of the retry component.
         """
-        count = (
-            cast(int, charm.config.get("retry-count"))
-            if charm.config.get("retry-count") is not None
-            else None
+        return cls(
+            count=cast(Optional[int], charm.config.get("retry-count")),
+            redispatch=cast(Optional[bool], charm.config.get("retry-redispatch")),
         )
-        interval = (
-            cast(int, charm.config.get("retry-interval"))
-            if charm.config.get("retry-interval") is not None
-            else None
-        )
-        redispatch = (
-            cast(bool, charm.config.get("retry-redispatch"))
-            if charm.config.get("retry-redispatch") is not None
-            else None
-        )
-        return cls(count=count, interval=interval, redispatch=redispatch)
 
 
 # pylint: disable=too-many-instance-attributes,too-many-locals

@@ -3,7 +3,7 @@
 
 """Unit tests for the ingress configurator charm."""
 
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock
 
 import ops.testing
 import pytest
@@ -18,7 +18,8 @@ def test_config_changed_no_haproxy_route_relation(context):
     assert: status is blocked.
     """
     charm_state = ops.testing.State(
-        config={"backend-addresses": ",127.0.0.1,127.0.0.2", "backend-ports": "8080,8081"}
+        config={"backend-addresses": ",127.0.0.1,127.0.0.2", "backend-ports": "8080,8081"},
+        leader=True,
     )
 
     out = context.run(context.on.config_changed(), charm_state)
@@ -36,6 +37,7 @@ def test_config_changed_invalid_state(monkeypatch: pytest.MonkeyPatch, context):
     charm_state = ops.testing.State(
         config={"backend-addresses": "10.0.0.1,invalid", "backend-ports": "8080,8081"},
         relations=[ops.testing.Relation("haproxy-route")],
+        leader=True,
     )
 
     out = context.run(context.on.config_changed(), charm_state)
@@ -52,8 +54,31 @@ def test_config_changed_integrator(context):
     charm_state = ops.testing.State(
         config={"backend-addresses": "10.0.0.1,10.0.0.2", "backend-ports": "8080,8081"},
         relations=[ops.testing.Relation("haproxy-route")],
+        leader=True,
     )
 
     out = context.run(context.on.config_changed(), charm_state)
 
     assert out.unit_status == ops.testing.ActiveStatus()
+
+
+def test_protocol_propagated_to_haproxy(context: ops.testing.Context):
+    """Valid protocol should be copied from config to haproxy-route relation"""
+    in_ = ops.testing.State(
+        config={
+            "backend-addresses": "10.0.0.1",
+            "backend-ports": "80",
+            "backend-protocol": "https",
+        },
+        relations=[ops.testing.Relation("haproxy-route")],
+        leader=True,
+    )
+    out = context.run(context.on.config_changed(), in_)
+
+    assert out.unit_status == ops.testing.ActiveStatus("")
+    assert out.get_relations("haproxy-route")[0].local_app_data == {
+        "service": ANY,
+        "ports": "[80]",
+        "hosts": '["10.0.0.1"]',
+        "protocol": '"https"',
+    }

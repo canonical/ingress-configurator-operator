@@ -48,6 +48,7 @@ def test_adapter_state_from_charm():
         ingress_relation_data.units[0].ip
     ]
     assert charm_state.backend_ports == [ingress_relation_data.app.port]
+    assert charm_state.backend_protocol == "http"
     assert charm_state.health_check.interval == charm.config.get("health-check-interval")
     assert charm_state.health_check.rise == charm.config.get("health-check-rise")
     assert charm_state.health_check.fall == charm.config.get("health-check-fall")
@@ -83,6 +84,7 @@ def test_integrator_state_from_charm():
     assert [str(port) for port in charm_state.backend_ports] == charm.config.get(
         "backend-ports"
     ).split(",")
+    assert charm_state.backend_protocol == "http"
     assert charm_state.retry.count == charm.config.get("retry-count")
     assert charm_state.retry.redispatch == charm.config.get("retry-redispatch")
 
@@ -140,6 +142,18 @@ def test_state_from_charm_invalid_port():
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
         "backend-ports": "99999",
+    }
+    with pytest.raises(state.InvalidStateError):
+        state.State.from_charm(charm, None)
+
+
+def test_state_from_charm_invalid_protocol():
+    """Check that backend-protocol config field is validated."""
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1,127.0.0.2",
+        "backend-ports": "80",
+        "backend-protocol": "gopher",
     }
     with pytest.raises(state.InvalidStateError):
         state.State.from_charm(charm, None)

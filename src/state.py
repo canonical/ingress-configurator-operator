@@ -4,7 +4,7 @@
 """ingress-configurator-operator integrator information."""
 
 import logging
-from typing import Annotated, Optional, cast
+from typing import Annotated, Literal, Optional, cast
 
 import ops
 from annotated_types import Len
@@ -30,10 +30,12 @@ class BackendState:
     Attributes:
         backend_addresses: Configured list of backend ip addresses.
         backend_ports: Configured list of backend ports.
+        backend_protocol: The configured protocol for the backend.
     """
 
     backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
     backend_ports: Annotated[list[Annotated[int, Field(gt=0, le=65535)]], Len(min_length=1)]
+    backend_protocol: Literal["http", "https"]
 
 
 @dataclass(frozen=True)
@@ -187,6 +189,7 @@ class State:
     Attributes:
         backend_addresses: Configured list of backend ip addresses.
         backend_ports: Configured list of backend ports.
+        backend_protocol: The configured protocol for the backend.
         health_check: Health check configuration.
         retry: Retry configuration.
         timeout: The timeout configuration.
@@ -219,6 +222,11 @@ class State:
         """List of backend ports."""
         return self._backend_state.backend_ports
 
+    @property
+    def backend_protocol(self) -> Literal["http", "https"]:
+        """The backend protocol."""
+        return self._backend_state.backend_protocol
+
     @classmethod
     def from_charm(cls, charm: ops.CharmBase, ingress_data: IngressRequirerData | None) -> "State":
         """Create an State class from a charm instance.
@@ -247,6 +255,11 @@ class State:
                 if charm.config.get("backend-ports")
                 else []
             )
+            # The value will be validated by the BackendState constructor
+            backend_protocol = cast(
+                Literal["http", "https"],
+                (charm.config.get("backend-protocol") or "http"),
+            )
             ingress_backend_ports = [ingress_data.app.port] if ingress_data else []
             ingress_backend_addresses = (
                 [cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units]
@@ -265,15 +278,15 @@ class State:
                 else []
             )
 
-            config_backend = config_backend_addresses or config_backend_ports
-            ingress_backend = ingress_backend_addresses or ingress_backend_ports
+            config_backend = bool(config_backend_addresses or config_backend_ports)
+            ingress_backend = bool(ingress_backend_addresses or ingress_backend_ports)
             # Only backend configuration from a single origin is supported
             if config_backend == ingress_backend:
                 raise InvalidStateError("No valid mode detected.")
             backend_addresses = config_backend_addresses or ingress_backend_addresses
             backend_ports = config_backend_ports or ingress_backend_ports
             return cls(
-                _backend_state=BackendState(backend_addresses, backend_ports),
+                _backend_state=BackendState(backend_addresses, backend_ports, backend_protocol),
                 paths=paths,
                 health_check=HealthCheck.from_charm(charm),
                 retry=Retry.from_charm(charm),

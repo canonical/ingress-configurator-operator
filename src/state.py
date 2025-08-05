@@ -50,11 +50,11 @@ class HealthCheck:
         fall: Number of failed health checks before server is considered down.
     """
 
-    path: Annotated[str, BeforeValidator(value_has_valid_characters)] | None
-    port: int | None = Field(gt=0, le=65536)
-    interval: int | None = Field(gt=0)
-    rise: int | None = Field(gt=0)
-    fall: int | None = Field(gt=0)
+    path: Optional[Annotated[str, BeforeValidator(value_has_valid_characters)]]
+    port: Optional[int] = Field(gt=0, le=65536)
+    interval: Optional[int] = Field(gt=0)
+    rise: Optional[int] = Field(gt=0)
+    fall: Optional[int] = Field(gt=0)
 
     @model_validator(mode="after")
     def validate_health_check_all_set(self) -> "HealthCheck":
@@ -83,32 +83,13 @@ class HealthCheck:
         Returns:
             HealthCheck: instance of the health check component.
         """
-        interval = (
-            cast(int, charm.config.get("health-check-interval"))
-            if charm.config.get("health-check-interval") is not None
-            else None
+        return cls(
+            interval=cast(Optional[int], charm.config.get("health-check-interval")),
+            rise=cast(Optional[int], charm.config.get("health-check-rise")),
+            fall=cast(Optional[int], charm.config.get("health-check-fall")),
+            path=cast(Optional[str], charm.config.get("health-check-path")),
+            port=cast(Optional[int], charm.config.get("health-check-port")),
         )
-        rise = (
-            cast(int, charm.config.get("health-check-rise"))
-            if charm.config.get("health-check-rise") is not None
-            else None
-        )
-        fall = (
-            cast(int, charm.config.get("health-check-fall"))
-            if charm.config.get("health-check-fall") is not None
-            else None
-        )
-        path = (
-            cast(str, charm.config.get("health-check-path"))
-            if charm.config.get("health-check-path") is not None
-            else None
-        )
-        port = (
-            cast(int, charm.config.get("health-check-port"))
-            if charm.config.get("health-check-port") is not None
-            else None
-        )
-        return cls(interval=interval, rise=rise, fall=fall, path=path, port=port)
 
 
 @dataclass(frozen=True)

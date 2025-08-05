@@ -326,18 +326,9 @@ class ServerHealthCheck(BaseModel):
         Returns:
             The validated model.
         """
-        if not (bool(self.interval) == bool(self.rise) == bool(self.fall)):
+        if not bool(self.interval) == bool(self.rise) == bool(self.fall):
             raise ValueError("All three of interval, rise and fall must be set.")
         return self
-
-    @property
-    def is_health_check_configured(self) -> bool:
-        """Indicate if the backend has activated health checks.
-
-        Returns:
-            bool: Whether health check has been configured.
-        """
-        return sum(bool(value is not None) for value in [self.interval, self.rise, self.fall]) == 3
 
 
 # tarpit is not yet implemented

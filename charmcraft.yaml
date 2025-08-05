@@ -88,6 +88,12 @@ config:
     additional-hostnames:
       type: string
       description: Comma-separated list of additional_hostnames to route to the service. Will be ignored if hostname is not set.
+    http-server-close:
+      type: boolean
+      default: false
+      description: |
+          If set to true, the server will close the connection after each request.
+          This can be useful for certain applications that do not support keep-alive.
 
 charm-libs:
   - lib: haproxy.haproxy_route

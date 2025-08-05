@@ -197,6 +197,7 @@ class State:
         paths: List of URL paths to route to the service.
         hostname: The hostname to route to the service.
         additional_hostnames: List of additional hostnames to route to the service.
+        http_server_close: Configure server close after request.
     """
 
     _backend_state: BackendState
@@ -211,6 +212,7 @@ class State:
     additional_hostnames: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = (
         Field(default=[])
     )
+    http_server_close: bool = Field(default=False)
 
     @property
     def backend_addresses(self) -> list[IPvAnyAddress]:
@@ -277,6 +279,7 @@ class State:
                 if charm.config.get("additional-hostnames")
                 else []
             )
+            http_server_close = cast(bool, charm.config.get("http-server-close"))
 
             config_backend = bool(config_backend_addresses or config_backend_ports)
             ingress_backend = bool(ingress_backend_addresses or ingress_backend_ports)
@@ -294,6 +297,7 @@ class State:
                 service=f"{charm.model.name}-{charm.app.name}",
                 hostname=hostname,
                 additional_hostnames=additional_hostnames,
+                http_server_close=http_server_close,
             )
         except ValidationError as exc:
             logger.error(str(exc))

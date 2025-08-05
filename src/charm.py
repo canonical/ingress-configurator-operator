@@ -69,6 +69,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 "service": charm_state.service,
                 "hostname": charm_state.hostname,
                 "additional_hostnames": charm_state.additional_hostnames,
+                "http_server_close": charm_state.http_server_close,
             }
             not_none_params = {k: v for k, v in params.items() if v is not None}
             self._haproxy_route.provide_haproxy_route_requirements(**not_none_params)

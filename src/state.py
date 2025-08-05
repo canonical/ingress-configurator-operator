@@ -8,6 +8,7 @@ from typing import Annotated, Literal, Optional, cast
 
 import ops
 from annotated_types import Len
+from charms.haproxy.v1.haproxy_route import LoadBalancingAlgorithm, LoadBalancingConfiguration
 from charms.traefik_k8s.v2.ingress import IngressRequirerData
 from pydantic import BeforeValidator, Field, ValidationError, model_validator
 from pydantic.dataclasses import dataclass
@@ -178,6 +179,7 @@ class State:
         paths: List of URL paths to route to the service.
         hostname: The hostname to route to the service.
         additional_hostnames: List of additional hostnames to route to the service.
+        load_balancing_configuration: Load balancing configuration.
     """
 
     _backend_state: BackendState
@@ -191,6 +193,9 @@ class State:
     )
     additional_hostnames: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = (
         Field(default=[])
+    )
+    load_balancing_configuration: LoadBalancingConfiguration = Field(
+        default=LoadBalancingConfiguration()
     )
 
     @property
@@ -266,6 +271,22 @@ class State:
                 raise InvalidStateError("No valid mode detected.")
             backend_addresses = config_backend_addresses or ingress_backend_addresses
             backend_ports = config_backend_ports or ingress_backend_ports
+
+            load_balancing_algorithm = LoadBalancingAlgorithm(
+                cast(
+                    Optional[str],
+                    charm.config.get(
+                        "load-balancing-algorithm", LoadBalancingAlgorithm.LEASTCONN.value
+                    ),
+                )
+            )
+            load_balancing_configuration = LoadBalancingConfiguration(
+                algorithm=load_balancing_algorithm,
+                cookie=cast(Optional[str], charm.config.get("load-balancing-cookie")),
+                consistent_hashing=cast(
+                    bool, charm.config.get("load-balancing-consistent-hashing", False)
+                ),
+            )
             return cls(
                 _backend_state=BackendState(backend_addresses, backend_ports, backend_protocol),
                 paths=paths,
@@ -275,6 +296,7 @@ class State:
                 service=f"{charm.model.name}-{charm.app.name}",
                 hostname=hostname,
                 additional_hostnames=additional_hostnames,
+                load_balancing_configuration=load_balancing_configuration,
             )
         except ValidationError as exc:
             logger.error(str(exc))

@@ -384,6 +384,8 @@ class LoadBalancingConfiguration(BaseModel):
     Attributes:
         algorithm: Algorithm to use for load balancing.
         cookie: Cookie name to use when algorithm is set to cookie.
+        consistent_hashing: Use consistent hashing to avoid redirection
+            when servers are added/removed.
     """
 
     algorithm: LoadBalancingAlgorithm = Field(
@@ -394,6 +396,38 @@ class LoadBalancingConfiguration(BaseModel):
         description="Only used when algorithm is COOKIE. Define the cookie to load balance on.",
         default=None,
     )
+    # Note: Later when the generic LoadBalancingAlgorithm.HASH is implemented this attribute
+    # will also apply under that mode.
+    consistent_hashing: bool = Field(
+        description=(
+            "Only used when the `algorithm` is SRCIP or COOKIE. "
+            "Use consistent hashing to avoid redirection when servers are added/removed. "
+            "Default is False as it usually does not give a balanced distribution."
+        ),
+        default=False,
+    )
+
+    @model_validator(mode="after")
+    def validate_attributes(self) -> Self:
+        """Check that algorithm-specific configs are only set with their respective algorithm.
+
+        Raises:
+            ValueError: When validation fails in one of these cases:
+                1. self.cookie is not None when self.algorithm != COOKIE
+                2. self.consistent_hashing is True when algorithm is neither COOKIE nor SRCIP
+
+        Returns:
+            The validated model.
+        """
+        if self.cookie is not None and self.algorithm != LoadBalancingAlgorithm.COOKIE:
+            raise ValueError("cookie only applies when algorithm is COOKIE.")
+
+        if self.consistent_hashing and self.algorithm not in [
+            LoadBalancingAlgorithm.COOKIE,
+            LoadBalancingAlgorithm.SRCIP,
+        ]:
+            raise ValueError("Consistent hashing only applies when algorithm is COOKIE or SRCIP.")
+        return self
 
 
 class BandwidthLimit(BaseModel):
@@ -895,6 +929,7 @@ class HaproxyRouteRequirer(Object):
         header_rewrite_expressions: Optional[list[tuple[str, str]]] = None,
         load_balancing_algorithm: LoadBalancingAlgorithm = LoadBalancingAlgorithm.LEASTCONN,
         load_balancing_cookie: Optional[str] = None,
+        load_balancing_consistent_hashing: bool = False,
         rate_limit_connections_per_minute: Optional[int] = None,
         rate_limit_policy: RateLimitPolicy = RateLimitPolicy.DENY,
         upload_limit: Optional[int] = None,
@@ -932,6 +967,7 @@ class HaproxyRouteRequirer(Object):
                 and rewrite expression.
             load_balancing_algorithm: Algorithm to use for load balancing.
             load_balancing_cookie: Cookie name to use when algorithm is set to cookie.
+            load_balancing_consistent_hashing: Whether to use consistent hashing.
             rate_limit_connections_per_minute: Maximum connections allowed per minute.
             rate_limit_policy: Policy to apply when rate limit is reached.
             upload_limit: Maximum upload bandwidth in bytes per second.
@@ -972,6 +1008,7 @@ class HaproxyRouteRequirer(Object):
             header_rewrite_expressions,
             load_balancing_algorithm,
             load_balancing_cookie,
+            load_balancing_consistent_hashing,
             rate_limit_connections_per_minute,
             rate_limit_policy,
             upload_limit,
@@ -1026,6 +1063,7 @@ class HaproxyRouteRequirer(Object):
         header_rewrite_expressions: Optional[list[tuple[str, str]]] = None,
         load_balancing_algorithm: LoadBalancingAlgorithm = LoadBalancingAlgorithm.LEASTCONN,
         load_balancing_cookie: Optional[str] = None,
+        load_balancing_consistent_hashing: bool = False,
         rate_limit_connections_per_minute: Optional[int] = None,
         rate_limit_policy: RateLimitPolicy = RateLimitPolicy.DENY,
         upload_limit: Optional[int] = None,
@@ -1061,6 +1099,7 @@ class HaproxyRouteRequirer(Object):
                 and rewrite expression.
             load_balancing_algorithm: Algorithm to use for load balancing.
             load_balancing_cookie: Cookie name to use when algorithm is set to cookie.
+            load_balancing_consistent_hashing: Whether to use consistent hashing.
             rate_limit_connections_per_minute: Maximum connections allowed per minute.
             rate_limit_policy: Policy to apply when rate limit is reached.
             upload_limit: Maximum upload bandwidth in bytes per second.
@@ -1094,6 +1133,7 @@ class HaproxyRouteRequirer(Object):
             header_rewrite_expressions,
             load_balancing_algorithm,
             load_balancing_cookie,
+            load_balancing_consistent_hashing,
             rate_limit_connections_per_minute,
             rate_limit_policy,
             upload_limit,
@@ -1129,6 +1169,7 @@ class HaproxyRouteRequirer(Object):
         header_rewrite_expressions: Optional[list[tuple[str, str]]] = None,
         load_balancing_algorithm: LoadBalancingAlgorithm = LoadBalancingAlgorithm.LEASTCONN,
         load_balancing_cookie: Optional[str] = None,
+        load_balancing_consistent_hashing: bool = False,
         rate_limit_connections_per_minute: Optional[int] = None,
         rate_limit_policy: RateLimitPolicy = RateLimitPolicy.DENY,
         upload_limit: Optional[int] = None,
@@ -1163,6 +1204,7 @@ class HaproxyRouteRequirer(Object):
                 rewrite expression.
             load_balancing_algorithm: Algorithm to use for load balancing.
             load_balancing_cookie: Cookie name to use when algorithm is set to cookie.
+            load_balancing_consistent_hashing: Whether to use consistent hashing.
             rate_limit_connections_per_minute: Maximum connections allowed per minute.
             rate_limit_policy: Policy to apply when rate limit is reached.
             upload_limit: Maximum upload bandwidth in bytes per second.
@@ -1208,6 +1250,7 @@ class HaproxyRouteRequirer(Object):
             "load_balancing": {
                 "algorithm": load_balancing_algorithm,
                 "cookie": load_balancing_cookie,
+                "consistent_hashing": load_balancing_consistent_hashing,
             },
             "timeout": {
                 "server": server_timeout,

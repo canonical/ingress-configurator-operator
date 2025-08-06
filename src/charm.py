@@ -51,6 +51,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 self._ingress.get_data(ingress_relation) if ingress_relation else None
             )
             charm_state = state.State.from_charm(self, ingress_relation_data)
+            # Assign consistent_hashing to a local variable due to line length limit
+            consistent_hashing = charm_state.load_balancing_configuration.consistent_hashing
             params = {
                 "hosts": [str(address) for address in charm_state.backend_addresses],
                 "check_interval": charm_state.health_check.interval,
@@ -69,6 +71,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 "service": charm_state.service,
                 "hostname": charm_state.hostname,
                 "additional_hostnames": charm_state.additional_hostnames,
+                "load_balancing_algorithm": charm_state.load_balancing_configuration.algorithm,
+                "load_balancing_cookie": charm_state.load_balancing_configuration.cookie,
+                "load_balancing_consistent_hashing": consistent_hashing,
             }
             not_none_params = {k: v for k, v in params.items() if v is not None}
             self._haproxy_route.provide_haproxy_route_requirements(**not_none_params)

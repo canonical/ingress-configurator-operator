@@ -87,8 +87,24 @@ config:
       description: The hostname to route to the backend service.
     additional-hostnames:
       type: string
-      description: Comma-separated list of additional_hostnames to route to the service. Will be ignored if hostname is not set.
-
+      description: |
+        Comma-separated list of additional_hostnames to route to the service.
+        Will be ignored if hostname is not set.
+    load-balancing-algorithm:
+      type: string
+      description: |
+        Algorithm to use to load balance incoming requests. 
+        Can be leastconn, roundrobin, cookie or source
+      default: leastconn
+    load-balancing-cookie:
+      type: string
+      description: Only applies with algorithm is "cookie". Cookie name to use for load balancing.
+    load-balancing-consistent-hashing:
+      type: boolean
+      description: |
+        Only applies when the `algorithm` is "source" or "cookie".
+        Use consistent hashing to avoid redirection when servers are added/removed.
+      default: false
 charm-libs:
   - lib: haproxy.haproxy_route
     version: "1"

@@ -6,6 +6,7 @@
 from unittest.mock import Mock
 
 import pytest
+from charms.haproxy.v1.haproxy_route import LoadBalancingAlgorithm
 from charms.traefik_k8s.v2.ingress import (
     IngressRequirerAppData,
     IngressRequirerData,
@@ -400,3 +401,60 @@ def test_state_from_charm_port_invalid_int():
     }
     with pytest.raises(state.InvalidStateError):
         state.State.from_charm(charm, None)
+
+
+def test_state_from_charm_invalid_load_balancing_algorithm():
+    """
+    arrange: mock a charm with an invalid loadbalancing algorithm
+    act: instantiate a State
+    assert: a InvalidStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1",
+        "backend-ports": "80",
+        "load-balancing-algorithm": "invalid",
+    }
+    with pytest.raises(state.InvalidStateError):
+        state.State.from_charm(charm, None)
+
+
+def test_state_from_charm_invalid_load_balancing_configuration():
+    """
+    arrange: mock a charm with invalid loadbalancing configurations
+    act: instantiate a State
+    assert: a InvalidStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1",
+        "backend-ports": "80",
+        "load-balancing-algorithm": "leastconn",
+        "load-balancing-cookie": "TEST",
+    }
+    with pytest.raises(state.InvalidStateError):
+        state.State.from_charm(charm, None)
+
+    charm.config = {
+        "backend-addresses": "127.0.0.1",
+        "backend-ports": "80",
+        "load-balancing-algorithm": "leastconn",
+        "load-balancing-consistent-hashing": True,
+    }
+    with pytest.raises(state.InvalidStateError):
+        state.State.from_charm(charm, None)
+
+
+def test_state_from_charm_load_balancing_default_value():
+    """
+    arrange: mock a charm with invalid loadbalancing configurations
+    act: instantiate a State
+    assert: a InvalidStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1",
+        "backend-ports": "80",
+    }
+    charm_state = state.State.from_charm(charm, None)
+    assert charm_state.load_balancing_configuration.algorithm == LoadBalancingAlgorithm.LEASTCONN

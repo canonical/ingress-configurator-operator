@@ -265,7 +265,7 @@ class State:
                 if charm.config.get("additional-hostnames")
                 else []
             )
-            http_server_close = cast(bool, charm.config.get("http-server-close"))
+            http_server_close = cast(bool, charm.config.get("http-server-close", False))
 
             config_backend = bool(config_backend_addresses or config_backend_ports)
             ingress_backend = bool(ingress_backend_addresses or ingress_backend_ports)

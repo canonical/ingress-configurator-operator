@@ -61,6 +61,7 @@ class SomeCharm(CharmBase):
         queue_timeout=<optional>,
         server_maxconn=<optional>,
         unit_address=<optional>,
+        http_server_close=<optional>,
     )
 
     # 2.To initialize the requirer with no parameters, i.e
@@ -148,7 +149,7 @@ LIBAPI = 1
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 5
+LIBPATCH = 6
 
 logger = logging.getLogger(__name__)
 HAPROXY_ROUTE_RELATION_NAME = "haproxy-route"
@@ -534,6 +535,7 @@ class RequirerApplicationData(_DatabagModel):
         deny_paths: List of URL paths that should not be routed to the backend.
         timeout: Configuration for server, client, and queue timeouts.
         server_maxconn: Optional maximum number of connections per server.
+        http_server_close: Configure server close after request.
     """
 
     service: VALIDSTR = Field(description="The name of the service.")
@@ -581,6 +583,9 @@ class RequirerApplicationData(_DatabagModel):
     )
     server_maxconn: Optional[int] = Field(
         description="Configure maximum connection per server", default=None
+    )
+    http_server_close: bool = Field(
+        description="Configure server close after request", default=False
     )
 
     @field_validator("load_balancing")
@@ -937,6 +942,7 @@ class HaproxyRouteRequirer(Object):
         queue_timeout: int = 60,
         server_maxconn: Optional[int] = None,
         unit_address: Optional[str] = None,
+        http_server_close: bool = False,
     ) -> None:
         """Initialize the HaproxyRouteRequirer.
 
@@ -974,6 +980,7 @@ class HaproxyRouteRequirer(Object):
             queue_timeout: Timeout for requests waiting in queue in seconds.
             server_maxconn: Maximum connections per server.
             unit_address: IP address of the unit (if not provided, will use binding address).
+            http_server_close: Configure server close after request.
         """
         super().__init__(charm, relation_name)
 
@@ -1013,6 +1020,7 @@ class HaproxyRouteRequirer(Object):
             connect_timeout,
             queue_timeout,
             server_maxconn,
+            http_server_close,
         )
         self._unit_address = unit_address
 
@@ -1068,6 +1076,7 @@ class HaproxyRouteRequirer(Object):
         queue_timeout: int = 60,
         server_maxconn: Optional[int] = None,
         unit_address: Optional[str] = None,
+        http_server_close: bool = False,
     ) -> None:
         """Update haproxy-route requirements data in the relation.
 
@@ -1103,6 +1112,7 @@ class HaproxyRouteRequirer(Object):
             queue_timeout: Timeout for requests waiting in queue in seconds.
             server_maxconn: Maximum connections per server.
             unit_address: IP address of the unit (if not provided, will use binding address).
+            http_server_close: Configure server close after request.
         """
         self._unit_address = unit_address
         self._application_data = self._generate_application_data(
@@ -1135,6 +1145,7 @@ class HaproxyRouteRequirer(Object):
             connect_timeout,
             queue_timeout,
             server_maxconn,
+            http_server_close,
         )
         self.update_relation_data()
 
@@ -1170,6 +1181,7 @@ class HaproxyRouteRequirer(Object):
         connect_timeout: int = 60,
         queue_timeout: int = 60,
         server_maxconn: Optional[int] = None,
+        http_server_close: bool = False,
     ) -> dict[str, Any]:
         """Generate the complete application data structure.
 
@@ -1204,6 +1216,7 @@ class HaproxyRouteRequirer(Object):
             connect_timeout: Timeout for client requests to haproxy in seconds.
             queue_timeout: Timeout for requests waiting in queue in seconds.
             server_maxconn: Maximum connections per server.
+            http_server_close: Configure server close after request.
 
         Returns:
             dict: A dictionary containing the complete application data structure.
@@ -1255,6 +1268,7 @@ class HaproxyRouteRequirer(Object):
                 query_rewrite_expressions,
                 header_rewrite_expressions,
             ),
+            "http_server_close": http_server_close,
         }
 
         if check := self._generate_server_healthcheck_configuration(

@@ -74,6 +74,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 "load_balancing_algorithm": charm_state.load_balancing_configuration.algorithm,
                 "load_balancing_cookie": charm_state.load_balancing_configuration.cookie,
                 "load_balancing_consistent_hashing": consistent_hashing,
+                "http_server_close": charm_state.http_server_close,
             }
             not_none_params = {k: v for k, v in params.items() if v is not None}
             self._haproxy_route.provide_haproxy_route_requirements(**not_none_params)

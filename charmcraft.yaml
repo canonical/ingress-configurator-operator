@@ -105,6 +105,13 @@ config:
         Only applies when the `algorithm` is "source" or "cookie".
         Use consistent hashing to avoid redirection when servers are added/removed.
       default: false
+    http-server-close:
+      type: boolean
+      default: false
+      description: |
+          If set to true, the server will close the connection after each request.
+          This can be useful for certain applications that do not support keep-alive.
+
 charm-libs:
   - lib: haproxy.haproxy_route
     version: "1"

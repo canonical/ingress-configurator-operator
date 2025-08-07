@@ -180,6 +180,7 @@ class State:
         hostname: The hostname to route to the service.
         additional_hostnames: List of additional hostnames to route to the service.
         load_balancing_configuration: Load balancing configuration.
+        http_server_close: Configure server close after request.
     """
 
     _backend_state: BackendState
@@ -197,6 +198,7 @@ class State:
     load_balancing_configuration: LoadBalancingConfiguration = Field(
         default=LoadBalancingConfiguration()
     )
+    http_server_close: bool = Field(default=False)
 
     @property
     def backend_addresses(self) -> list[IPvAnyAddress]:
@@ -263,6 +265,7 @@ class State:
                 if charm.config.get("additional-hostnames")
                 else []
             )
+            http_server_close = cast(bool, charm.config.get("http-server-close", False))
 
             config_backend = bool(config_backend_addresses or config_backend_ports)
             ingress_backend = bool(ingress_backend_addresses or ingress_backend_ports)
@@ -297,6 +300,7 @@ class State:
                 hostname=hostname,
                 additional_hostnames=additional_hostnames,
                 load_balancing_configuration=load_balancing_configuration,
+                http_server_close=http_server_close,
             )
         except ValidationError as exc:
             logger.error(str(exc))

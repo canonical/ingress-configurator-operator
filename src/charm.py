@@ -7,6 +7,7 @@
 
 """Charm the service."""
 
+import json
 import logging
 import typing
 
@@ -39,6 +40,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
         self.framework.observe(self.on[HAPROXY_ROUTE_RELATION].relation_departed, self._reconcile)
         self.framework.observe(self._ingress.on.data_provided, self._reconcile)
         self.framework.observe(self._ingress.on.data_removed, self._reconcile)
+
+        # Action handlers
+        self.framework.observe(self.on.get_proxied_endpoints_action, self._on_get_proxied_endpoint)
 
     def _reconcile(self, _: ops.EventBase) -> None:
         """Refresh haproxy-route requirer data."""
@@ -85,6 +89,17 @@ class IngressConfiguratorCharm(ops.CharmBase):
         except state.InvalidStateError as ex:
             logger.exception("Invalid configuration")
             self.unit.status = ops.BlockedStatus(str(ex))
+
+    def _on_get_proxied_endpoint(self, event: ops.ActionEvent) -> None:
+        """Handle the get_proxied_endpoints action."""
+        haproxy_relation = self._haproxy_route.relation
+        if not haproxy_relation:
+            result = {}
+
+        endpoints = [str(endpoint) for endpoint in self._haproxy_route.get_proxied_endpoints()]
+        result = {"endpoints": json.dumps(endpoints)} if endpoints else {}
+
+        event.set_results(result)
 
 
 if __name__ == "__main__":  # pragma: nocover

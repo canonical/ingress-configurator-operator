@@ -3,6 +3,7 @@
 
 """Test the charm in integrator mode."""
 import json
+
 import jubilant
 
 from .conftest import MOCK_HAPROXY_HOSTNAME

@@ -86,7 +86,7 @@ def test_protocol_propagated_to_haproxy(context: ops.testing.Context):
 
 
 class TestGetProxiedEndpointAction:
-    """Test "get-proxied-endpoints Action"""
+    """Test "get-proxied-endpoints" Action"""
 
     @pytest.mark.parametrize(
         "endpoints",

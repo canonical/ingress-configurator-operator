@@ -169,7 +169,6 @@ class TestGetProxiedEndpointAction:
             leader=True,
             unit_status=ops.testing.ActiveStatus(),
         )
-        context.run(context.on.action("get-proxied-endpoints"), charm_state)
-
-        out = context.action_results
-        assert out == {}
+        with pytest.raises(ops.testing.ActionFailed) as excinfo:
+            context.run(context.on.action("get-proxied-endpoints"), charm_state)
+            assert str(excinfo.value) == "Missing haproxy-route relation."

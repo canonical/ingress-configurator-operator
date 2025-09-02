@@ -152,7 +152,7 @@ class TestGetProxiedEndpointAction:
 
         out = context.action_results
 
-        assert out == {}, "Unexpected action results."
+        assert out == {"endpoints": {}}, "Unexpected action results."
 
     def test_no_haproxy_route_relation(
         self,

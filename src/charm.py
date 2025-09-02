@@ -94,10 +94,11 @@ class IngressConfiguratorCharm(ops.CharmBase):
         """Handle the get_proxied_endpoints action."""
         haproxy_relation = self._haproxy_route.relation
         if not haproxy_relation:
-            result = {}
-        else:
-            endpoints = [str(endpoint) for endpoint in self._haproxy_route.get_proxied_endpoints()]
-            result = {"endpoints": json.dumps(endpoints) if endpoints else {}}
+            event.fail("Missing haproxy-route relation.")
+            return
+
+        endpoints = [str(endpoint) for endpoint in self._haproxy_route.get_proxied_endpoints()]
+        result = {"endpoints": json.dumps(endpoints) if endpoints else {}}
 
         event.set_results(result)
 

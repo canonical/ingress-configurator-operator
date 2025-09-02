@@ -9,7 +9,7 @@ import jubilant
 from .conftest import MOCK_HAPROXY_HOSTNAME
 
 
-def test_actions(
+def test_action_get_proxied_endpoints_nominal(
     juju: jubilant.Juju,
     application: str,
     haproxy: str,

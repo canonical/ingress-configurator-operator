@@ -32,7 +32,7 @@ When contributing, you must abide by the
 This project uses [semantic versioning](https://semver.org/).
 
 Please ensure that any new feature, fix, or significant change is documented by
-adding an entry to the [CHANGELOG.md](link-to-changelog) file.
+adding an entry to the [CHANGELOG.md](docs-template/changelog.md) file.
 
 To learn more about changelog best practices, visit [Keep a Changelog](https://keepachangelog.com/).
 
@@ -43,7 +43,7 @@ notify in advance the people involved to avoid confusion;
 also, reference the issue or bug number when you submit the changes.
 
 - [Fork](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/about-forks)
-  our [GitHub repository](link-to-github-repo)
+  our [GitHub repository](https://github.com/canonical/ingress-configurator-operator)
   and add the changes to your fork, properly structuring your commits,
   providing detailed commit messages and signing your commits.
 - Make sure the updated project builds and runs without warnings or errors;
@@ -112,7 +112,7 @@ To make contributions to this charm, you'll need a working
 The code for this charm can be downloaded as follows:
 
 ```
-git clone https://github.com/canonical/<charm-name>
+git clone https://github.com/canonical/ingress-configurator-operator
 ```
 
 You can create an environment for development with `python3-venv`.
@@ -138,7 +138,7 @@ that can be used for linting and formatting code when you're preparing contribut
 ### Build the rock and charm
 
 Use [Rockcraft](https://documentation.ubuntu.com/rockcraft/en/latest/) to create an
-OCI image for the <charm-name> app, and then upload the image to a MicroK8s registry,
+OCI image for the ingress configurator app, and then upload the image to a MicroK8s registry,
 which stores OCI archives so they can be downloaded and deployed.
 
 Enable the MicroK8s registry:

@@ -13,3 +13,8 @@ jobs:
       self-hosted-runner: true
       charmcraft-channel: latest/edge
       modules: '["test_actions.py", "test_adapter.py", "test_integrator.py"]'
+  allure-report:
+    if: always() && !cancelled()
+    needs:
+      - integration-tests
+    uses: canonical/operator-workflows/.github/workflows/allure_report.yaml@main

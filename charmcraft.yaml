@@ -111,7 +111,9 @@ config:
       description: |
           If set to true, the server will close the connection after each request.
           This can be useful for certain applications that do not support keep-alive.
-
+    path-rewrite-expressions:
+      type: string
+      description: List of path rewrite expressions.
 charm-libs:
   - lib: haproxy.haproxy_route
     version: "1"

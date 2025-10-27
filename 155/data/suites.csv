@@ -1,0 +1,27 @@
+"DESCRIPTION","DURATION IN MS","NAME","PARENT SUITE","START TIME","STATUS","STOP TIME","SUB SUITE","SUITE","TEST CLASS","TEST METHOD"
+"Test the charm actions in integrator mode.
+
+    Args:
+        juju: Jubilant juju fixture
+        application: Name of the ingress-configurator application.
+        haproxy: Name of the haproxy application.
+        ingress_requirer: Any charm running an apache webserver.
+    ","0","test_action_get_proxied_endpoints_nominal","tests.integration","2025-10-27","broken","2025-10-27","","test_actions","",""
+"Test for integrator mode.
+
+    Args:
+        juju: Jubilant juju fixture
+        application: Name of the ingress-configurator application.
+        haproxy: Name of the haproxy application.
+        ingress_requirer: Any charm running an apache webserver.
+        http_session: Modified requests session fixture for making HTTP requests.
+    ","0","test_adapter_end_to_end_routing","tests.integration","2025-10-27","broken","2025-10-27","","test_adapter","",""
+"Test the charm configuration in integrator mode.
+
+    Args:
+        juju: Jubilant juju fixture
+        application: Name of the ingress-configurator application.
+        haproxy: Name of the haproxy application.
+        any_charm_backend: Any charm running an apache webserver.
+        http_session: Modified requests session fixture for making HTTP requests.
+    ","0","test_config_hostnames_and_paths","tests.integration","2025-10-27","broken","2025-10-27","","test_integrator","",""

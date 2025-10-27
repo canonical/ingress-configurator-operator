@@ -19,6 +19,7 @@ from validators import get_invalid_config_fields, value_has_valid_characters
 
 logger = logging.getLogger()
 CHARM_CONFIG_DELIMITER = ","
+DEFAULT_PATH_REWRITE_EXPRESSION_DELIMITER = ";"
 
 
 class InvalidStateError(Exception):
@@ -294,7 +295,11 @@ class State:
                 ),
             )
             expression_delimiter: Annotated[str, StringConstraints(min_length=1, max_length=1)] = (
-                cast(str, charm.config.get("expression-delimiter"))
+                cast(
+                    str,
+                    charm.config.get("expression-delimiter")
+                    or DEFAULT_PATH_REWRITE_EXPRESSION_DELIMITER,
+                )
             )
             path_rewrite_expressions = (
                 cast(str, charm.config.get("path-rewrite-expressions")).split(expression_delimiter)

@@ -115,11 +115,15 @@ config:
           This can be useful for certain applications that do not support keep-alive.
     path-rewrite-expressions:
       type: string
-      description: List of path rewrite expressions.
+      description: |
+        List of path rewrite expressions,
+        separated by the configured expression-delimiter.
     expression-delimiter:
       type: string
       default: ";"
-      description: Tell the charm which delimiter to use to parse special regexp-based config values.
+      description: |
+        Tell the charm which delimiter to use to parse a delimited list of path 
+        rewrite expressions. Use a character that does not appear in your rewrite expressions.
     
 charm-libs:
   - lib: haproxy.haproxy_route

@@ -114,6 +114,11 @@ config:
     path-rewrite-expressions:
       type: string
       description: List of path rewrite expressions.
+    expression-delimiter:
+      type: string
+      default: ";"
+      description: Tell the charm which delimiter to use to parse special regexp-based config values.
+    
 charm-libs:
   - lib: haproxy.haproxy_route
     version: "1"

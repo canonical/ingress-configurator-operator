@@ -13,6 +13,7 @@ from charms.traefik_k8s.v2.ingress import IngressRequirerData
 from pydantic import BeforeValidator, Field, ValidationError, model_validator
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
+from pydantic.types import StringConstraints
 
 from validators import get_invalid_config_fields, value_has_valid_characters
 
@@ -292,9 +293,11 @@ class State:
                     bool, charm.config.get("load-balancing-consistent-hashing", False)
                 ),
             )
-
+            expression_delimiter: Annotated[str, StringConstraints(min_length=1, max_length=1)] = (
+                cast(str, charm.config.get("expression-delimiter"))
+            )
             path_rewrite_expressions = (
-                cast(str, charm.config.get("path-rewrite-expressions")).split(CHARM_CONFIG_DELIMITER)
+                cast(str, charm.config.get("path-rewrite-expressions")).split(expression_delimiter)
                 if charm.config.get("path-rewrite-expressions")
                 else []
             )
@@ -309,7 +312,7 @@ class State:
                 additional_hostnames=additional_hostnames,
                 load_balancing_configuration=load_balancing_configuration,
                 http_server_close=http_server_close,
-                path_rewrite_expressions=path_rewrite_expressions
+                path_rewrite_expressions=path_rewrite_expressions,
             )
         except ValidationError as exc:
             logger.error(str(exc))

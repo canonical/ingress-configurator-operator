@@ -12,6 +12,7 @@ import logging
 import typing
 
 import ops
+from charms.haproxy.v0.haproxy_route_tcp import HaproxyRouteTcpRequirer
 from charms.haproxy.v1.haproxy_route import HaproxyRouteRequirer
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider
 
@@ -19,6 +20,7 @@ import state
 
 logger = logging.getLogger(__name__)
 HAPROXY_ROUTE_RELATION = "haproxy-route"
+HAPROXY_ROUTE_TCP_RELATION = "haproxy-route-tcp"
 INGRESS_RELATION = "ingress"
 
 
@@ -33,6 +35,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
         """
         super().__init__(*args)
         self._haproxy_route = HaproxyRouteRequirer(self, HAPROXY_ROUTE_RELATION)
+        self._haproxy_route_tcp = HaproxyRouteTcpRequirer(self, HAPROXY_ROUTE_TCP_RELATION)
+
         self._ingress = IngressPerAppProvider(self, INGRESS_RELATION)
         self.framework.observe(self.on.config_changed, self._reconcile)
         self.framework.observe(self.on[HAPROXY_ROUTE_RELATION].relation_changed, self._reconcile)

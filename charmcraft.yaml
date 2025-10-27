@@ -32,6 +32,8 @@ links:
 requires:
   haproxy-route:
     interface: haproxy-route
+  haproxy-route-tcp:
+    interface: haproxy-route-tcp
 
 provides:
   ingress:
@@ -122,6 +124,8 @@ config:
 charm-libs:
   - lib: haproxy.haproxy_route
     version: "1"
+  - lib: haproxy.haproxy_route_tcp
+    version: "0"
   - lib: traefik_k8s.ingress
     version: "2"
 

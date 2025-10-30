@@ -119,7 +119,6 @@ class IngressConfiguratorCharm(ops.CharmBase):
     def _provide_haproxy_route_tcp_requirements(self) -> None:
         """Provide HAProxy TCP route requirements to the requirer."""
         if not self._haproxy_route_tcp.relation:
-            self.unit.status = ops.BlockedStatus("Missing haproxy-route-tcp relation.")
             return
         tcp_requirements = HaproxyRouteTcpRequirements.from_charm(self)
         self._haproxy_route_tcp.provide_haproxy_route_tcp_requirements(

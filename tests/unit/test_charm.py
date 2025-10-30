@@ -8,8 +8,8 @@ from unittest.mock import ANY, MagicMock
 import ops.testing
 import pytest
 
-import state
 from charm import IngressConfiguratorCharm
+from state.charm_state import InvalidStateError, State
 
 
 def test_config_changed_no_haproxy_route_relation(context):
@@ -34,7 +34,7 @@ def test_config_changed_invalid_state(monkeypatch: pytest.MonkeyPatch, context):
     act: trigger a config changed event.
     assert: status is blocked.
     """
-    monkeypatch.setattr(state.State, "from_charm", MagicMock(side_effect=state.InvalidStateError))
+    monkeypatch.setattr(State, "from_charm", MagicMock(side_effect=InvalidStateError))
     charm_state = ops.testing.State(
         config={"backend-addresses": "10.0.0.1,invalid", "backend-ports": "8080,8081"},
         relations=[ops.testing.Relation("haproxy-route")],

@@ -12,11 +12,12 @@ import logging
 import typing
 
 import ops
-from charms.haproxy.v0.haproxy_route_tcp import HaproxyRouteTcpRequirer
+from charms.haproxy.v0.haproxy_route_tcp import DataValidationError, HaproxyRouteTcpRequirer
 from charms.haproxy.v1.haproxy_route import HaproxyRouteRequirer
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider
 
-import state
+from state.charm_state import InvalidStateError, State
+from state.haproxy_route_tcp import HaproxyRouteTcpRequirements
 
 logger = logging.getLogger(__name__)
 HAPROXY_ROUTE_RELATION = "haproxy-route"
@@ -58,7 +59,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             ingress_relation_data = (
                 self._ingress.get_data(ingress_relation) if ingress_relation else None
             )
-            charm_state = state.State.from_charm(self, ingress_relation_data)
+            charm_state = State.from_charm(self, ingress_relation_data)
             # Assign consistent_hashing to a local variable due to line length limit
             consistent_hashing = charm_state.load_balancing_configuration.consistent_hashing
             params = {
@@ -90,10 +91,18 @@ class IngressConfiguratorCharm(ops.CharmBase):
             proxied_endpoints = self._haproxy_route.get_proxied_endpoints()
             if ingress_relation and proxied_endpoints:
                 self._ingress.publish_url(ingress_relation, str(proxied_endpoints[0]))
+
+            # Handle TCP
+            self._provide_haproxy_route_tcp_requirements()
             self.unit.status = ops.ActiveStatus()
-        except state.InvalidStateError as ex:
+        except InvalidStateError as exc:
             logger.exception("Invalid configuration")
-            self.unit.status = ops.BlockedStatus(str(ex))
+            self.unit.status = ops.BlockedStatus(str(exc))
+        except DataValidationError:
+            logger.exception("Error validating haproxy-route-tcp requirements.")
+            self.unit.status = ops.BlockedStatus(
+                "Error updating haproxy-route-tcp relation data, check your configuration."
+            )
 
     def _on_get_proxied_endpoint(self, event: ops.ActionEvent) -> None:
         """Handle the get_proxied_endpoints action."""
@@ -106,6 +115,20 @@ class IngressConfiguratorCharm(ops.CharmBase):
         result = {"endpoints": json.dumps(endpoints) if endpoints else {}}
 
         event.set_results(result)
+
+    def _provide_haproxy_route_tcp_requirements(self) -> None:
+        """Provide HAProxy TCP route requirements to the requirer."""
+        if not self._haproxy_route_tcp.relation:
+            self.unit.status = ops.BlockedStatus("Missing haproxy-route-tcp relation.")
+            return
+        tcp_requirements = HaproxyRouteTcpRequirements.from_charm(self)
+        self._haproxy_route_tcp.provide_haproxy_route_tcp_requirements(
+            hosts=[str(address) for address in tcp_requirements.backend_addresses],
+            port=tcp_requirements.port,
+            backend_port=tcp_requirements.backend_port,
+            tls_terminate=tcp_requirements.tls_terminate,
+            sni=tcp_requirements.hostname,
+        )
 
 
 if __name__ == "__main__":  # pragma: nocover

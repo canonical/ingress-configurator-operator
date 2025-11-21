@@ -14,7 +14,7 @@ from charms.traefik_k8s.v2.ingress import (
 )
 from ops import CharmBase
 
-import state
+from state.charm_state import InvalidStateError, State
 
 
 def test_adapter_state_from_charm():
@@ -44,7 +44,7 @@ def test_adapter_state_from_charm():
         app=IngressRequirerAppData(model="model", name="name", port=8080),
         units=[IngressRequirerUnitData(host="sample.host", ip="127.0.0.1")],
     )
-    charm_state = state.State.from_charm(charm, ingress_relation_data)
+    charm_state = State.from_charm(charm, ingress_relation_data)
 
     assert [str(address) for address in charm_state.backend_addresses] == [
         ingress_relation_data.units[0].ip
@@ -81,7 +81,7 @@ def test_integrator_state_from_charm():
         "retry-redispatch": True,
         "http-server-close": True,
     }
-    charm_state = state.State.from_charm(charm, None)
+    charm_state = State.from_charm(charm, None)
     assert [str(address) for address in charm_state.backend_addresses] == charm.config.get(
         "backend-addresses"
     ).split(",")
@@ -102,8 +102,8 @@ def test_state_from_charm_no_backend():
     """
     charm = Mock(CharmBase)
     charm.config = {}
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_address():
@@ -117,8 +117,8 @@ def test_state_from_charm_invalid_address():
         "backend-addresses": "invalid",
         "backend-ports": "8080",
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_paths():
@@ -133,8 +133,8 @@ def test_state_from_charm_invalid_paths():
         "backend-ports": "8080,8081",
         "paths": "invalid path",
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_port():
@@ -148,8 +148,8 @@ def test_state_from_charm_invalid_port():
         "backend-addresses": "127.0.0.1,127.0.0.2",
         "backend-ports": "99999",
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_protocol():
@@ -160,8 +160,8 @@ def test_state_from_charm_invalid_protocol():
         "backend-ports": "80",
         "backend-protocol": "gopher",
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_check_path():
@@ -176,8 +176,8 @@ def test_state_from_charm_invalid_check_path():
         "backend-ports": "8080,8081",
         "health-check-path": "invalid$path",
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_check_port():
@@ -192,8 +192,8 @@ def test_state_from_charm_invalid_check_port():
         "backend-ports": "8080,8081",
         "health-check-port": 99999,
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_check_interval():
@@ -208,8 +208,8 @@ def test_state_from_charm_invalid_check_interval():
         "backend-ports": "8080,8081",
         "health-check-interval": 0,
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_check_rise():
@@ -224,8 +224,8 @@ def test_state_from_charm_invalid_check_rise():
         "backend-ports": "8080,8081",
         "health-check-rise": 0,
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_check_fall():
@@ -240,8 +240,8 @@ def test_state_from_charm_invalid_check_fall():
         "backend-ports": "8080,8081",
         "health-check-fall": 0,
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_missing_check_interval():
@@ -257,8 +257,8 @@ def test_state_from_charm_invalid_missing_check_interval():
         "health-check-rise": 3,
         "health-check-fall": 4,
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_missing_check_rise():
@@ -274,8 +274,8 @@ def test_state_from_charm_invalid_missing_check_rise():
         "health-check-interval": 20,
         "health-check-fall": 4,
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_missing_check_fall():
@@ -291,8 +291,8 @@ def test_state_from_charm_invalid_missing_check_fall():
         "health-check-interval": 20,
         "health-check-rise": 3,
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_retry_count():
@@ -307,8 +307,8 @@ def test_state_from_charm_invalid_retry_count():
         "backend-ports": "8080,8081",
         "retry-count": 0,
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_timeout_server():
@@ -323,8 +323,8 @@ def test_state_from_charm_invalid_timeout_server():
         "backend-ports": "8080",
         "timeout-server": -1,
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_timeout_connect():
@@ -339,8 +339,8 @@ def test_state_from_charm_invalid_timeout_connect():
         "backend-ports": "8080",
         "timeout-connect": -1,
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_timeout_queue():
@@ -355,8 +355,8 @@ def test_state_from_charm_invalid_timeout_queue():
         "backend-ports": "8080",
         "timeout-queue": -1,
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_hostname():
@@ -371,8 +371,8 @@ def test_state_from_charm_invalid_hostname():
         "backend-ports": "8080,8081",
         "hostname": "invalid$hostname",
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_additional_hostnames():
@@ -388,8 +388,8 @@ def test_state_from_charm_invalid_additional_hostnames():
         "hostname": "valid.example.com",
         "additional-hostnames": "invalid$\\",
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_port_invalid_int():
@@ -403,8 +403,8 @@ def test_state_from_charm_port_invalid_int():
         "backend-addresses": "127.0.0.1,127.0.0.2",
         "backend-ports": "invalid",
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_load_balancing_algorithm():
@@ -419,8 +419,8 @@ def test_state_from_charm_invalid_load_balancing_algorithm():
         "backend-ports": "80",
         "load-balancing-algorithm": "invalid",
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_load_balancing_configuration():
@@ -436,8 +436,8 @@ def test_state_from_charm_invalid_load_balancing_configuration():
         "load-balancing-algorithm": "leastconn",
         "load-balancing-cookie": "TEST",
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
     charm.config = {
         "backend-addresses": "127.0.0.1",
@@ -445,8 +445,8 @@ def test_state_from_charm_invalid_load_balancing_configuration():
         "load-balancing-algorithm": "leastconn",
         "load-balancing-consistent-hashing": True,
     }
-    with pytest.raises(state.InvalidStateError):
-        state.State.from_charm(charm, None)
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
 
 
 def test_state_from_charm_load_balancing_default_value():
@@ -460,7 +460,7 @@ def test_state_from_charm_load_balancing_default_value():
         "backend-addresses": "127.0.0.1",
         "backend-ports": "80",
     }
-    charm_state = state.State.from_charm(charm, None)
+    charm_state = State.from_charm(charm, None)
     assert charm_state.load_balancing_configuration.algorithm == LoadBalancingAlgorithm.LEASTCONN
 
 
@@ -477,7 +477,7 @@ def test_state_from_charm_rewrite_custom_delimiter():
         "expression-delimiter": "|",
         "path-rewrite-expressions": "%[path,regsub(^/,/new)]|%[path,regsub(^/api,/v1)]",
     }
-    charm_state = state.State.from_charm(charm, None)
+    charm_state = State.from_charm(charm, None)
     assert charm_state.path_rewrite_expressions == [
         "%[path,regsub(^/,/new)]",
         "%[path,regsub(^/api,/v1)]",
@@ -496,5 +496,5 @@ def test_state_from_charm_rewrite_default_delimiter():
         "backend-ports": "80",
         "path-rewrite-expressions": "%[path,regsub(^/old/(.*),/new/$1)]",
     }
-    charm_state = state.State.from_charm(charm, None)
+    charm_state = State.from_charm(charm, None)
     assert charm_state.path_rewrite_expressions == ["%[path,regsub(^/old/(.*),/new/$1)]"]

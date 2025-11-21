@@ -223,3 +223,19 @@ def get_unit_addresses(juju: jubilant.Juju, application: str) -> list[IPv4Addres
         for unit_status in application_status.units.values():
             unit_addresses.append(ip_address(unit_status.public_address))
     return unit_addresses
+
+
+@pytest.fixture(scope="module", name="application_with_tcp_server")
+def application_with_tcp_server_fixture(application: str, juju: jubilant.Juju):
+    """Deploy the ingress-configurator application.
+
+    Args:
+        application: The ingress-configurator application name.
+        juju: Jubilant juju fixture.
+
+    Yields:
+        The ingress-configurator app name.
+    """
+    command = "sudo snap install ping-pong-tcp; sudo snap set ping-pong-tcp host=0.0.0.0"
+    juju.ssh(target=f"{application}/0", command=command)
+    yield application

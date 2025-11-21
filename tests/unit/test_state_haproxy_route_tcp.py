@@ -1,0 +1,260 @@
+# Copyright 2024 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+"""Unit tests for the haproxy_route_tcp module."""
+
+from unittest.mock import Mock
+
+import pytest
+from ops import CharmBase
+
+from state.haproxy_route_tcp import (
+    HaproxyRouteTcpRequirements,
+    InvalidHaproxyRouteTcpRequirementsError,
+)
+
+
+def test_haproxy_route_tcp_requirements_from_charm():
+    """
+    arrange: mock a charm with valid TCP configuration
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: the data matches the charm configuration
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "192.168.1.10,192.168.1.11",
+        "tcp-frontend-port": 8443,
+        "tcp-backend-port": 443,
+        "tcp-tls-terminate": True,
+        "tcp-hostname": "example.com",
+    }
+
+    requirements = HaproxyRouteTcpRequirements.from_charm(charm)
+
+    assert [str(addr) for addr in requirements.backend_addresses] == [
+        "192.168.1.10",
+        "192.168.1.11",
+    ]
+    assert requirements.port == 8443
+    assert requirements.backend_port == 443
+    assert requirements.tls_terminate is True
+    assert requirements.hostname == "example.com"
+
+
+def test_haproxy_route_tcp_requirements_from_charm_no_tls():
+    """
+    arrange: mock a charm with TCP configuration without TLS termination
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: tls_terminate is False
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "10.0.0.1",
+        "tcp-frontend-port": 9000,
+        "tcp-backend-port": 9001,
+        "tcp-tls-terminate": False,
+        "tcp-hostname": None,
+    }
+
+    requirements = HaproxyRouteTcpRequirements.from_charm(charm)
+
+    assert [str(addr) for addr in requirements.backend_addresses] == ["10.0.0.1"]
+    assert requirements.port == 9000
+    assert requirements.backend_port == 9001
+    assert requirements.tls_terminate is False
+    assert requirements.hostname is None
+
+
+def test_haproxy_route_tcp_requirements_from_charm_ipv6():
+    """
+    arrange: mock a charm with IPv6 addresses
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: IPv6 addresses are correctly parsed
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "2001:db8::1,2001:db8::2",
+        "tcp-frontend-port": 443,
+        "tcp-backend-port": 8443,
+        "tcp-tls-terminate": True,
+        "tcp-hostname": "ipv6.example.com",
+    }
+
+    requirements = HaproxyRouteTcpRequirements.from_charm(charm)
+
+    assert [str(addr) for addr in requirements.backend_addresses] == ["2001:db8::1", "2001:db8::2"]
+    assert requirements.port == 443
+    assert requirements.backend_port == 8443
+
+
+def test_haproxy_route_tcp_requirements_empty_backend_addresses():
+    """
+    arrange: mock a charm without backend addresses
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: InvalidHaproxyRouteTcpRequirementsError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": None,
+        "tcp-frontend-port": 443,
+        "tcp-backend-port": 8443,
+        "tcp-tls-terminate": False,
+        "tcp-hostname": None,
+    }
+
+    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError):
+        HaproxyRouteTcpRequirements.from_charm(charm)
+
+
+@pytest.mark.parametrize(
+    "invalid_address",
+    [
+        "not-an-ip",
+        "999.999.999.999",
+        "192.168.1",
+        "invalid,192.168.1.1",
+    ],
+)
+def test_haproxy_route_tcp_requirements_invalid_backend_address(invalid_address):
+    """
+    arrange: mock a charm with invalid backend address
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: InvalidHaproxyRouteTcpRequirementsError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": invalid_address,
+        "tcp-frontend-port": 443,
+        "tcp-backend-port": 8443,
+        "tcp-tls-terminate": False,
+        "tcp-hostname": None,
+    }
+
+    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError):
+        HaproxyRouteTcpRequirements.from_charm(charm)
+
+
+@pytest.mark.parametrize(
+    "invalid_port",
+    [
+        0,
+        -1,
+        65536,
+        99999,
+    ],
+)
+def test_haproxy_route_tcp_requirements_invalid_frontend_port(invalid_port):
+    """
+    arrange: mock a charm with invalid frontend port
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: InvalidHaproxyRouteTcpRequirementsError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "192.168.1.1",
+        "tcp-frontend-port": invalid_port,
+        "tcp-backend-port": 8443,
+        "tcp-tls-terminate": False,
+        "tcp-hostname": None,
+    }
+
+    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError):
+        HaproxyRouteTcpRequirements.from_charm(charm)
+
+
+@pytest.mark.parametrize(
+    "invalid_port",
+    [
+        0,
+        -1,
+        65536,
+        99999,
+    ],
+)
+def test_haproxy_route_tcp_requirements_invalid_backend_port(invalid_port):
+    """
+    arrange: mock a charm with invalid backend port
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: InvalidHaproxyRouteTcpRequirementsError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "192.168.1.1",
+        "tcp-frontend-port": 443,
+        "tcp-backend-port": invalid_port,
+        "tcp-tls-terminate": False,
+        "tcp-hostname": None,
+    }
+
+    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError):
+        HaproxyRouteTcpRequirements.from_charm(charm)
+
+
+def test_haproxy_route_tcp_requirements_valid_port_boundaries():
+    """
+    arrange: mock a charm with valid port boundary values
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: requirements are created successfully
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "192.168.1.1",
+        "tcp-frontend-port": 1,
+        "tcp-backend-port": 65535,
+        "tcp-tls-terminate": False,
+        "tcp-hostname": None,
+    }
+
+    requirements = HaproxyRouteTcpRequirements.from_charm(charm)
+
+    assert requirements.port == 1
+    assert requirements.backend_port == 65535
+
+
+def test_haproxy_route_tcp_requirements_multiple_backend_addresses():
+    """
+    arrange: mock a charm with multiple backend addresses
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: all addresses are correctly parsed
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "10.0.0.1,10.0.0.2,10.0.0.3",
+        "tcp-frontend-port": 3306,
+        "tcp-backend-port": 3306,
+        "tcp-tls-terminate": False,
+        "tcp-hostname": None,
+    }
+
+    requirements = HaproxyRouteTcpRequirements.from_charm(charm)
+
+    assert len(requirements.backend_addresses) == 3
+    assert [str(addr) for addr in requirements.backend_addresses] == [
+        "10.0.0.1",
+        "10.0.0.2",
+        "10.0.0.3",
+    ]
+
+
+def test_haproxy_route_tcp_requirements_mixed_ip_versions():
+    """
+    arrange: mock a charm with both IPv4 and IPv6 addresses
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: both address types are correctly parsed
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "192.168.1.1,2001:db8::1",
+        "tcp-frontend-port": 5432,
+        "tcp-backend-port": 5432,
+        "tcp-tls-terminate": False,
+        "tcp-hostname": None,
+    }
+
+    requirements = HaproxyRouteTcpRequirements.from_charm(charm)
+
+    assert len(requirements.backend_addresses) == 2
+    assert [str(addr) for addr in requirements.backend_addresses] == [
+        "192.168.1.1",
+        "2001:db8::1",
+    ]

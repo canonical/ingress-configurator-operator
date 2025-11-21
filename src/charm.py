@@ -17,12 +17,19 @@ from charms.haproxy.v1.haproxy_route import HaproxyRouteRequirer
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider
 
 from state.charm_state import InvalidStateError, State
-from state.haproxy_route_tcp import HaproxyRouteTcpRequirements
+from state.haproxy_route_tcp import (
+    HaproxyRouteTcpRequirements,
+    InvalidHaproxyRouteTcpRequirementsError,
+)
 
 logger = logging.getLogger(__name__)
 HAPROXY_ROUTE_RELATION = "haproxy-route"
 HAPROXY_ROUTE_TCP_RELATION = "haproxy-route-tcp"
 INGRESS_RELATION = "ingress"
+
+
+class ProvideHaproxyRouteTcpRequirementsError(Exception):
+    """Exception raised when providing HAProxy TCP route requirements fails."""
 
 
 class IngressConfiguratorCharm(ops.CharmBase):
@@ -96,10 +103,10 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
             self.unit.status = ops.ActiveStatus()
         except InvalidStateError as exc:
-            logger.exception("Invalid configuration")
+            logger.exception("Invalid haproxy-route configuration.")
             self.unit.status = ops.BlockedStatus(str(exc))
-        except DataValidationError:
-            logger.exception("Error validating haproxy-route-tcp requirements.")
+        except ProvideHaproxyRouteTcpRequirementsError:
+            logger.exception("Error providing haproxy-route-tcp requirements.")
             self.unit.status = ops.BlockedStatus(
                 "Error updating haproxy-route-tcp relation data, check your configuration."
             )
@@ -120,14 +127,19 @@ class IngressConfiguratorCharm(ops.CharmBase):
         """Provide HAProxy TCP route requirements to the requirer."""
         if not self._haproxy_route_tcp.relation:
             return
-        tcp_requirements = HaproxyRouteTcpRequirements.from_charm(self)
-        self._haproxy_route_tcp.provide_haproxy_route_tcp_requirements(
-            hosts=[str(address) for address in tcp_requirements.backend_addresses],
-            port=tcp_requirements.port,
-            backend_port=tcp_requirements.backend_port,
-            tls_terminate=tcp_requirements.tls_terminate,
-            sni=tcp_requirements.hostname,
-        )
+        try:
+            tcp_requirements = HaproxyRouteTcpRequirements.from_charm(self)
+            self._haproxy_route_tcp.provide_haproxy_route_tcp_requirements(
+                hosts=[str(address) for address in tcp_requirements.backend_addresses],
+                port=tcp_requirements.port,
+                backend_port=tcp_requirements.backend_port,
+                tls_terminate=tcp_requirements.tls_terminate,
+                sni=tcp_requirements.hostname,
+            )
+        except (InvalidHaproxyRouteTcpRequirementsError, DataValidationError) as exc:
+            raise ProvideHaproxyRouteTcpRequirementsError(
+                "Failed to provide haproxy-route-tcp requirements."
+            ) from exc
 
 
 if __name__ == "__main__":  # pragma: nocover

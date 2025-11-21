@@ -8,10 +8,19 @@ in the ingress configurator operator.
 """
 
 import dataclasses
+import logging
 from typing import Annotated, cast
 
 import ops
-from pydantic import Field, IPvAnyAddress
+from pydantic import Field, IPvAnyAddress, ValidationError
+
+from validators import get_invalid_config_fields
+
+logger = logging.getLogger(__name__)
+
+
+class InvalidHaproxyRouteTcpRequirementsError(Exception):
+    """Exception raised when HaproxyRouteTcpRequirements contains invalid attributes."""
 
 
 @dataclasses.dataclass
@@ -20,6 +29,10 @@ class HaproxyRouteTcpRequirements:
 
     Defines the necessary parameters and constraints for establishing
     TCP routes through HAProxy.
+
+    Raises:
+        InvalidHaproxyRouteTcpRequirementsError: If the provided configuration
+            parameters are invalid.
 
     Attributes:
         backend_addresses: List of backend IP addresses.
@@ -57,10 +70,19 @@ class HaproxyRouteTcpRequirements:
         port = cast(int, charm.config.get("tcp-frontend-port"))
         backend_port = cast(int, charm.config.get("tcp-backend-port"))
         hostname = cast(str | None, charm.config.get("tcp-hostname"))
-        return cls(
-            port=port,
-            backend_port=backend_port,
-            tls_terminate=tls_terminate,
-            hostname=hostname,
-            backend_addresses=config_tcp_backend_addresses,
-        )
+        try:
+            return cls(
+                port=port,
+                backend_port=backend_port,
+                tls_terminate=tls_terminate,
+                hostname=hostname,
+                backend_addresses=config_tcp_backend_addresses,
+            )
+        except ValidationError as exc:
+            logger.error(
+                "Failed to validate haproxy-route-tcp requirements. Invalid config fields: %s",
+                get_invalid_config_fields(exc),
+            )
+            raise InvalidHaproxyRouteTcpRequirementsError(
+                "Invalid haproxy-route-tcp configuration."
+            ) from exc

@@ -7,12 +7,14 @@ This module provides state management functionality for HAProxy TCP routes
 in the ingress configurator operator.
 """
 
-import dataclasses
 import logging
 from typing import Annotated, cast
 
 import ops
-from pydantic import Field, IPvAnyAddress, ValidationError
+from annotated_types import Len
+from pydantic import Field, ValidationError
+from pydantic.dataclasses import dataclass
+from pydantic.networks import IPvAnyAddress
 
 from validators import get_invalid_config_fields
 
@@ -23,7 +25,7 @@ class InvalidHaproxyRouteTcpRequirementsError(Exception):
     """Exception raised when HaproxyRouteTcpRequirements contains invalid attributes."""
 
 
-@dataclasses.dataclass
+@dataclass(frozen=True)
 class HaproxyRouteTcpRequirements:
     """Requirements for HAProxy TCP route configuration.
 
@@ -42,7 +44,7 @@ class HaproxyRouteTcpRequirements:
         hostname: Optional hostname for SNI (Server Name Indication).
     """
 
-    backend_addresses: list[IPvAnyAddress]
+    backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
     port: Annotated[int, Field(gt=0, le=65535)]
     backend_port: Annotated[int, Field(gt=0, le=65535)]
     tls_terminate: bool
@@ -54,6 +56,10 @@ class HaproxyRouteTcpRequirements:
 
         Args:
             charm: The IngressConfiguratorCharm instance.
+
+        Raises:
+            InvalidHaproxyRouteTcpRequirementsError: If the configuration
+                parameters are invalid.
 
         Returns:
             HaproxyRouteTcpRequirements instance populated with relevant info.

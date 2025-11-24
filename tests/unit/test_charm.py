@@ -8,24 +8,8 @@ from unittest.mock import ANY, MagicMock
 import ops.testing
 import pytest
 
-import state
 from charm import IngressConfiguratorCharm
-
-
-def test_config_changed_no_haproxy_route_relation(context):
-    """
-    arrange: prepare some valid state without haproxy-route relation.
-    act: trigger a config changed event.
-    assert: status is blocked.
-    """
-    charm_state = ops.testing.State(
-        config={"backend-addresses": ",127.0.0.1,127.0.0.2", "backend-ports": "8080,8081"},
-        leader=True,
-    )
-
-    out = context.run(context.on.config_changed(), charm_state)
-
-    assert out.unit_status == ops.testing.BlockedStatus("Missing haproxy-route relation.")
+from state.charm_state import InvalidStateError, State
 
 
 def test_config_changed_invalid_state(monkeypatch: pytest.MonkeyPatch, context):
@@ -34,7 +18,7 @@ def test_config_changed_invalid_state(monkeypatch: pytest.MonkeyPatch, context):
     act: trigger a config changed event.
     assert: status is blocked.
     """
-    monkeypatch.setattr(state.State, "from_charm", MagicMock(side_effect=state.InvalidStateError))
+    monkeypatch.setattr(State, "from_charm", MagicMock(side_effect=InvalidStateError))
     charm_state = ops.testing.State(
         config={"backend-addresses": "10.0.0.1,invalid", "backend-ports": "8080,8081"},
         relations=[ops.testing.Relation("haproxy-route")],
@@ -172,3 +156,26 @@ class TestGetProxiedEndpointAction:
         with pytest.raises(ops.testing.ActionFailed) as excinfo:
             context.run(context.on.action("get-proxied-endpoints"), charm_state)
             assert str(excinfo.value) == "Missing haproxy-route relation."
+
+
+def test_haproxy_route(context: ops.testing.Context):
+    """Valid protocol should be copied from config to haproxy-route relation"""
+    in_ = ops.testing.State(
+        config={
+            "tcp-backend-addresses": "10.0.0.1",
+            "tcp-frontend-port": 4000,
+            "tcp-backend-port": 5000,
+            "tcp-tls-terminate": True,
+            "tcp-hostname": "example.com",
+        },
+        relations=[ops.testing.Relation("haproxy-route-tcp")],
+        leader=True,
+    )
+    out = context.run(context.on.config_changed(), in_)
+
+    assert out.unit_status == ops.testing.ActiveStatus("")
+    application_data: dict = dict(out.get_relations("haproxy-route-tcp")[0].local_app_data)
+    assert application_data["port"] == "4000"
+    assert application_data["backend_port"] == "5000"
+    assert application_data["hosts"] == '["10.0.0.1"]'
+    assert application_data["sni"] == '"example.com"'

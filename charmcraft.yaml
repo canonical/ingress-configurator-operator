@@ -32,6 +32,8 @@ links:
 requires:
   haproxy-route:
     interface: haproxy-route
+  haproxy-route-tcp:
+    interface: haproxy-route-tcp
 
 provides:
   ingress:
@@ -122,10 +124,29 @@ config:
       description: |
         Tell the charm which delimiter to use to parse a delimited list of path 
         rewrite expressions. Use a character that does not appear in your rewrite expressions.
-    
+    # Add haproxy-route-tcp config options
+    tcp-backend-addresses:
+      type: string
+      description: (integrator mode, TCP) Comma-separated list of IP addresses of the TCP backend.
+    tcp-backend-port:
+      type: int
+      description: (integrator mode, TCP) Port of the TCP backend.
+    tcp-frontend-port:
+      type: int
+      description: (integrator mode, TCP) Port opened on the haproxy charm.
+    tcp-tls-terminate:
+      type: boolean
+      default: true
+      description: (integrator mode, TCP) Whether to enable TLS termination on the TCP route.
+    tcp-hostname:
+      type: string
+      description: (integrator mode, TCP) specify the SNI (Server Name Indication).
+
 charm-libs:
   - lib: haproxy.haproxy_route
     version: "1"
+  - lib: haproxy.haproxy_route_tcp
+    version: "0"
   - lib: traefik_k8s.ingress
     version: "2"
 

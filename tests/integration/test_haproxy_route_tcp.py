@@ -4,7 +4,6 @@
 """Integration tests for the ingress per unit relation."""
 
 import socket
-import ssl
 
 import jubilant
 import pytest
@@ -38,12 +37,8 @@ async def test_haproxy_route_tcp(
 
     juju.wait(lambda status: jubilant.all_active(status, haproxy, application_with_tcp_server))
     haproxy_ip_address = get_unit_addresses(juju, haproxy)[0]
-    # We need to call _create_unverified_context() to test with self-signed certs
-    context = ssl._create_unverified_context()  # pylint: disable=protected-access  # nosec
-    with (
-        socket.create_connection((str(haproxy_ip_address), 4444)) as sock,
-        context.wrap_socket(sock, server_hostname="example.com") as ssock,
-    ):
-        ssock.send(b"ping")
-        server_response = ssock.read()
-        assert "pong" in str(server_response)
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((str(haproxy_ip_address), 4444))
+    s.sendall(b"ping")
+    server_response = s.recv(1024)
+    assert "pong" in str(server_response)

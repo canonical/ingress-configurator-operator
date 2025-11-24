@@ -12,7 +12,7 @@ from .conftest import get_unit_addresses
 
 
 @pytest.mark.abort_on_fail
-async def test_haproxy_route_tcp(
+def test_haproxy_route_tcp(
     application_with_tcp_server: str,
     haproxy: str,
     juju: jubilant.Juju,

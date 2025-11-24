@@ -136,7 +136,7 @@ config:
       description: (integrator mode, TCP) Port opened on the haproxy charm.
     tcp-tls-terminate:
       type: boolean
-      default: false
+      default: true
       description: (integrator mode, TCP) Whether to enable TLS termination on the TCP route.
     tcp-hostname:
       type: string

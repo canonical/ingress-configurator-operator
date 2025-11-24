@@ -72,7 +72,7 @@ class HaproxyRouteTcpRequirements:
             if charm.config.get("tcp-backend-addresses")
             else []
         )
-        tls_terminate = cast(bool, charm.config.get("tcp-tls-terminate", False))
+        tls_terminate = cast(bool, charm.config.get("tcp-tls-terminate", True))
         port = cast(int, charm.config.get("tcp-frontend-port"))
         backend_port = cast(int, charm.config.get("tcp-backend-port"))
         hostname = cast(str | None, charm.config.get("tcp-hostname"))

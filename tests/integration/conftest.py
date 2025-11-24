@@ -236,6 +236,9 @@ def application_with_tcp_server_fixture(application: str, juju: jubilant.Juju):
     Yields:
         The ingress-configurator app name.
     """
+    juju.wait(
+        lambda status: jubilant.all_active(status, application),
+    )
     command = "sudo snap install ping-pong-tcp; sudo snap set ping-pong-tcp host=0.0.0.0"
     juju.ssh(target=f"{application}/0", command=command)
     yield application

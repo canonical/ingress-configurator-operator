@@ -462,3 +462,39 @@ def test_state_from_charm_load_balancing_default_value():
     }
     charm_state = state.State.from_charm(charm, None)
     assert charm_state.load_balancing_configuration.algorithm == LoadBalancingAlgorithm.LEASTCONN
+
+
+def test_state_from_charm_rewrite_custom_delimiter():
+    """
+    arrange: mock a charm with valid HAProxy set-path grammar expressions
+    act: instantiate a State
+    assert: the path_rewrite_expressions contains the expressions
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1",
+        "backend-ports": "80",
+        "expression-delimiter": "|",
+        "path-rewrite-expressions": "%[path,regsub(^/,/new)]|%[path,regsub(^/api,/v1)]",
+    }
+    charm_state = state.State.from_charm(charm, None)
+    assert charm_state.path_rewrite_expressions == [
+        "%[path,regsub(^/,/new)]",
+        "%[path,regsub(^/api,/v1)]",
+    ]
+
+
+def test_state_from_charm_rewrite_default_delimiter():
+    """
+    arrange: mock a charm with complex HAProxy set-path grammar expression
+    act: instantiate a State
+    assert: the path_rewrite_expressions contains the expression
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1",
+        "backend-ports": "80",
+        "path-rewrite-expressions": "%[path,regsub(^/old/(.*),/new/$1)]",
+    }
+    charm_state = state.State.from_charm(charm, None)
+    assert charm_state.path_rewrite_expressions == ["%[path,regsub(^/old/(.*),/new/$1)]"]

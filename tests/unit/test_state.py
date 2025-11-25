@@ -39,6 +39,7 @@ def test_adapter_state_from_charm():
         "hostname": "api.example.com",
         "additional-hostnames": "api2.example.com,api3.example.com",
         "http-server-close": True,
+        "allow-http": True,
     }
     ingress_relation_data = IngressRequirerData(
         app=IngressRequirerAppData(model="model", name="name", port=8080),
@@ -65,6 +66,7 @@ def test_adapter_state_from_charm():
     assert charm_state.hostname == charm.config.get("hostname")
     assert charm_state.additional_hostnames == charm.config.get("additional-hostnames").split(",")
     assert charm_state.http_server_close == charm.config.get("http-server-close")
+    assert charm_state.allow_http == charm.config.get("allow-http")
 
 
 def test_integrator_state_from_charm():
@@ -92,6 +94,7 @@ def test_integrator_state_from_charm():
     assert charm_state.retry.count == charm.config.get("retry-count")
     assert charm_state.retry.redispatch == charm.config.get("retry-redispatch")
     assert charm_state.http_server_close == charm.config.get("http-server-close")
+    assert charm_state.allow_http == None
 
 
 def test_state_from_charm_no_backend():

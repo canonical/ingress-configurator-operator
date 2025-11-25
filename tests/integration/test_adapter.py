@@ -68,7 +68,7 @@ def test_adapter_http(
     response = session.get(f"https://{MOCK_HAPROXY_HOSTNAME}", verify=False, timeout=30)
     assert "Apache2 Default Page" in response.text
 
-    # with pytest.raises(requests.exceptions.ConnectionError):
+
     response = session.get(f"http://{MOCK_HAPROXY_HOSTNAME}", verify=False, timeout=30)
     assert response.history[0].status_code == 302
     juju.config(application, {"allow-http": True})

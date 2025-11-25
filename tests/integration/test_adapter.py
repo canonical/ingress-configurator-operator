@@ -62,12 +62,9 @@ def test_adapter_http(
         error=jubilant.any_error,
     )
     addr = str(get_unit_addresses(juju, haproxy)[0])
-    session = http_session(
-        dns_entries=[(MOCK_HAPROXY_HOSTNAME, addr)]
-    )
+    session = http_session(dns_entries=[(MOCK_HAPROXY_HOSTNAME, addr)])
     response = session.get(f"https://{MOCK_HAPROXY_HOSTNAME}", verify=False, timeout=30)
     assert "Apache2 Default Page" in response.text
-
 
     response = session.get(f"http://{MOCK_HAPROXY_HOSTNAME}", verify=False, timeout=30)
     assert response.history[0].status_code == 302

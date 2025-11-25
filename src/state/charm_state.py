@@ -13,7 +13,6 @@ from charms.traefik_k8s.v2.ingress import IngressRequirerData
 from pydantic import BeforeValidator, Field, ValidationError, model_validator
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
-from pydantic.types import StringConstraints
 
 from validators import get_invalid_config_fields, value_has_valid_characters
 
@@ -184,6 +183,7 @@ class State:
         load_balancing_configuration: Load balancing configuration.
         http_server_close: Configure server close after request.
         path_rewrite_expressions: List of path rewrite expressions.
+        header_rewrite_expressions: List of header rewrite expressions.
     """
 
     _backend_state: BackendState
@@ -203,6 +203,7 @@ class State:
     )
     http_server_close: bool = Field(default=False)
     path_rewrite_expressions: list[str] = Field(default=[])
+    header_rewrite_expressions: list[tuple[str, str]] = Field(default=[])
 
     @property
     def backend_addresses(self) -> list[IPvAnyAddress]:
@@ -294,16 +295,23 @@ class State:
                     bool, charm.config.get("load-balancing-consistent-hashing", False)
                 ),
             )
-            expression_delimiter: Annotated[str, StringConstraints(min_length=1, max_length=1)] = (
-                cast(
-                    str,
-                    charm.config.get("expression-delimiter")
-                    or DEFAULT_PATH_REWRITE_EXPRESSION_DELIMITER,
-                )
-            )
             path_rewrite_expressions = (
-                cast(str, charm.config.get("path-rewrite-expressions")).split(expression_delimiter)
+                # The new line character ('\n') is escaped ('\\n') as set by the
+                # configuration option
+                cast(str, charm.config.get("path-rewrite-expressions")).split("\\n")
                 if charm.config.get("path-rewrite-expressions")
+                else []
+            )
+            header_rewrite_expressions = (
+                # The new line character ('\n') is escaped ('\\n') as set by the
+                # configuration option
+                [
+                    cast(tuple[str, str], tuple(elem.split(":", 1)))
+                    for elem in cast(str, charm.config.get("header-rewrite-expressions")).split(
+                        "\\n"
+                    )
+                ]
+                if charm.config.get("header-rewrite-expressions")
                 else []
             )
             return cls(
@@ -318,6 +326,7 @@ class State:
                 load_balancing_configuration=load_balancing_configuration,
                 http_server_close=http_server_close,
                 path_rewrite_expressions=path_rewrite_expressions,
+                header_rewrite_expressions=header_rewrite_expressions,
             )
         except ValidationError as exc:
             logger.error(str(exc))

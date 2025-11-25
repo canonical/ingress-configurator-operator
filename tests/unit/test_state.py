@@ -464,7 +464,22 @@ def test_state_from_charm_load_balancing_default_value():
     assert charm_state.load_balancing_configuration.algorithm == LoadBalancingAlgorithm.LEASTCONN
 
 
-def test_state_from_charm_rewrite_custom_delimiter():
+@pytest.mark.parametrize(
+    "path_rewrite_expression,expected_result",
+    [
+        pytest.param(
+            "%[path,regsub(^/old/(.*),/new/$1)]",
+            ["%[path,regsub(^/old/(.*),/new/$1)]"],
+            id="one_path_expressions",
+        ),
+        pytest.param(
+            "%[path,regsub(^/,/new)]\\n%[path,regsub(^/api,/v1)]",
+            ["%[path,regsub(^/,/new)]", "%[path,regsub(^/api,/v1)]"],
+            id="two_path_expressions",
+        ),
+    ],
+)
+def test_state_from_charm_path_rewrite(path_rewrite_expression: str, expected_result: list[str]):
     """
     arrange: mock a charm with valid HAProxy set-path grammar expressions
     act: instantiate a State
@@ -474,27 +489,60 @@ def test_state_from_charm_rewrite_custom_delimiter():
     charm.config = {
         "backend-addresses": "127.0.0.1",
         "backend-ports": "80",
-        "expression-delimiter": "|",
-        "path-rewrite-expressions": "%[path,regsub(^/,/new)]|%[path,regsub(^/api,/v1)]",
+        "path-rewrite-expressions": path_rewrite_expression,
     }
     charm_state = State.from_charm(charm, None)
-    assert charm_state.path_rewrite_expressions == [
-        "%[path,regsub(^/,/new)]",
-        "%[path,regsub(^/api,/v1)]",
-    ]
+    assert charm_state.path_rewrite_expressions == expected_result
 
 
-def test_state_from_charm_rewrite_default_delimiter():
+@pytest.mark.parametrize(
+    "header_rewrite_expression,expected_result",
+    [
+        pytest.param(
+            "X-Forwarded-For:%[src]",
+            [("X-Forwarded-For", "%[src]")],
+            id="one_header_expressions",
+        ),
+        pytest.param(
+            "X-Forwarded-For:%[src]\\nHost:example.com\\nDate:Wed, 15 Jan 2025 10:20:30 GMT",
+            [
+                ("X-Forwarded-For", "%[src]"),
+                ("Host", "example.com"),
+                ("Date", "Wed, 15 Jan 2025 10:20:30 GMT"),
+            ],
+            id="several_header_expressions",
+        ),
+    ],
+)
+def test_state_from_charm_header_rewrite(
+    header_rewrite_expression: str, expected_result: list[tuple[str, str]]
+):
     """
-    arrange: mock a charm with complex HAProxy set-path grammar expression
+    arrange: mock a charm with valid HAProxy set-header grammar expressions
     act: instantiate a State
-    assert: the path_rewrite_expressions contains the expression
+    assert: the header_rewrite_expressions contains the expressions
     """
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1",
         "backend-ports": "80",
-        "path-rewrite-expressions": "%[path,regsub(^/old/(.*),/new/$1)]",
+        "header-rewrite-expressions": header_rewrite_expression,
     }
     charm_state = State.from_charm(charm, None)
-    assert charm_state.path_rewrite_expressions == ["%[path,regsub(^/old/(.*),/new/$1)]"]
+    assert charm_state.header_rewrite_expressions == expected_result
+
+
+def test_state_from_charm_invalid_header_rewrite():
+    """
+    arrange: mock a charm with invalid HAProxy set-header grammar expressions
+    act: instantiate a State
+    assert: a InvalidStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1",
+        "backend-ports": "80",
+        "header-rewrite-expressions": "X-Forwarded-For",
+    }
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)

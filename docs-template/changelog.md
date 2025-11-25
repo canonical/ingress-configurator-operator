@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Each revision is versioned by the date of the revision.
 
+## 2025-11-25
+
+### Added
+
+ - Added upgrade documentation.
+
 ## 2025-08-01
 
 ### Changed

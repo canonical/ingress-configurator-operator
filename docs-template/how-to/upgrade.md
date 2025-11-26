@@ -1,12 +1,12 @@
 # How to upgrade
 
-Upgrade the `nginx-ingress-integrator` charm with the `refresh` command:
+Upgrade the `ingress-configurator` charm with the `refresh` command:
 
 ```bash
-juju refresh nginx-ingress-integrator
+juju refresh ingress-configurator
 ```
 
-Validate if the `nginx-ingress-integrator` is active and running:
+Check that the `ingress-configurator` charm is active and running:
 
 ```
 juju status

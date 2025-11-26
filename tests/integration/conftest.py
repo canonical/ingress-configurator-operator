@@ -13,7 +13,7 @@ import pytest
 import yaml
 from requests import Session
 
-from .helper import DNSResolverHTTPAdapter
+from .helper import DNSResolverAdapter
 
 MOCK_HAPROXY_HOSTNAME = "haproxy.internal"
 HAPROXY_HTTP_REQUIRER_SRC = "tests/integration/any_charm_http_requirer.py"
@@ -106,22 +106,14 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     if pytestconfig.getoption("--no-setup") and HAPROXY_APP_NAME in juju.status().apps:
         yield HAPROXY_APP_NAME
         return
-    if haproxy_charm_file := pytestconfig.getoption("--haproxy-charm-file"):
-        juju.deploy(
-            charm=haproxy_charm_file,
-            app=HAPROXY_APP_NAME,
-            config={"external-hostname": MOCK_HAPROXY_HOSTNAME},
-            base=HAPROXY_BASE,
-        )
-    else:
-        juju.deploy(
-            charm="haproxy",
-            app=HAPROXY_APP_NAME,
-            channel=HAPROXY_CHANNEL,
-            revision=HAPROXY_REVISION,
-            config={"external-hostname": MOCK_HAPROXY_HOSTNAME},
-            base=HAPROXY_BASE,
-        )
+    juju.deploy(
+        charm="haproxy",
+        app=HAPROXY_APP_NAME,
+        channel=HAPROXY_CHANNEL,
+        revision=HAPROXY_REVISION,
+        config={"external-hostname": MOCK_HAPROXY_HOSTNAME},
+        base=HAPROXY_BASE,
+    )
     juju.deploy(
         charm="self-signed-certificates",
         app=CERTIFICATES_APP_NAME,
@@ -175,11 +167,11 @@ def http_session() -> Callable[[list[tuple[str, IPv4Address | IPv6Address]]], Se
         for hostname, address in dns_entries:
             session.mount(
                 f"https://{hostname}",
-                DNSResolverHTTPAdapter(hostname, str(address)),
+                DNSResolverAdapter(hostname, str(address)),
             )
             session.mount(
                 f"http://{hostname}",
-                DNSResolverHTTPAdapter(hostname, str(address)),
+                DNSResolverAdapter(hostname, str(address)),
             )
         return session
 

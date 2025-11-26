@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 from requests.adapters import DEFAULT_POOLBLOCK, DEFAULT_POOLSIZE, DEFAULT_RETRIES, HTTPAdapter
 
 
-class DNSResolverHTTPAdapter(HTTPAdapter):
+class DNSResolverAdapter(HTTPAdapter):
     """A simple mounted DNS resolver for HTTP requests, with retry support."""
 
     def __init__(

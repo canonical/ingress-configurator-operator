@@ -56,7 +56,6 @@ def test_adapter_http(
         ingress_requirer: Any charm running an apache webserver.
         http_session: Modified requests session fixture for making HTTP requests.
     """
-    juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
     juju.wait(
         lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
         error=jubilant.any_error,

@@ -113,7 +113,6 @@ config:
       description: |
         If set to true, the server will close the connection after each request.
         This can be useful for certain applications that do not support keep-alive.
-        Example: "%[path,regsub(^/,/new)]\n%[path,regsub(^/api,/v1)]"
     path-rewrite-expressions:
       type: string
       description: |
@@ -123,7 +122,7 @@ config:
       type: string
       description: |
         New line ('\n') separated list of header rewrite expressions.
-        Each host rewrite expression will consist of the header name and the header rewrite
+        Each header rewrite expression will consist of the header name and the header rewrite
         expression separated by colon (':').
         Example: "X-Forwarded-For:%[src]\nHost:maintenance.domain.com"
     # Add haproxy-route-tcp config options

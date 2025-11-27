@@ -13,7 +13,7 @@ import pytest
 import yaml
 from requests import Session
 
-from .helper import DNSResolverHTTPSAdapter
+from .helper import DNSResolverAdapter
 
 MOCK_HAPROXY_HOSTNAME = "haproxy.internal"
 HAPROXY_HTTP_REQUIRER_SRC = "tests/integration/any_charm_http_requirer.py"
@@ -167,7 +167,11 @@ def http_session() -> Callable[[list[tuple[str, IPv4Address | IPv6Address]]], Se
         for hostname, address in dns_entries:
             session.mount(
                 f"https://{hostname}",
-                DNSResolverHTTPSAdapter(hostname, str(address)),
+                DNSResolverAdapter(hostname, str(address)),
+            )
+            session.mount(
+                f"http://{hostname}",
+                DNSResolverAdapter(hostname, str(address)),
             )
         return session
 

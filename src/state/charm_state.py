@@ -184,6 +184,7 @@ class State:
         load_balancing_configuration: Load balancing configuration.
         http_server_close: Configure server close after request.
         path_rewrite_expressions: List of path rewrite expressions.
+        allow_http: Whether to allow HTTP traffic to the service.
     """
 
     _backend_state: BackendState
@@ -203,6 +204,7 @@ class State:
     )
     http_server_close: bool = Field(default=False)
     path_rewrite_expressions: list[str] = Field(default=[])
+    allow_http: bool = Field(default=False)
 
     @property
     def backend_addresses(self) -> list[IPvAnyAddress]:
@@ -306,6 +308,7 @@ class State:
                 if charm.config.get("path-rewrite-expressions")
                 else []
             )
+            allow_http = cast(bool, charm.config.get("allow-http", False))
             return cls(
                 _backend_state=BackendState(backend_addresses, backend_ports, backend_protocol),
                 paths=paths,
@@ -318,6 +321,7 @@ class State:
                 load_balancing_configuration=load_balancing_configuration,
                 http_server_close=http_server_close,
                 path_rewrite_expressions=path_rewrite_expressions,
+                allow_http=allow_http,
             )
         except ValidationError as exc:
             logger.error(str(exc))

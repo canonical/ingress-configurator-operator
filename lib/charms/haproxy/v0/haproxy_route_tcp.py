@@ -145,6 +145,7 @@ class SomeCharm(CharmBase):
 
 import json
 import logging
+from collections import defaultdict
 from enum import Enum
 from typing import Annotated, Any, MutableMapping, Optional, cast
 
@@ -173,7 +174,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 1
+LIBPATCH = 2
 
 logger = logging.getLogger(__name__)
 HAPROXY_ROUTE_TCP_RELATION_NAME = "haproxy-route-tcp"
@@ -644,7 +645,7 @@ class TcpRequirerApplicationData(_DatabagModel):
             The validated model.
         """
         if not self.enforce_tls and self.sni is not None:
-            raise ValueError("setting sni and disabling TLS are mutually exclusive.")
+            raise ValueError("You can't set SNI and disable TLS at the same time.")
         return self
 
 
@@ -708,18 +709,13 @@ class HaproxyRouteTcpRequirersData:
         # Maybe the logic here can be optimized, we want to keep track of
         # the relation IDs that request overlapping ports to ignore them during
         # rendering of the haproxy configuration.
-        port_to_relation_ids: dict[int, list[int]] = {}
+        relation_ids_per_port: dict[int, list[int]] = defaultdict(list[int])
         for requirer_data in self.requirers_data:
-            if not port_to_relation_ids.get(requirer_data.application_data.port):
-                port_to_relation_ids[requirer_data.application_data.port] = [
-                    requirer_data.relation_id
-                ]
-                continue
-            port_to_relation_ids[requirer_data.application_data.port].append(
+            relation_ids_per_port[requirer_data.application_data.port].append(
                 requirer_data.relation_id
             )
 
-        for relation_ids in port_to_relation_ids.values():
+        for relation_ids in relation_ids_per_port.values():
             if len(relation_ids) > 1:
                 self.relation_ids_with_invalid_data.extend(relation_ids)
         return self
@@ -740,7 +736,7 @@ class HaproxyRouteTcpDataRemovedEvent(EventBase):
 
 
 class HaproxyRouteTcpProviderEvents(CharmEvents):
-    """List of events that the TLS Certificates requirer charm can leverage.
+    """List of events for the haproxy-route TCP provider.
 
     Attributes:
         data_available: This event indicates that
@@ -784,7 +780,6 @@ class HaproxyRouteTcpProvider(Object):
         self.charm = charm
         self.raise_on_validation_error = raise_on_validation_error
         on = self.charm.on
-        self.framework.observe(on[self._relation_name].relation_created, self._configure)
         self.framework.observe(on[self._relation_name].relation_changed, self._configure)
         self.framework.observe(on[self._relation_name].relation_broken, self._on_endpoint_removed)
         self.framework.observe(
@@ -1465,7 +1460,7 @@ class HaproxyRouteTcpRequirer(Object):
         """
         address = self._unit_address
         if not address:
-            network_binding = self.charm.model.get_binding("juju-info")
+            network_binding = self.charm.model.get_binding(self._relation_name)
             if (
                 network_binding is not None
                 and (bind_address := network_binding.network.bind_address) is not None

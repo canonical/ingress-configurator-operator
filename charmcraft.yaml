@@ -142,6 +142,12 @@ config:
     tcp-hostname:
       type: string
       description: (integrator mode, TCP) specify the SNI (Server Name Indication).
+    allow-http:
+      type: boolean
+      default: false
+      description: |
+          If set to true, allows HTTP traffic in addition to HTTPS. Defaults to False.
+          Warning: enabling HTTP is a security risk, make sure you apply the necessary precautions.
 
 charm-libs:
   - lib: haproxy.haproxy_route

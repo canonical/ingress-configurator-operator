@@ -66,4 +66,4 @@ def test_action_get_proxied_endpoints_nominal(
     task = juju.run(unit, "get-proxied-endpoints")
 
     endpoints = set(json.loads(task.results["endpoints"]))
-    assert endpoints == {f"https://{h}/" for h in [hostname] + additional_hostnames}, task.results
+    assert endpoints == {f"https://{h}/" for h in [hostname, *additional_hostnames]}, task.results

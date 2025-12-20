@@ -1,0 +1,40 @@
+"DESCRIPTION","DURATION IN MS","NAME","PARENT SUITE","START TIME","STATUS","STOP TIME","SUB SUITE","SUITE","TEST CLASS","TEST METHOD"
+"Test the charm actions in integrator mode.
+
+    Args:
+        juju: Jubilant juju fixture
+        application: Name of the ingress-configurator application.
+        haproxy: Name of the haproxy application.
+        ingress_requirer: Any charm running an apache webserver.
+    ","22406","test_action_get_proxied_endpoints_nominal","tests.integration","2025-12-20","passed","2025-12-20","","test_actions","",""
+"Deploy the charm with anycharm ingress per unit requirer that installs apache2.
+
+    Assert that the requirer endpoints are available.
+    ","5034","test_haproxy_route_tcp","tests.integration","2025-12-20","broken","2025-12-20","","test_haproxy_route_tcp","",""
+"Test the charm configuration in integrator mode.
+
+    Args:
+        juju: Jubilant juju fixture
+        application: Name of the ingress-configurator application.
+        haproxy: Name of the haproxy application.
+        any_charm_backend: Any charm running an apache webserver.
+        http_session: Modified requests session fixture for making HTTP requests.
+    ","19326","test_config_hostnames_and_paths","tests.integration","2025-12-20","passed","2025-12-20","","test_integrator","",""
+"Test for allow-http config.
+
+    Args:
+        juju: Jubilant juju fixture
+        application: Name of the ingress-configurator application.
+        haproxy: Name of the haproxy application.
+        ingress_requirer: Any charm running an apache webserver.
+        http_session: Modified requests session fixture for making HTTP requests.
+    ","7571","test_adapter_http","tests.integration","2025-12-20","passed","2025-12-20","","test_adapter","",""
+"Test for integrator mode.
+
+    Args:
+        juju: Jubilant juju fixture
+        application: Name of the ingress-configurator application.
+        haproxy: Name of the haproxy application.
+        ingress_requirer: Any charm running an apache webserver.
+        http_session: Modified requests session fixture for making HTTP requests.
+    ","5136","test_adapter_end_to_end_routing","tests.integration","2025-12-20","passed","2025-12-20","","test_adapter","",""

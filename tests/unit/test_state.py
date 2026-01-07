@@ -17,7 +17,11 @@ from ops import CharmBase
 from state.charm_state import InvalidStateError, State
 
 
-def test_adapter_state_from_charm():
+@pytest.mark.parametrize(
+    "hostname",
+    ["api.example.com", "api.example.com:443"],
+)
+def test_adapter_state_from_charm(hostname):
     """
     arrange: mock a charm with an ingress relation
     act: instantiate a State
@@ -36,7 +40,7 @@ def test_adapter_state_from_charm():
         "timeout-connect": 12,
         "timeout-queue": 13,
         "paths": "/api/v1,/api/v2",
-        "hostname": "api.example.com:443",
+        "hostname": hostname,
         "additional-hostnames": "api2.example.com,api3.example.com",
         "http-server-close": True,
         "allow-http": True,

@@ -193,9 +193,7 @@ class State:
     timeout: Timeout
     service: str = Field(..., min_length=1)
     paths: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(default=[])
-    hostname: Optional[Annotated[str, BeforeValidator(validate_hostname)]] = Field(
-        default=None
-    )
+    hostname: Optional[Annotated[str, BeforeValidator(validate_hostname)]] = Field(default=None)
     additional_hostnames: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = (
         Field(default=[])
     )

@@ -18,6 +18,7 @@ HOSTNAME_REGEX = (
     r"{1,63}(?<!-)\.){1,}(?:(?!-)[a-zA-Z0-9-]{1,63}(?<!-))(:\d+)?$"
 )
 
+
 def validate_hostname(value: str) -> str:
     """Validate if value is a valid hostname per RFC 1123.
 

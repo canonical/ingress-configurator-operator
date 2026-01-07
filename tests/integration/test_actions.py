@@ -40,7 +40,7 @@ def test_action_get_proxied_endpoints_nominal(
     assert task.results == {"endpoints": f'["https://{MOCK_HAPROXY_HOSTNAME}/"]'}, task.results
 
     # Test with configured hostname on ingress
-    hostname = "test.ingress.hostname"
+    hostname = "test.ingress.hostname:443"
     juju.config(
         application,
         {"hostname": hostname},

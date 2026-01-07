@@ -14,7 +14,7 @@ from pydantic import BeforeValidator, Field, ValidationError, model_validator
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
-from validators import get_invalid_config_fields, value_has_valid_characters
+from validators import get_invalid_config_fields, validate_hostname, value_has_valid_characters
 
 logger = logging.getLogger()
 CHARM_CONFIG_DELIMITER = ","
@@ -193,7 +193,7 @@ class State:
     timeout: Timeout
     service: str = Field(..., min_length=1)
     paths: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(default=[])
-    hostname: Optional[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(
+    hostname: Optional[Annotated[str, BeforeValidator(validate_hostname)]] = Field(
         default=None
     )
     additional_hostnames: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = (

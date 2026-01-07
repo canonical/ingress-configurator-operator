@@ -4,11 +4,35 @@
 """Helper methods to validate the charm state."""
 
 import logging
+import re
 import string
 
 from pydantic import ValidationError
 
 logger = logging.getLogger()
+
+# RFC-1034 and RFC-2181 compliance REGEX for validating FQDNs
+# The original regex is complemented to allow an optional port component: (:\d+)?
+HOSTNAME_REGEX = (
+    r"^(?=.{1,253})(?!.*--.*)(?:(?!-)(?![0-9])[a-zA-Z0-9-]"
+    r"{1,63}(?<!-)\.){1,}(?:(?!-)[a-zA-Z0-9-]{1,63}(?<!-))(:\d+)?$"
+)
+
+def validate_hostname(value: str) -> str:
+    """Validate if value is a valid hostname per RFC 1123.
+
+    Args:
+        value: The value to validate.
+
+    Raises:
+        ValueError: When value is not a valid hostname.
+
+    Returns:
+        The validated value.
+    """
+    if not re.match(HOSTNAME_REGEX, value):
+        raise ValueError(f"Invalid hostname: {value}")
+    return value
 
 
 def value_has_valid_characters(value: str) -> str:

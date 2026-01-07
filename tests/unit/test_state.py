@@ -36,7 +36,7 @@ def test_adapter_state_from_charm():
         "timeout-connect": 12,
         "timeout-queue": 13,
         "paths": "/api/v1,/api/v2",
-        "hostname": "api.example.com",
+        "hostname": "api.example.com:443",
         "additional-hostnames": "api2.example.com,api3.example.com",
         "http-server-close": True,
         "allow-http": True,

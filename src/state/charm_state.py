@@ -4,7 +4,7 @@
 """ingress-configurator-operator integrator information."""
 
 import logging
-from typing import Annotated, Literal, Optional, cast
+from typing import Annotated, Literal, Optional, Self, cast
 
 import ops
 from annotated_types import Len
@@ -224,8 +224,37 @@ class State:
         """The backend protocol."""
         return self._backend_state.backend_protocol
 
+    @model_validator(mode="after")
+    def validate_external_grpc_port_requires_https(self) -> Self:
+        """Perform additional validations.
+
+        Returns: this class instance.
+
+        Raises:
+            ValueError: if the validation doesn't pass.
+        """
+        if self.external_grpc_port is not None and self.backend_protocol != "https":
+            msg = "external_grpc_port can only be set when backend_protocol is 'https'."
+            raise ValueError(msg)
+
+        return self
+
+    @model_validator(mode="after")
+    def validate_external_grpc_port_and_not_allow_http(self) -> Self:
+        """Perform additional validations.
+
+        Returns: this class instance.
+
+        Raises:
+            ValueError: if the validation doesn't pass.
+        """
+        if self.external_grpc_port is not None and self.allow_http:
+            msg = "external_grpc_port cannot be set when allow_http is True."
+            raise ValueError(msg)
+
+        return self
     @classmethod
-    def from_charm(cls, charm: ops.CharmBase, ingress_data: IngressRequirerData | None) -> "State":
+    def from_charm(cls, charm: ops.CharmBase, ingress_data: IngressRequirerData | None) -> Self:
         """Create an State class from a charm instance.
 
         Args:

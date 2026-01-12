@@ -253,6 +253,7 @@ class State:
             raise ValueError(msg)
 
         return self
+
     @classmethod
     def from_charm(cls, charm: ops.CharmBase, ingress_data: IngressRequirerData | None) -> Self:
         """Create an State class from a charm instance.

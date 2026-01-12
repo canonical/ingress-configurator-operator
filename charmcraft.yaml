@@ -50,6 +50,12 @@ config:
     backend-protocol:
       type: string
       description: The protocol that the backend service speaks. "http" (default) or "https".
+    external-grpc-port:
+      type: int
+      description: |
+        (integrator mode) Frontend port to expose gRPC services.
+        If not set, gRPC will be routed through port 443 with HTTPS traffic.
+        Do not set this if the backend is not gRPC.
     health-check-interval:
       type: int
       description: Interval between health checks in seconds.
@@ -95,7 +101,7 @@ config:
     load-balancing-algorithm:
       type: string
       description: |
-        Algorithm to use to load balance incoming requests. 
+        Algorithm to use to load balance incoming requests.
         Can be leastconn, roundrobin, cookie or source
       default: leastconn
     load-balancing-cookie:
@@ -146,8 +152,8 @@ config:
       type: boolean
       default: false
       description: |
-          If set to true, allows HTTP traffic in addition to HTTPS. Defaults to False.
-          Warning: enabling HTTP is a security risk, make sure you apply the necessary precautions.
+        If set to true, allows HTTP traffic in addition to HTTPS. Defaults to False.
+        Warning: enabling HTTP is a security risk, make sure you apply the necessary precautions.
 
 charm-libs:
   - lib: haproxy.haproxy_route

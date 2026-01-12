@@ -185,6 +185,7 @@ class State:
         path_rewrite_expressions: List of path rewrite expressions.
         header_rewrite_expressions: List of header rewrite expressions.
         allow_http: Whether to allow HTTP traffic to the service.
+        external_grpc_port: Optional gRPC external port.
     """
 
     _backend_state: BackendState
@@ -206,6 +207,7 @@ class State:
     path_rewrite_expressions: list[str] = Field(default=[])
     header_rewrite_expressions: list[tuple[str, str]] = Field(default=[])
     allow_http: bool = Field(default=False)
+    external_grpc_port: int | None = Field(default=None, gt=0, le=65535)
 
     @property
     def backend_addresses(self) -> list[IPvAnyAddress]:
@@ -255,6 +257,7 @@ class State:
                 Literal["http", "https"],
                 (charm.config.get("backend-protocol") or "http"),
             )
+            external_grpc_port = cast(int | None, charm.config.get("external-grpc-port"))
             ingress_backend_ports = [ingress_data.app.port] if ingress_data else []
             ingress_backend_addresses = (
                 [cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units]
@@ -331,6 +334,7 @@ class State:
                 path_rewrite_expressions=path_rewrite_expressions,
                 header_rewrite_expressions=header_rewrite_expressions,
                 allow_http=allow_http,
+                external_grpc_port=external_grpc_port,
             )
         except ValidationError as exc:
             logger.error(str(exc))

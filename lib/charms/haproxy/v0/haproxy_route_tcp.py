@@ -174,7 +174,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 2
+LIBPATCH = 3
 
 logger = logging.getLogger(__name__)
 HAPROXY_ROUTE_TCP_RELATION_NAME = "haproxy-route-tcp"
@@ -575,7 +575,7 @@ class TcpRequirerApplicationData(_DatabagModel):
     port: int = Field(description="The port exposed on the provider.", gt=0, le=65535)
     backend_port: Optional[int] = Field(
         description=(
-            "The port where the backend service is listening. " "Defaults to the provider port."
+            "The port where the backend service is listening. Defaults to the provider port."
         ),
         default=None,
         gt=0,
@@ -692,11 +692,11 @@ class HaproxyRouteTcpRequirersData:
 
     Attributes:
         requirers_data: List of requirer data.
-        relation_ids_with_invalid_data: List of relation ids that contains invalid data.
+        relation_ids_with_invalid_data: Set of relation ids that contains invalid data.
     """
 
     requirers_data: list[HaproxyRouteTcpRequirerData]
-    relation_ids_with_invalid_data: list[int]
+    relation_ids_with_invalid_data: set[int]
 
     @model_validator(mode="after")
     def check_ports_unique(self) -> Self:
@@ -717,7 +717,7 @@ class HaproxyRouteTcpRequirersData:
 
         for relation_ids in relation_ids_per_port.values():
             if len(relation_ids) > 1:
-                self.relation_ids_with_invalid_data.extend(relation_ids)
+                self.relation_ids_with_invalid_data.update(relation_ids)
         return self
 
 
@@ -815,7 +815,7 @@ class HaproxyRouteTcpProvider(Object):
             HaproxyRouteRequirersData: Validated data from all haproxy-route requirers.
         """
         requirers_data: list[HaproxyRouteTcpRequirerData] = []
-        relation_ids_with_invalid_data: list[int] = []
+        relation_ids_with_invalid_data: set[int] = set()
         for relation in relations:
             try:
                 application_data = self._get_requirer_application_data(relation)
@@ -837,7 +837,7 @@ class HaproxyRouteTcpProvider(Object):
                     raise HaproxyRouteTcpInvalidRelationDataError(
                         f"haproxy-route-tcp data validation failed for relation: {relation}"
                     ) from exc
-                relation_ids_with_invalid_data.append(relation.id)
+                relation_ids_with_invalid_data.add(relation.id)
                 continue
         return HaproxyRouteTcpRequirersData(
             requirers_data=requirers_data,
@@ -1162,7 +1162,7 @@ class HaproxyRouteTcpRequirer(Object):
         self.update_relation_data()
 
     # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
-    def _generate_application_data(  # noqa: C901
+    def _generate_application_data(
         self,
         *,
         port: Optional[int] = None,
@@ -1625,10 +1625,8 @@ class HaproxyRouteTcpRequirer(Object):
         """
         if not upload_bytes_per_second and not download_bytes_per_second:
             logger.error(
-                (
-                    "At least one of `upload_bytes_per_second` "
-                    "or `upload_bytes_per_second` must be set."
-                )
+                "At least one of `upload_bytes_per_second` "
+                "or `upload_bytes_per_second` must be set."
             )
             return self
         self._application_data["bandwidth_limit"] = {
@@ -1677,10 +1675,8 @@ class HaproxyRouteTcpRequirer(Object):
             server_timeout_in_seconds or connect_timeout_in_seconds or queue_timeout_in_seconds
         ):
             logger.error(
-                (
-                    "At least one of `server_timeout_in_seconds`, `connect_timeout_in_seconds` "
-                    "or `queue_timeout_in_seconds` must be set."
-                )
+                "At least one of `server_timeout_in_seconds`, `connect_timeout_in_seconds` "
+                "or `queue_timeout_in_seconds` must be set."
             )
             return self
         self._application_data["timeout"] = self._generate_timeout_configuration(

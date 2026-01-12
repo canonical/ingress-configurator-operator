@@ -92,6 +92,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                     "path_rewrite_expressions": charm_state.path_rewrite_expressions,
                     "header_rewrite_expressions": charm_state.header_rewrite_expressions,
                     "allow_http": charm_state.allow_http,
+                    "external_grpc_port": charm_state.external_grpc_port,
                 }
                 not_none_params = {k: v for k, v in params.items() if v is not None}
                 self._haproxy_route.provide_haproxy_route_requirements(**not_none_params)

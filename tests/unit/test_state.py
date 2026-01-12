@@ -572,7 +572,7 @@ def test_state_from_charm_invalid_external_grpc_port_and_http():
     """
     arrange: mock a charm with external-grpc-port but http protocol
     act: instantiate a State
-    assert: a InvalidStateError is raised
+    assert: a InvalidStateError is raised with ValueError as cause
     """
     charm = Mock(CharmBase)
     charm.config = {
@@ -581,8 +581,12 @@ def test_state_from_charm_invalid_external_grpc_port_and_http():
         "backend-protocol": "http",
         "external-grpc-port": 50051,
     }
-    with pytest.raises(InvalidStateError):
+    with pytest.raises(InvalidStateError) as exc_info:
         State.from_charm(charm, None)
+    assert isinstance(exc_info.value.__cause__, ValueError)
+    assert "external_grpc_port can only be set when backend_protocol is 'https'" in str(
+        exc_info.value.__cause__
+    )
 
 
 def test_state_from_charm_invalid_external_grpc_port_invalid_and_allow_http():
@@ -599,5 +603,8 @@ def test_state_from_charm_invalid_external_grpc_port_invalid_and_allow_http():
         "external-grpc-port": 50051,
         "allow-http": True,
     }
-    with pytest.raises(InvalidStateError):
+    with pytest.raises(InvalidStateError) as exc_info:
         State.from_charm(charm, None)
+    assert "external_grpc_port cannot be set when allow_http is True." in str(
+        exc_info.value.__cause__
+    )

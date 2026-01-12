@@ -36,8 +36,8 @@ You may also want to link to the `charmcraft.yaml` file here.
 The ingress-configurator charm will be able to work both as an adapter and as an integrator. The integrator mode is used to support non-charm workloads that want to use the haproxy charm as a load balancer.
 The following configurations must be configured for integrator mode:
 
-- `backend_addresses`
-- `backend_ports`
+- `backend-addresses`
+- `backend-ports`
 
 Apart from these, the ingress-configurator also supports a wide range of haproxy-route-related configurations:
 

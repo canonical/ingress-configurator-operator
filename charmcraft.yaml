@@ -150,15 +150,15 @@ config:
       description: (integrator mode, TCP) specify the SNI (Server Name Indication).
     tcp-retry-count:
       type: int
-      description: Number of times to retry failed requests.
+      description: Number of times to retry failed connections to the backend.
     tcp-retry-redispatch:
       type: boolean
       default: false
-      description: Whether to redispatch failed requests to another server.
+      description: Whether to redispatch failed connections to another server.
     tcp-load-balancing-algorithm:
       type: string
       description: |
-        Algorithm to use to load balance incoming requests.
+        Algorithm to use to load balance incoming connections.
         Can be leastconn, roundrobin or source
       default: leastconn
     tcp-load-balancing-consistent-hashing:

@@ -88,8 +88,9 @@ def test_haproxy_route_tcp_invalid_algorithm():
         "tcp-load-balancing-algorithm": "invalid",
     }
 
-    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError):
+    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError) as exc_info:
         HaproxyRouteTcpRequirements.from_charm(charm)
+    assert "Invalid load balancing algorithm" in str(exc_info.value)
 
 
 def test_haproxy_route_tcp_requirements_from_charm_no_tls():

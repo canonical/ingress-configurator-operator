@@ -549,3 +549,62 @@ def test_state_from_charm_invalid_header_rewrite():
     }
     with pytest.raises(InvalidStateError):
         State.from_charm(charm, None)
+
+
+def test_state_from_charm_external_grpc_port_nominal():
+    """
+    arrange: mock a charm with valid external-grpc-port configuration
+    act: instantiate a State
+    assert: the external_grpc_port is set correctly
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1",
+        "backend-ports": "8080",
+        "backend-protocol": "https",
+        "external-grpc-port": 50051,
+    }
+    charm_state = State.from_charm(charm, None)
+    assert charm_state.external_grpc_port == 50051
+
+
+def test_state_from_charm_invalid_external_grpc_port_and_http():
+    """
+    arrange: mock a charm with external-grpc-port but http protocol
+    act: instantiate a State
+    assert: a InvalidStateError is raised with ValueError as cause
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1",
+        "backend-ports": "8080",
+        "backend-protocol": "http",
+        "external-grpc-port": 50051,
+    }
+    with pytest.raises(InvalidStateError) as exc_info:
+        State.from_charm(charm, None)
+    assert isinstance(exc_info.value.__cause__, ValueError)
+    assert "external_grpc_port can only be set when backend_protocol is 'https'" in str(
+        exc_info.value.__cause__
+    )
+
+
+def test_state_from_charm_invalid_external_grpc_port_invalid_and_allow_http():
+    """
+    arrange: mock a charm with external-grpc-port and allow-http both set
+    act: instantiate a State
+    assert: a InvalidStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1",
+        "backend-ports": "8080",
+        "backend-protocol": "https",
+        "external-grpc-port": 50051,
+        "allow-http": True,
+    }
+    with pytest.raises(InvalidStateError) as exc_info:
+        State.from_charm(charm, None)
+    assert "external_grpc_port cannot be set when allow_http is True." in str(
+        exc_info.value.__cause__
+    )

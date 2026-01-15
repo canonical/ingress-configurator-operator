@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Each revision is versioned by the date of the revision.
 
+## 2026-01-12
+
+### Added
+
+ - Add external-grpc-port configuration to support gRPC traffic routing.
+
 ## 2025-11-25
 
 ### Added
@@ -27,24 +33,24 @@ Each revision is versioned by the date of the revision.
 
 ## 2025-07-14
 
-### Added 
+### Added
 
 - Add check-interval, check-rise, check-fall, check-path and check-port configurations
 
 
 ## 2025-07-10
 
-### Added 
+### Added
 
 - Add retry-count, retry-interval and retry-redispatch configurations
 
-### Added 
+### Added
 
 - Add ingress integration support
 
 
 ## 2025-07-09
 
-### Added 
+### Added
 
 - Add path and subdomain configuration to the `ingress-configurator` charm.

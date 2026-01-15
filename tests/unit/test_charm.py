@@ -69,6 +69,30 @@ def test_protocol_propagated_to_haproxy(context: ops.testing.Context):
     }
 
 
+def test_external_grpc_port_propagated_to_haproxy(context: ops.testing.Context):
+    """Valid external-grpc-port should be copied from config to haproxy-route relation"""
+    in_ = ops.testing.State(
+        config={
+            "backend-addresses": "10.0.0.1",
+            "backend-ports": "80",
+            "backend-protocol": "https",
+            "external-grpc-port": 50051,
+        },
+        relations=[ops.testing.Relation("haproxy-route")],
+        leader=True,
+    )
+    out = context.run(context.on.config_changed(), in_)
+
+    assert out.unit_status == ops.testing.ActiveStatus("")
+    assert out.get_relations("haproxy-route")[0].local_app_data == {
+        "service": ANY,
+        "ports": "[80]",
+        "hosts": '["10.0.0.1"]',
+        "protocol": '"https"',
+        "external_grpc_port": "50051",
+    }
+
+
 class TestGetProxiedEndpointAction:
     """Test "get-proxied-endpoints" Action"""
 

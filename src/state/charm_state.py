@@ -4,7 +4,7 @@
 """ingress-configurator-operator integrator information."""
 
 import logging
-from typing import Annotated, Literal, Optional, cast
+from typing import Annotated, Literal, Optional, Self, cast
 
 import ops
 from annotated_types import Len
@@ -185,6 +185,7 @@ class State:
         path_rewrite_expressions: List of path rewrite expressions.
         header_rewrite_expressions: List of header rewrite expressions.
         allow_http: Whether to allow HTTP traffic to the service.
+        external_grpc_port: Optional gRPC external port.
     """
 
     _backend_state: BackendState
@@ -206,6 +207,7 @@ class State:
     path_rewrite_expressions: list[str] = Field(default=[])
     header_rewrite_expressions: list[tuple[str, str]] = Field(default=[])
     allow_http: bool = Field(default=False)
+    external_grpc_port: int | None = Field(default=None, gt=0, le=65535)
 
     @property
     def backend_addresses(self) -> list[IPvAnyAddress]:
@@ -222,8 +224,38 @@ class State:
         """The backend protocol."""
         return self._backend_state.backend_protocol
 
+    @model_validator(mode="after")
+    def validate_external_grpc_port_requires_https(self) -> Self:
+        """Perform additional validations.
+
+        Returns: this class instance.
+
+        Raises:
+            ValueError: if the validation doesn't pass.
+        """
+        if self.external_grpc_port is not None and self.backend_protocol != "https":
+            msg = "external_grpc_port can only be set when backend_protocol is 'https'."
+            raise ValueError(msg)
+
+        return self
+
+    @model_validator(mode="after")
+    def validate_external_grpc_port_and_not_allow_http(self) -> Self:
+        """Perform additional validations.
+
+        Returns: this class instance.
+
+        Raises:
+            ValueError: if the validation doesn't pass.
+        """
+        if self.external_grpc_port is not None and self.allow_http:
+            msg = "external_grpc_port cannot be set when allow_http is True."
+            raise ValueError(msg)
+
+        return self
+
     @classmethod
-    def from_charm(cls, charm: ops.CharmBase, ingress_data: IngressRequirerData | None) -> "State":
+    def from_charm(cls, charm: ops.CharmBase, ingress_data: IngressRequirerData | None) -> Self:
         """Create an State class from a charm instance.
 
         Args:
@@ -255,6 +287,7 @@ class State:
                 Literal["http", "https"],
                 (charm.config.get("backend-protocol") or "http"),
             )
+            external_grpc_port = cast(int | None, charm.config.get("external-grpc-port"))
             ingress_backend_ports = [ingress_data.app.port] if ingress_data else []
             ingress_backend_addresses = (
                 [cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units]
@@ -331,6 +364,7 @@ class State:
                 path_rewrite_expressions=path_rewrite_expressions,
                 header_rewrite_expressions=header_rewrite_expressions,
                 allow_http=allow_http,
+                external_grpc_port=external_grpc_port,
             )
         except ValidationError as exc:
             logger.error(str(exc))

@@ -3,6 +3,7 @@
 
 """Unit tests for the ingress configurator charm."""
 
+import json
 from unittest.mock import ANY, MagicMock
 
 import ops.testing
@@ -183,7 +184,7 @@ class TestGetProxiedEndpointAction:
 
 
 def test_haproxy_route(context: ops.testing.Context):
-    """Valid protocol should be copied from config to haproxy-route relation"""
+    """Valid protocol should be copied from config to haproxy-route-tcp relation."""
     in_ = ops.testing.State(
         config={
             "tcp-backend-addresses": "10.0.0.1",
@@ -191,6 +192,10 @@ def test_haproxy_route(context: ops.testing.Context):
             "tcp-backend-port": 5000,
             "tcp-tls-terminate": True,
             "tcp-hostname": "example.com",
+            "tcp-retry-count": 3,
+            "tcp-retry-redispatch": True,
+            "tcp-load-balancing-algorithm": "source",
+            "tcp-load-balancing-consistent-hashing": True,
         },
         relations=[ops.testing.Relation("haproxy-route-tcp")],
         leader=True,
@@ -203,3 +208,8 @@ def test_haproxy_route(context: ops.testing.Context):
     assert application_data["backend_port"] == "5000"
     assert application_data["hosts"] == '["10.0.0.1"]'
     assert application_data["sni"] == '"example.com"'
+    assert json.loads(application_data["retry"]) == {"count": 3, "redispatch": True}
+    assert json.loads(application_data["load_balancing"]) == {
+        "algorithm": "source",
+        "consistent_hashing": True,
+    }

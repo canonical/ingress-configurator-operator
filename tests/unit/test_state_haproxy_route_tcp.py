@@ -6,6 +6,7 @@
 from unittest.mock import Mock
 
 import pytest
+from charms.haproxy.v0.haproxy_route_tcp import LoadBalancingAlgorithm
 from ops import CharmBase
 
 from state.haproxy_route_tcp import (
@@ -27,6 +28,10 @@ def test_haproxy_route_tcp_requirements_from_charm():
         "tcp-backend-port": 443,
         "tcp-tls-terminate": True,
         "tcp-hostname": "example.com",
+        "tcp-retry-count": 3,
+        "tcp-retry-redispatch": True,
+        "tcp-load-balancing-algorithm": "roundrobin",
+        "tcp-load-balancing-consistent-hashing": False,
     }
 
     requirements = HaproxyRouteTcpRequirements.from_charm(charm)
@@ -39,6 +44,54 @@ def test_haproxy_route_tcp_requirements_from_charm():
     assert requirements.backend_port == 443
     assert requirements.tls_terminate is True
     assert requirements.hostname == "example.com"
+    assert requirements.retry.count == 3
+    assert requirements.retry.redispatch is True
+    assert requirements.load_balancing_configuration.algorithm == LoadBalancingAlgorithm.ROUNDROBIN
+    assert requirements.load_balancing_configuration.consistent_hashing is False
+
+
+def test_haproxy_route_tcp_requirements_from_charm_defaults():
+    """
+    arrange: mock a charm with minimal TCP configuration
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: defaults are used for optional fields
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "10.0.0.1",
+        "tcp-frontend-port": 9000,
+        "tcp-backend-port": 9001,
+        "tcp-tls-terminate": False,
+        "tcp-hostname": None,
+    }
+
+    requirements = HaproxyRouteTcpRequirements.from_charm(charm)
+
+    assert requirements.retry.count is None
+    assert requirements.retry.redispatch is None
+    # Default algorithm is leastconn
+    assert requirements.load_balancing_configuration.algorithm == LoadBalancingAlgorithm.LEASTCONN
+    assert requirements.load_balancing_configuration.consistent_hashing is False
+
+
+def test_haproxy_route_tcp_invalid_algorithm():
+    """
+    arrange: mock a charm with invalid load balancing algorithm
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: InvalidHaproxyRouteTcpRequirementsError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "10.0.0.1",
+        "tcp-frontend-port": 8443,
+        "tcp-backend-port": 443,
+        "tcp-tls-terminate": True,
+        "tcp-hostname": "example.com",
+        "tcp-load-balancing-algorithm": "invalid",
+    }
+
+    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError):
+        HaproxyRouteTcpRequirements.from_charm(charm)
 
 
 def test_haproxy_route_tcp_requirements_from_charm_no_tls():

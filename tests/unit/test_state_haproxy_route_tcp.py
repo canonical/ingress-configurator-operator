@@ -61,8 +61,6 @@ def test_haproxy_route_tcp_requirements_from_charm_defaults():
         "tcp-backend-addresses": "10.0.0.1",
         "tcp-frontend-port": 9000,
         "tcp-backend-port": 9001,
-        "tcp-tls-terminate": False,
-        "tcp-hostname": None,
     }
 
     requirements = HaproxyRouteTcpRequirements.from_charm(charm)

@@ -50,28 +50,6 @@ def test_haproxy_route_tcp_requirements_from_charm():
     assert requirements.load_balancing_configuration.consistent_hashing is False
 
 
-def test_haproxy_route_tcp_requirements_from_charm_defaults():
-    """
-    arrange: mock a charm with minimal TCP configuration
-    act: instantiate HaproxyRouteTcpRequirements
-    assert: defaults are used for optional fields
-    """
-    charm = Mock(CharmBase)
-    charm.config = {
-        "tcp-backend-addresses": "10.0.0.1",
-        "tcp-frontend-port": 9000,
-        "tcp-backend-port": 9001,
-    }
-
-    requirements = HaproxyRouteTcpRequirements.from_charm(charm)
-
-    assert requirements.retry.count is None
-    assert requirements.retry.redispatch is None
-    # Default algorithm is leastconn
-    assert requirements.load_balancing_configuration.algorithm == LoadBalancingAlgorithm.LEASTCONN
-    assert requirements.load_balancing_configuration.consistent_hashing is False
-
-
 def test_haproxy_route_tcp_invalid_algorithm():
     """
     arrange: mock a charm with invalid load balancing algorithm
@@ -106,6 +84,8 @@ def test_haproxy_route_tcp_requirements_from_charm_no_tls():
         "tcp-backend-port": 9001,
         "tcp-tls-terminate": False,
         "tcp-hostname": None,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
     }
 
     requirements = HaproxyRouteTcpRequirements.from_charm(charm)
@@ -130,6 +110,8 @@ def test_haproxy_route_tcp_requirements_from_charm_ipv6():
         "tcp-backend-port": 8443,
         "tcp-tls-terminate": True,
         "tcp-hostname": "ipv6.example.com",
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
     }
 
     requirements = HaproxyRouteTcpRequirements.from_charm(charm)
@@ -255,6 +237,8 @@ def test_haproxy_route_tcp_requirements_valid_port_boundaries():
         "tcp-backend-port": 65535,
         "tcp-tls-terminate": False,
         "tcp-hostname": None,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
     }
 
     requirements = HaproxyRouteTcpRequirements.from_charm(charm)
@@ -276,6 +260,8 @@ def test_haproxy_route_tcp_requirements_multiple_backend_addresses():
         "tcp-backend-port": 3306,
         "tcp-tls-terminate": False,
         "tcp-hostname": None,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
     }
 
     requirements = HaproxyRouteTcpRequirements.from_charm(charm)
@@ -301,6 +287,8 @@ def test_haproxy_route_tcp_requirements_mixed_ip_versions():
         "tcp-backend-port": 5432,
         "tcp-tls-terminate": False,
         "tcp-hostname": None,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
     }
 
     requirements = HaproxyRouteTcpRequirements.from_charm(charm)

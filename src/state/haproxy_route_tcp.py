@@ -87,12 +87,7 @@ class HaproxyRouteTcpRequirements:
         hostname = cast(str | None, charm.config.get("tcp-hostname"))
         try:
             load_balancing_algorithm = LoadBalancingAlgorithm(
-                cast(
-                    str,
-                    charm.config.get(
-                        "tcp-load-balancing-algorithm", LoadBalancingAlgorithm.LEASTCONN.value
-                    ),
-                )
+                cast(str, charm.config.get("tcp-load-balancing-algorithm"))
             )
         except ValueError as exc:
             logger.error(str(exc))
@@ -104,7 +99,7 @@ class HaproxyRouteTcpRequirements:
             load_balancing_configuration = TCPLoadBalancingConfiguration(
                 algorithm=load_balancing_algorithm,
                 consistent_hashing=cast(
-                    bool, charm.config.get("tcp-load-balancing-consistent-hashing", False)
+                    bool, charm.config.get("tcp-load-balancing-consistent-hashing")
                 ),
             )
             return cls(

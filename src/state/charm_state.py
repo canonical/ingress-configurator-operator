@@ -149,18 +149,19 @@ class Retry:
     redispatch: Optional[bool] = None
 
     @classmethod
-    def from_charm(cls, charm: ops.CharmBase) -> "Retry":
+    def from_charm(cls, charm: ops.CharmBase, prefix: str = "") -> "Retry":
         """Create an Retry class from a charm instance.
 
         Args:
             charm: the ingress-configurator charm.
+            prefix: prefix for the configuration option.
 
         Returns:
             Retry: instance of the retry component.
         """
         return cls(
-            count=cast(Optional[int], charm.config.get("retry-count")),
-            redispatch=cast(Optional[bool], charm.config.get("retry-redispatch")),
+            count=cast(Optional[int], charm.config.get(f"{prefix}retry-count")),
+            redispatch=cast(Optional[bool], charm.config.get(f"{prefix}retry-redispatch")),
         )
 
 

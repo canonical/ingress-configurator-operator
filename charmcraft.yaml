@@ -149,6 +149,25 @@ config:
     tcp-hostname:
       type: string
       description: (integrator mode, TCP) specify the SNI (Server Name Indication).
+    tcp-retry-count:
+      type: int
+      description: Number of times to retry failed connections to the backend.
+    tcp-retry-redispatch:
+      type: boolean
+      default: false
+      description: Whether to redispatch failed connections to another server.
+    tcp-load-balancing-algorithm:
+      type: string
+      description: |
+        Algorithm to use to load balance incoming connections.
+        Can be leastconn, roundrobin or source
+      default: leastconn
+    tcp-load-balancing-consistent-hashing:
+      type: boolean
+      description: |
+        Only applies when the `algorithm` is "source".
+        Use consistent hashing to avoid redirection when servers are added/removed.
+      default: false
     allow-http:
       type: boolean
       default: false

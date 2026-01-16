@@ -50,6 +50,15 @@ class IngressConfiguratorCharm(ops.CharmBase):
         self.framework.observe(self.on[HAPROXY_ROUTE_RELATION].relation_changed, self._reconcile)
         self.framework.observe(self.on[HAPROXY_ROUTE_RELATION].relation_broken, self._reconcile)
         self.framework.observe(self.on[HAPROXY_ROUTE_RELATION].relation_departed, self._reconcile)
+        self.framework.observe(
+            self.on[HAPROXY_ROUTE_TCP_RELATION].relation_changed, self._reconcile
+        )
+        self.framework.observe(
+            self.on[HAPROXY_ROUTE_TCP_RELATION].relation_broken, self._reconcile
+        )
+        self.framework.observe(
+            self.on[HAPROXY_ROUTE_TCP_RELATION].relation_departed, self._reconcile
+        )
         self.framework.observe(self._ingress.on.data_provided, self._reconcile)
         self.framework.observe(self._ingress.on.data_removed, self._reconcile)
 
@@ -136,6 +145,12 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 backend_port=tcp_requirements.backend_port,
                 tls_terminate=tcp_requirements.tls_terminate,
                 sni=tcp_requirements.hostname,
+                retry_count=tcp_requirements.retry.count,
+                retry_redispatch=tcp_requirements.retry.redispatch or False,
+                load_balancing_algorithm=tcp_requirements.load_balancing_configuration.algorithm,
+                load_balancing_consistent_hashing=(
+                    tcp_requirements.load_balancing_configuration.consistent_hashing
+                ),
             )
         except (InvalidHaproxyRouteTcpRequirementsError, DataValidationError) as exc:
             raise ProvideHaproxyRouteTcpRequirementsError(

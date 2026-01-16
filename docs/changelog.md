@@ -12,7 +12,7 @@ Each revision is versioned by the date of the revision.
 
  - Add config options `tcp-retry-count`, `tcp-retry-redispatch`, `tcp-load-balancing-algorithm`, 
   `tcp-load-balancing-consistent-hashing`.
- - Fix bug where integrating with `haproxy-route-tcp` does not update the relationd data.
+ - Fix bug where integrating with `haproxy-route-tcp` does not update the relation data.
 
 ## 2026-01-12
 

@@ -38,6 +38,7 @@ requires:
 provides:
   ingress:
     interface: ingress
+    limit: 1
 
 config:
   options:

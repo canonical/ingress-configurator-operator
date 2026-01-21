@@ -165,7 +165,7 @@ class HaproxyRouteTcpRequirements:  # pylint: disable=too-many-instance-attribut
         port = cast(int, charm.config.get("tcp-frontend-port"))
         backend_port = cast(int, charm.config.get("tcp-backend-port"))
         hostname = cast(str | None, charm.config.get("tcp-hostname"))
-        enforce_tls = cast(bool, charm.config.get("tcp-enforce-tls", True))
+        enforce_tls = cast(bool, charm.config.get("tcp-enforce-tls"))
         try:
             load_balancing_algorithm = LoadBalancingAlgorithm(
                 cast(str, charm.config.get("tcp-load-balancing-algorithm"))

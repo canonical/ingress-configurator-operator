@@ -85,6 +85,7 @@ def test_haproxy_route_tcp_requirements_from_charm_no_tls():
         "tcp-frontend-port": 9000,
         "tcp-backend-port": 9001,
         "tcp-tls-terminate": False,
+        "tcp-enforce-tls": False,
         "tcp-hostname": None,
         "tcp-load-balancing-algorithm": "leastconn",
         "tcp-load-balancing-consistent-hashing": False,
@@ -114,6 +115,7 @@ def test_haproxy_route_tcp_requirements_from_charm_ipv6():
         "tcp-hostname": "ipv6.example.com",
         "tcp-load-balancing-algorithm": "leastconn",
         "tcp-load-balancing-consistent-hashing": False,
+        "tcp-enforce-tls": True,
     }
 
     requirements = HaproxyRouteTcpRequirements.from_charm(charm)
@@ -136,10 +138,13 @@ def test_haproxy_route_tcp_requirements_empty_backend_addresses():
         "tcp-backend-port": 8443,
         "tcp-tls-terminate": False,
         "tcp-hostname": None,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
     }
 
-    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError):
+    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError) as exc_info:
         HaproxyRouteTcpRequirements.from_charm(charm)
+    assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
 
 
 @pytest.mark.parametrize(
@@ -166,8 +171,9 @@ def test_haproxy_route_tcp_requirements_invalid_backend_address(invalid_address)
         "tcp-hostname": None,
     }
 
-    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError):
+    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError) as exc_info:
         HaproxyRouteTcpRequirements.from_charm(charm)
+    assert "Invalid load balancing algorithm" in str(exc_info.value)
 
 
 @pytest.mark.parametrize(
@@ -192,10 +198,13 @@ def test_haproxy_route_tcp_requirements_invalid_frontend_port(invalid_port):
         "tcp-backend-port": 8443,
         "tcp-tls-terminate": False,
         "tcp-hostname": None,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
     }
 
-    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError):
+    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError) as exc_info:
         HaproxyRouteTcpRequirements.from_charm(charm)
+    assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
 
 
 @pytest.mark.parametrize(
@@ -220,10 +229,13 @@ def test_haproxy_route_tcp_requirements_invalid_backend_port(invalid_port):
         "tcp-backend-port": invalid_port,
         "tcp-tls-terminate": False,
         "tcp-hostname": None,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
     }
 
-    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError):
+    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError) as exc_info:
         HaproxyRouteTcpRequirements.from_charm(charm)
+    assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
 
 
 def test_haproxy_route_tcp_requirements_valid_port_boundaries():
@@ -241,6 +253,7 @@ def test_haproxy_route_tcp_requirements_valid_port_boundaries():
         "tcp-hostname": None,
         "tcp-load-balancing-algorithm": "leastconn",
         "tcp-load-balancing-consistent-hashing": False,
+        "tcp-enforce-tls": True,
     }
 
     requirements = HaproxyRouteTcpRequirements.from_charm(charm)
@@ -264,6 +277,7 @@ def test_haproxy_route_tcp_requirements_multiple_backend_addresses():
         "tcp-hostname": None,
         "tcp-load-balancing-algorithm": "leastconn",
         "tcp-load-balancing-consistent-hashing": False,
+        "tcp-enforce-tls": True,
     }
 
     requirements = HaproxyRouteTcpRequirements.from_charm(charm)
@@ -291,6 +305,7 @@ def test_haproxy_route_tcp_requirements_mixed_ip_versions():
         "tcp-hostname": None,
         "tcp-load-balancing-algorithm": "leastconn",
         "tcp-load-balancing-consistent-hashing": False,
+        "tcp-enforce-tls": True,
     }
 
     requirements = HaproxyRouteTcpRequirements.from_charm(charm)
@@ -306,7 +321,7 @@ def test_haproxy_route_tcp_requirements_mixed_ip_versions():
     "tls_terminate,hostname,enforce_tls_config,expected_enforce_tls,expected_hostname",
     [
         pytest.param(False, None, False, False, None, id="enforce_tls_false_without_hostname"),
-        pytest.param(True, "example.com", None, True, "example.com", id="enforce_tls_default"),
+        pytest.param(True, "example.com", True, True, "example.com", id="enforce_tls_default"),
     ],
 )
 def test_haproxy_route_tcp_requirements_enforce_tls(
@@ -323,12 +338,11 @@ def test_haproxy_route_tcp_requirements_enforce_tls(
         "tcp-frontend-port": 443,
         "tcp-backend-port": 8443,
         "tcp-tls-terminate": tls_terminate,
+        "tcp-enforce-tls": enforce_tls_config,
         "tcp-hostname": hostname,
         "tcp-load-balancing-algorithm": "leastconn",
         "tcp-load-balancing-consistent-hashing": False,
     }
-    if enforce_tls_config is not None:
-        charm.config["tcp-enforce-tls"] = enforce_tls_config
 
     requirements = HaproxyRouteTcpRequirements.from_charm(charm)
 
@@ -370,6 +384,7 @@ def test_haproxy_route_tcp_requirements_health_check_presence(
         "tcp-hostname": None,
         "tcp-load-balancing-algorithm": "leastconn",
         "tcp-load-balancing-consistent-hashing": False,
+        "tcp-enforce-tls": True,
         **health_check_config,
     }
 
@@ -406,8 +421,9 @@ def test_haproxy_route_tcp_requirements_incomplete_health_check(missing_field):
         **missing_field,
     }
 
-    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError):
+    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError) as exc_info:
         HaproxyRouteTcpRequirements.from_charm(charm)
+    assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
 
 
 @pytest.mark.parametrize(
@@ -436,8 +452,9 @@ def test_haproxy_route_tcp_requirements_invalid_health_check_values(invalid_valu
         **invalid_value,
     }
 
-    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError):
+    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError) as exc_info:
         HaproxyRouteTcpRequirements.from_charm(charm)
+    assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
 
 
 def test_haproxy_route_tcp_requirements_health_check_with_type_generic():
@@ -452,6 +469,7 @@ def test_haproxy_route_tcp_requirements_health_check_with_type_generic():
         "tcp-frontend-port": 443,
         "tcp-backend-port": 8443,
         "tcp-tls-terminate": True,
+        "tcp-enforce-tls": True,
         "tcp-hostname": None,
         "tcp-load-balancing-algorithm": "leastconn",
         "tcp-load-balancing-consistent-hashing": False,
@@ -483,6 +501,7 @@ def test_haproxy_route_tcp_requirements_health_check_with_type_mysql():
         "tcp-frontend-port": 3306,
         "tcp-backend-port": 3306,
         "tcp-tls-terminate": False,
+        "tcp-enforce-tls": True,
         "tcp-hostname": None,
         "tcp-load-balancing-algorithm": "leastconn",
         "tcp-load-balancing-consistent-hashing": False,
@@ -517,6 +536,7 @@ def test_haproxy_route_tcp_requirements_valid_health_check_types(check_type):
         "tcp-frontend-port": 443,
         "tcp-backend-port": 8443,
         "tcp-tls-terminate": True,
+        "tcp-enforce-tls": True,
         "tcp-hostname": None,
         "tcp-load-balancing-algorithm": "leastconn",
         "tcp-load-balancing-consistent-hashing": False,

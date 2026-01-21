@@ -1,8 +1,6 @@
 # Copyright 2024 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-# pylint: disable=duplicate-code
-
 """HAProxy TCP route state management module.
 
 This module provides state management functionality for HAProxy TCP routes
@@ -10,7 +8,7 @@ in the ingress configurator operator.
 """
 
 import logging
-from typing import Annotated, Optional, cast
+from typing import Annotated, Optional, Self, cast
 
 import ops
 from annotated_types import Len
@@ -56,7 +54,7 @@ class TCPHealthCheck:
     db_user: Optional[str] = None
 
     @model_validator(mode="after")
-    def validate_health_check_all_set(self) -> "TCPHealthCheck":
+    def validate_health_check_all_set(self) -> Self:
         """Validate that all health check fields are set together.
 
         Returns:
@@ -68,13 +66,13 @@ class TCPHealthCheck:
         all_or_none_health_checks_set = bool(self.interval) == bool(self.rise) == bool(self.fall)
         if not all_or_none_health_checks_set:
             raise ValueError(
-                "Health check configuration is incomplete: interval, rise, and fall "
-                "must all be set if any one of them is specified."
+                "Health check configuration is incomplete: interval, rise, and "
+                "fall must all be set if any one of them is specified."
             )
         return self
 
     @classmethod
-    def from_charm(cls, charm: ops.CharmBase) -> "TCPHealthCheck":
+    def from_charm(cls, charm: ops.CharmBase) -> Self:
         """Create a TCPHealthCheck from charm config.
 
         Args:
@@ -142,7 +140,7 @@ class HaproxyRouteTcpRequirements:  # pylint: disable=too-many-instance-attribut
     health_check: TCPHealthCheck
 
     @classmethod
-    def from_charm(cls, charm: ops.CharmBase) -> "HaproxyRouteTcpRequirements":
+    def from_charm(cls, charm: ops.CharmBase) -> Self:
         """Create HaproxyRouteTcpRequirements from charm and requirer.
 
         Args:

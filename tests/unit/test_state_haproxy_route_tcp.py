@@ -346,3 +346,231 @@ def test_haproxy_route_tcp_requirements_enforce_tls_default():
     requirements = HaproxyRouteTcpRequirements.from_charm(charm)
 
     assert requirements.enforce_tls is True
+
+
+def test_haproxy_route_tcp_requirements_with_health_check():
+    """
+    arrange: mock a charm with valid health check configuration
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: health check values are correctly parsed
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "192.168.1.1",
+        "tcp-frontend-port": 443,
+        "tcp-backend-port": 8443,
+        "tcp-tls-terminate": True,
+        "tcp-hostname": None,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
+        "tcp-health-check-interval": 10,
+        "tcp-health-check-rise": 3,
+        "tcp-health-check-fall": 5,
+    }
+
+    requirements = HaproxyRouteTcpRequirements.from_charm(charm)
+
+    assert requirements.health_check.interval == 10
+    assert requirements.health_check.rise == 3
+    assert requirements.health_check.fall == 5
+
+
+def test_haproxy_route_tcp_requirements_without_health_check():
+    """
+    arrange: mock a charm without health check configuration
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: health check values are None
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "192.168.1.1",
+        "tcp-frontend-port": 443,
+        "tcp-backend-port": 8443,
+        "tcp-tls-terminate": True,
+        "tcp-hostname": None,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
+    }
+
+    requirements = HaproxyRouteTcpRequirements.from_charm(charm)
+
+    assert requirements.health_check.interval is None
+    assert requirements.health_check.rise is None
+    assert requirements.health_check.fall is None
+
+
+@pytest.mark.parametrize(
+    "missing_field",
+    [
+        {"tcp-health-check-interval": 10, "tcp-health-check-rise": 3},
+        {"tcp-health-check-interval": 10, "tcp-health-check-fall": 5},
+        {"tcp-health-check-rise": 3, "tcp-health-check-fall": 5},
+    ],
+)
+def test_haproxy_route_tcp_requirements_incomplete_health_check(missing_field):
+    """
+    arrange: mock a charm with incomplete health check configuration
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: InvalidHaproxyRouteTcpRequirementsError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "192.168.1.1",
+        "tcp-frontend-port": 443,
+        "tcp-backend-port": 8443,
+        "tcp-tls-terminate": True,
+        "tcp-hostname": None,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
+        **missing_field,
+    }
+
+    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError):
+        HaproxyRouteTcpRequirements.from_charm(charm)
+
+
+@pytest.mark.parametrize(
+    "invalid_value",
+    [
+        {"tcp-health-check-interval": -1, "tcp-health-check-rise": 3, "tcp-health-check-fall": 5},
+        {"tcp-health-check-interval": 10, "tcp-health-check-rise": 0, "tcp-health-check-fall": 5},
+        {"tcp-health-check-interval": 10, "tcp-health-check-rise": 3, "tcp-health-check-fall": -5},
+    ],
+)
+def test_haproxy_route_tcp_requirements_invalid_health_check_values(invalid_value):
+    """
+    arrange: mock a charm with invalid health check values
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: InvalidHaproxyRouteTcpRequirementsError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "192.168.1.1",
+        "tcp-frontend-port": 443,
+        "tcp-backend-port": 8443,
+        "tcp-tls-terminate": True,
+        "tcp-hostname": None,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
+        **invalid_value,
+    }
+
+    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError):
+        HaproxyRouteTcpRequirements.from_charm(charm)
+
+
+def test_haproxy_route_tcp_requirements_health_check_with_type_generic():
+    """
+    arrange: mock a charm with generic health check type and send/expect
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: health check fields are correctly parsed
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "192.168.1.1",
+        "tcp-frontend-port": 443,
+        "tcp-backend-port": 8443,
+        "tcp-tls-terminate": True,
+        "tcp-hostname": None,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
+        "tcp-health-check-interval": 10,
+        "tcp-health-check-rise": 3,
+        "tcp-health-check-fall": 5,
+        "tcp-health-check-type": "generic",
+        "tcp-health-check-send": "PING",
+        "tcp-health-check-expect": "PONG",
+    }
+
+    requirements = HaproxyRouteTcpRequirements.from_charm(charm)
+
+    assert requirements.health_check.check_type.value == "generic"
+    assert requirements.health_check.send == "PING"
+    assert requirements.health_check.expect == "PONG"
+    assert requirements.health_check.db_user is None
+
+
+def test_haproxy_route_tcp_requirements_health_check_with_type_mysql():
+    """
+    arrange: mock a charm with mysql health check type and db_user
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: health check fields are correctly parsed
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "192.168.1.1",
+        "tcp-frontend-port": 3306,
+        "tcp-backend-port": 3306,
+        "tcp-tls-terminate": False,
+        "tcp-hostname": None,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
+        "tcp-health-check-interval": 5,
+        "tcp-health-check-rise": 2,
+        "tcp-health-check-fall": 3,
+        "tcp-health-check-type": "mysql",
+        "tcp-health-check-db-user": "health_checker",
+    }
+
+    requirements = HaproxyRouteTcpRequirements.from_charm(charm)
+
+    assert requirements.health_check.check_type.value == "mysql"
+    assert requirements.health_check.db_user == "health_checker"
+    assert requirements.health_check.send is None
+    assert requirements.health_check.expect is None
+
+
+@pytest.mark.parametrize(
+    "check_type",
+    ["generic", "mysql", "postgres", "redis", "smtp"],
+)
+def test_haproxy_route_tcp_requirements_valid_health_check_types(check_type):
+    """
+    arrange: mock a charm with valid health check type
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: health check type is correctly parsed
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "192.168.1.1",
+        "tcp-frontend-port": 443,
+        "tcp-backend-port": 8443,
+        "tcp-tls-terminate": True,
+        "tcp-hostname": None,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
+        "tcp-health-check-interval": 10,
+        "tcp-health-check-rise": 3,
+        "tcp-health-check-fall": 5,
+        "tcp-health-check-type": check_type,
+    }
+
+    requirements = HaproxyRouteTcpRequirements.from_charm(charm)
+
+    assert requirements.health_check.check_type.value == check_type
+
+
+def test_haproxy_route_tcp_requirements_invalid_health_check_type():
+    """
+    arrange: mock a charm with invalid health check type
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: InvalidHaproxyRouteTcpRequirementsError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "192.168.1.1",
+        "tcp-frontend-port": 443,
+        "tcp-backend-port": 8443,
+        "tcp-tls-terminate": True,
+        "tcp-hostname": None,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
+        "tcp-health-check-interval": 10,
+        "tcp-health-check-rise": 3,
+        "tcp-health-check-fall": 5,
+        "tcp-health-check-type": "invalid_type",
+    }
+
+    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError) as exc_info:
+        HaproxyRouteTcpRequirements.from_charm(charm)
+    assert "Invalid health check type" in str(exc_info.value)

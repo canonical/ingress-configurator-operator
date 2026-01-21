@@ -8,15 +8,16 @@ in the ingress configurator operator.
 """
 
 import logging
-from typing import Annotated, cast
+from typing import Annotated, Optional, cast
 
 import ops
 from annotated_types import Len
 from charms.haproxy.v0.haproxy_route_tcp import (
     LoadBalancingAlgorithm,
+    TCPHealthCheckType,
     TCPLoadBalancingConfiguration,
 )
-from pydantic import Field, ValidationError
+from pydantic import Field, ValidationError, model_validator
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
@@ -28,6 +29,81 @@ logger = logging.getLogger(__name__)
 
 class InvalidHaproxyRouteTcpRequirementsError(Exception):
     """Exception raised when HaproxyRouteTcpRequirements contains invalid attributes."""
+
+
+@dataclass(frozen=True)
+class TCPHealthCheck:
+    """TCP health check configuration.
+
+    Attributes:
+        interval: Interval between health checks in seconds.
+        rise: Number of successful health checks before server is considered up.
+        fall: Number of failed health checks before server is considered down.
+        check_type: Health check type (generic, mysql, postgres, redis, smtp).
+        send: String to send in health check request (generic type only).
+        expect: Expected response string (generic type only).
+        db_user: Database user for health checks (mysql/postgres types only).
+    """
+
+    interval: Optional[int] = Field(default=None, gt=0)
+    rise: Optional[int] = Field(default=None, gt=0)
+    fall: Optional[int] = Field(default=None, gt=0)
+    check_type: Optional[TCPHealthCheckType] = None
+    send: Optional[str] = None
+    expect: Optional[str] = None
+    db_user: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_health_check_all_set(self) -> "TCPHealthCheck":
+        """Validate that all health check fields are set together.
+
+        Returns:
+            This class instance.
+
+        Raises:
+            ValueError: If only some health check fields are set.
+        """
+        all_or_none_health_checks_set = bool(self.interval) == bool(self.rise) == bool(self.fall)
+        if not all_or_none_health_checks_set:
+            raise ValueError(
+                "Health check configuration is incomplete: interval, rise, and fall "
+                "must all be set if any one of them is specified."
+            )
+        return self
+
+    @classmethod
+    def from_charm(cls, charm: ops.CharmBase) -> "TCPHealthCheck":
+        """Create a TCPHealthCheck from charm config.
+
+        Args:
+            charm: The charm instance.
+
+        Raises:
+            InvalidHaproxyRouteTcpRequirementsError: If the health check type is invalid.
+
+        Returns:
+            TCPHealthCheck instance.
+        """
+        check_type_str = cast(Optional[str], charm.config.get("tcp-health-check-type"))
+        check_type = None
+        if check_type_str:
+            try:
+                check_type = TCPHealthCheckType(check_type_str)
+            except ValueError as exc:
+                raise InvalidHaproxyRouteTcpRequirementsError(
+                    f"Invalid health check type: {check_type_str}. "
+                    "Must be one of: generic, mysql, postgres, redis, smtp."
+                ) from exc
+
+        return cls(
+            interval=cast(Optional[int], charm.config.get("tcp-health-check-interval")),
+            rise=cast(Optional[int], charm.config.get("tcp-health-check-rise")),
+            fall=cast(Optional[int], charm.config.get("tcp-health-check-fall")),
+            check_type=check_type,
+            send=cast(Optional[str], charm.config.get("tcp-health-check-send")),
+            expect=cast(Optional[str], charm.config.get("tcp-health-check-expect")),
+            db_user=cast(Optional[str], charm.config.get("tcp-health-check-db-user")),
+        )
 
 
 @dataclass(frozen=True)
@@ -50,6 +126,7 @@ class HaproxyRouteTcpRequirements:
         retry: Retry configuration.
         load_balancing_configuration: TCP load balancing configuration.
         enforce_tls: Whether to enforce TLS for all TCP traffic.
+        health_check: TCP health check configuration.
     """
 
     backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
@@ -60,6 +137,7 @@ class HaproxyRouteTcpRequirements:
     retry: Retry
     load_balancing_configuration: TCPLoadBalancingConfiguration
     enforce_tls: bool
+    health_check: TCPHealthCheck
 
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> "HaproxyRouteTcpRequirements":
@@ -114,6 +192,7 @@ class HaproxyRouteTcpRequirements:
                 retry=Retry.from_charm(charm, prefix="tcp-"),
                 load_balancing_configuration=load_balancing_configuration,
                 enforce_tls=enforce_tls,
+                health_check=TCPHealthCheck.from_charm(charm),
             )
         except ValidationError as exc:
             logger.error(

@@ -176,6 +176,36 @@ config:
         When true (default), all TCP connections must use TLS.
         Warning: disabling this is a security risk, make sure you apply the necessary precautions.
         Note: tcp-hostname (SNI) cannot be used when this option is disabled.
+    tcp-health-check-interval:
+      type: int
+      description: (integrator mode, TCP) Interval between health checks in seconds.
+    tcp-health-check-rise:
+      type: int
+      description: (integrator mode, TCP) Number of successful health checks before server is considered up.
+    tcp-health-check-fall:
+      type: int
+      description: (integrator mode, TCP) Number of failed health checks before server is considered down.
+    tcp-health-check-type:
+      type: string
+      description: |
+        (integrator mode, TCP) Health check type. Can be "generic", "mysql", "postgres", "redis" or "smtp".
+        Use "generic" for custom TCP checks with send/expect strings.
+        Use "mysql" or "postgres" for database-specific checks (requires tcp-health-check-db-user).
+    tcp-health-check-send:
+      type: string
+      description: |
+        (integrator mode, TCP) String to send in the health check request.
+        Only used when tcp-health-check-type is "generic".
+    tcp-health-check-expect:
+      type: string
+      description: |
+        (integrator mode, TCP) Expected response string from the health check.
+        Only used when tcp-health-check-type is "generic".
+    tcp-health-check-db-user:
+      type: string
+      description: |
+        (integrator mode, TCP) Database user for health checks.
+        Only used when tcp-health-check-type is "mysql" or "postgres".
     allow-http:
       type: boolean
       default: false

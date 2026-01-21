@@ -32,6 +32,7 @@ def test_haproxy_route_tcp_requirements_from_charm():
         "tcp-retry-redispatch": True,
         "tcp-load-balancing-algorithm": "roundrobin",
         "tcp-load-balancing-consistent-hashing": False,
+        "tcp-enforce-tls": True,
     }
 
     requirements = HaproxyRouteTcpRequirements.from_charm(charm)
@@ -48,6 +49,7 @@ def test_haproxy_route_tcp_requirements_from_charm():
     assert requirements.retry.redispatch is True
     assert requirements.load_balancing_configuration.algorithm == LoadBalancingAlgorithm.ROUNDROBIN
     assert requirements.load_balancing_configuration.consistent_hashing is False
+    assert requirements.enforce_tls is True
 
 
 def test_haproxy_route_tcp_invalid_algorithm():
@@ -298,3 +300,49 @@ def test_haproxy_route_tcp_requirements_mixed_ip_versions():
         "192.168.1.1",
         "2001:db8::1",
     ]
+
+
+def test_haproxy_route_tcp_requirements_enforce_tls_false_without_hostname():
+    """
+    arrange: mock a charm with enforce_tls=False and no hostname
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: requirements are created successfully with enforce_tls=False
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "192.168.1.1",
+        "tcp-frontend-port": 443,
+        "tcp-backend-port": 8443,
+        "tcp-tls-terminate": False,
+        "tcp-hostname": None,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
+        "tcp-enforce-tls": False,
+    }
+
+    requirements = HaproxyRouteTcpRequirements.from_charm(charm)
+
+    assert requirements.enforce_tls is False
+    assert requirements.hostname is None
+
+
+def test_haproxy_route_tcp_requirements_enforce_tls_default():
+    """
+    arrange: mock a charm without explicit enforce_tls setting
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: enforce_tls defaults to True
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "192.168.1.1",
+        "tcp-frontend-port": 443,
+        "tcp-backend-port": 8443,
+        "tcp-tls-terminate": True,
+        "tcp-hostname": "example.com",
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
+    }
+
+    requirements = HaproxyRouteTcpRequirements.from_charm(charm)
+
+    assert requirements.enforce_tls is True

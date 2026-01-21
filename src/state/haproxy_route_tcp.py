@@ -49,6 +49,7 @@ class HaproxyRouteTcpRequirements:
         hostname: Optional hostname for SNI (Server Name Indication).
         retry: Retry configuration.
         load_balancing_configuration: TCP load balancing configuration.
+        enforce_tls: Whether to enforce TLS for all TCP traffic.
     """
 
     backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
@@ -58,6 +59,7 @@ class HaproxyRouteTcpRequirements:
     hostname: str | None
     retry: Retry
     load_balancing_configuration: TCPLoadBalancingConfiguration
+    enforce_tls: bool
 
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> "HaproxyRouteTcpRequirements":
@@ -85,6 +87,7 @@ class HaproxyRouteTcpRequirements:
         port = cast(int, charm.config.get("tcp-frontend-port"))
         backend_port = cast(int, charm.config.get("tcp-backend-port"))
         hostname = cast(str | None, charm.config.get("tcp-hostname"))
+        enforce_tls = cast(bool, charm.config.get("tcp-enforce-tls", True))
         try:
             load_balancing_algorithm = LoadBalancingAlgorithm(
                 cast(str, charm.config.get("tcp-load-balancing-algorithm"))
@@ -110,6 +113,7 @@ class HaproxyRouteTcpRequirements:
                 backend_addresses=config_tcp_backend_addresses,
                 retry=Retry.from_charm(charm, prefix="tcp-"),
                 load_balancing_configuration=load_balancing_configuration,
+                enforce_tls=enforce_tls,
             )
         except ValidationError as exc:
             logger.error(

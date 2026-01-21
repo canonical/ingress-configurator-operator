@@ -151,6 +151,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 load_balancing_consistent_hashing=(
                     tcp_requirements.load_balancing_configuration.consistent_hashing
                 ),
+                enforce_tls=tcp_requirements.enforce_tls,
             )
         except (InvalidHaproxyRouteTcpRequirementsError, DataValidationError) as exc:
             raise ProvideHaproxyRouteTcpRequirementsError(

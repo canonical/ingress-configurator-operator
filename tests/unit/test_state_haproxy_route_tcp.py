@@ -302,84 +302,64 @@ def test_haproxy_route_tcp_requirements_mixed_ip_versions():
     ]
 
 
-def test_haproxy_route_tcp_requirements_enforce_tls_false_without_hostname():
+@pytest.mark.parametrize(
+    "tls_terminate,hostname,enforce_tls_config,expected_enforce_tls,expected_hostname",
+    [
+        pytest.param(False, None, False, False, None, id="enforce_tls_false_without_hostname"),
+        pytest.param(True, "example.com", None, True, "example.com", id="enforce_tls_default"),
+    ],
+)
+def test_haproxy_route_tcp_requirements_enforce_tls(
+    tls_terminate, hostname, enforce_tls_config, expected_enforce_tls, expected_hostname
+):
     """
-    arrange: mock a charm with enforce_tls=False and no hostname
+    arrange: mock a charm with various enforce_tls configurations
     act: instantiate HaproxyRouteTcpRequirements
-    assert: requirements are created successfully with enforce_tls=False
+    assert: enforce_tls and hostname have expected values
     """
     charm = Mock(CharmBase)
     charm.config = {
         "tcp-backend-addresses": "192.168.1.1",
         "tcp-frontend-port": 443,
         "tcp-backend-port": 8443,
-        "tcp-tls-terminate": False,
-        "tcp-hostname": None,
-        "tcp-load-balancing-algorithm": "leastconn",
-        "tcp-load-balancing-consistent-hashing": False,
-        "tcp-enforce-tls": False,
-    }
-
-    requirements = HaproxyRouteTcpRequirements.from_charm(charm)
-
-    assert requirements.enforce_tls is False
-    assert requirements.hostname is None
-
-
-def test_haproxy_route_tcp_requirements_enforce_tls_default():
-    """
-    arrange: mock a charm without explicit enforce_tls setting
-    act: instantiate HaproxyRouteTcpRequirements
-    assert: enforce_tls defaults to True
-    """
-    charm = Mock(CharmBase)
-    charm.config = {
-        "tcp-backend-addresses": "192.168.1.1",
-        "tcp-frontend-port": 443,
-        "tcp-backend-port": 8443,
-        "tcp-tls-terminate": True,
-        "tcp-hostname": "example.com",
+        "tcp-tls-terminate": tls_terminate,
+        "tcp-hostname": hostname,
         "tcp-load-balancing-algorithm": "leastconn",
         "tcp-load-balancing-consistent-hashing": False,
     }
+    if enforce_tls_config is not None:
+        charm.config["tcp-enforce-tls"] = enforce_tls_config
 
     requirements = HaproxyRouteTcpRequirements.from_charm(charm)
 
-    assert requirements.enforce_tls is True
+    assert requirements.enforce_tls is expected_enforce_tls
+    assert requirements.hostname == expected_hostname
 
 
-def test_haproxy_route_tcp_requirements_with_health_check():
+@pytest.mark.parametrize(
+    "health_check_config,expected_interval,expected_rise,expected_fall",
+    [
+        pytest.param(
+            {
+                "tcp-health-check-interval": 10,
+                "tcp-health-check-rise": 3,
+                "tcp-health-check-fall": 5,
+            },
+            10,
+            3,
+            5,
+            id="with_health_check",
+        ),
+        pytest.param({}, None, None, None, id="without_health_check"),
+    ],
+)
+def test_haproxy_route_tcp_requirements_health_check_presence(
+    health_check_config, expected_interval, expected_rise, expected_fall
+):
     """
-    arrange: mock a charm with valid health check configuration
+    arrange: mock a charm with/without health check configuration
     act: instantiate HaproxyRouteTcpRequirements
-    assert: health check values are correctly parsed
-    """
-    charm = Mock(CharmBase)
-    charm.config = {
-        "tcp-backend-addresses": "192.168.1.1",
-        "tcp-frontend-port": 443,
-        "tcp-backend-port": 8443,
-        "tcp-tls-terminate": True,
-        "tcp-hostname": None,
-        "tcp-load-balancing-algorithm": "leastconn",
-        "tcp-load-balancing-consistent-hashing": False,
-        "tcp-health-check-interval": 10,
-        "tcp-health-check-rise": 3,
-        "tcp-health-check-fall": 5,
-    }
-
-    requirements = HaproxyRouteTcpRequirements.from_charm(charm)
-
-    assert requirements.health_check.interval == 10
-    assert requirements.health_check.rise == 3
-    assert requirements.health_check.fall == 5
-
-
-def test_haproxy_route_tcp_requirements_without_health_check():
-    """
-    arrange: mock a charm without health check configuration
-    act: instantiate HaproxyRouteTcpRequirements
-    assert: health check values are None
+    assert: health check values match expected
     """
     charm = Mock(CharmBase)
     charm.config = {
@@ -390,13 +370,14 @@ def test_haproxy_route_tcp_requirements_without_health_check():
         "tcp-hostname": None,
         "tcp-load-balancing-algorithm": "leastconn",
         "tcp-load-balancing-consistent-hashing": False,
+        **health_check_config,
     }
 
     requirements = HaproxyRouteTcpRequirements.from_charm(charm)
 
-    assert requirements.health_check.interval is None
-    assert requirements.health_check.rise is None
-    assert requirements.health_check.fall is None
+    assert requirements.health_check.interval == expected_interval
+    assert requirements.health_check.rise == expected_rise
+    assert requirements.health_check.fall == expected_fall
 
 
 @pytest.mark.parametrize(

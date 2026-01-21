@@ -2,6 +2,7 @@
 # See LICENSE file for licensing details.
 
 """Test the charm in integrator mode."""
+
 import json
 
 import jubilant

@@ -1,6 +1,8 @@
 # Copyright 2024 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+# pylint: disable=duplicate-code
+
 """HAProxy TCP route state management module.
 
 This module provides state management functionality for HAProxy TCP routes
@@ -107,7 +109,7 @@ class TCPHealthCheck:
 
 
 @dataclass(frozen=True)
-class HaproxyRouteTcpRequirements:
+class HaproxyRouteTcpRequirements:  # pylint: disable=too-many-instance-attributes
     """Requirements for HAProxy TCP route configuration.
 
     Defines the necessary parameters and constraints for establishing

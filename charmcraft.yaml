@@ -173,8 +173,7 @@ config:
       default: true
       description: |
         (integrator mode, TCP) Whether to enforce TLS for all TCP traffic.
-        When true (default), all TCP connections must use TLS.
-        Warning: disabling this is a security risk, make sure you apply the necessary precautions.
+        When true, all TCP connections must use TLS.
         Note: tcp-hostname (SNI) cannot be used when this option is disabled.
     tcp-health-check-interval:
       type: int

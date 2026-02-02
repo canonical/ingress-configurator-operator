@@ -141,14 +141,14 @@ config:
       description: (integrator mode, TCP) Port of the TCP backend.
     tcp-frontend-port:
       type: int
-      description: (integrator mode, TCP) Port opened on the haproxy charm.
+      description: Port opened on the haproxy charm.
     tcp-tls-terminate:
       type: boolean
       default: true
-      description: (integrator mode, TCP) Whether to enable TLS termination on the TCP route.
+      description: Whether to enable TLS termination on the TCP route.
     tcp-hostname:
       type: string
-      description: (integrator mode, TCP) specify the SNI (Server Name Indication).
+      description: Specify the SNI (Server Name Indication).
     tcp-retry-count:
       type: int
       description: Number of times to retry failed connections to the backend.
@@ -172,38 +172,38 @@ config:
       type: boolean
       default: true
       description: |
-        (integrator mode, TCP) Whether to enforce TLS for all TCP traffic.
+        Whether to enforce TLS for all TCP traffic.
         When true, all TCP connections must use TLS.
         Note: tcp-hostname (SNI) cannot be used when this option is disabled.
     tcp-health-check-interval:
       type: int
-      description: (integrator mode, TCP) Interval between health checks in seconds.
+      description: Interval between health checks in seconds.
     tcp-health-check-rise:
       type: int
-      description: (integrator mode, TCP) Number of successful health checks before server is considered up.
+      description: Number of successful health checks before server is considered up.
     tcp-health-check-fall:
       type: int
-      description: (integrator mode, TCP) Number of failed health checks before server is considered down.
+      description: Number of failed health checks before server is considered down.
     tcp-health-check-type:
       type: string
       description: |
-        (integrator mode, TCP) Health check type. Can be "generic", "mysql", "postgres", "redis" or "smtp".
+        Health check type. Can be "generic", "mysql", "postgres", "redis" or "smtp".
         Use "generic" for custom TCP checks with send/expect strings.
         Use "mysql" or "postgres" for database-specific checks (requires tcp-health-check-db-user).
     tcp-health-check-send:
       type: string
       description: |
-        (integrator mode, TCP) String to send in the health check request.
+        String to send in the health check request.
         Only used when tcp-health-check-type is "generic".
     tcp-health-check-expect:
       type: string
       description: |
-        (integrator mode, TCP) Expected response string from the health check.
+        Expected response string from the health check.
         Only used when tcp-health-check-type is "generic".
     tcp-health-check-db-user:
       type: string
       description: |
-        (integrator mode, TCP) Database user for health checks.
+        Database user for health checks.
         Only used when tcp-health-check-type is "mysql" or "postgres".
     allow-http:
       type: boolean

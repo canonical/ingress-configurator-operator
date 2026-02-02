@@ -5,6 +5,7 @@
 
 import socket
 import ssl
+import time
 
 import jubilant
 import pytest
@@ -41,10 +42,17 @@ def test_haproxy_route_tcp(
     juju.wait(lambda status: jubilant.all_active(status, haproxy, application_with_tcp_server))
     haproxy_ip_address = get_unit_addresses(juju, haproxy)[0]
     context = ssl._create_unverified_context()  # pylint: disable=protected-access  # nosec
-    with (
-        socket.create_connection((str(haproxy_ip_address), 4444)) as sock,
-        context.wrap_socket(sock, server_hostname="example.com") as ssock,
-    ):
-        ssock.send(b"ping")
-        server_response = ssock.read()
-        assert "pong" in str(server_response)
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        try:
+            with (
+                socket.create_connection((str(haproxy_ip_address), 4444)) as sock,
+                context.wrap_socket(sock, server_hostname="example.com") as ssock,
+            ):
+                ssock.send(b"ping")
+                server_response = ssock.read()
+                assert "pong" in str(server_response)
+                break
+        except ConnectionRefusedError:
+            continue
+    raise TimeoutError("timed out waiting for server to respond")

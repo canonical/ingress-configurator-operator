@@ -2,6 +2,7 @@
 # See LICENSE file for licensing details.
 
 """Integration tests for the ingress per unit relation."""
+
 import logging
 import socket
 import ssl
@@ -13,6 +14,7 @@ import pytest
 from .conftest import get_unit_addresses
 
 logger = logging.getLogger(__name__)
+
 
 @pytest.mark.abort_on_fail
 def test_haproxy_route_tcp(
@@ -56,6 +58,6 @@ def test_haproxy_route_tcp(
                 assert "pong" in str(server_response)
                 return
         except ConnectionRefusedError:
-            logger.info(f"connection to %s refused, retrying", address)
+            logger.info("connection to %s refused, retrying", address)
             time.sleep(1)
     raise TimeoutError("timed out waiting for server to respond")

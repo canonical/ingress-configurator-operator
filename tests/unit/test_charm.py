@@ -3,6 +3,7 @@
 
 """Unit tests for the ingress configurator charm."""
 
+import json
 from unittest.mock import ANY, MagicMock
 
 import ops.testing
@@ -66,6 +67,30 @@ def test_protocol_propagated_to_haproxy(context: ops.testing.Context):
         "ports": "[80]",
         "hosts": '["10.0.0.1"]',
         "protocol": '"https"',
+    }
+
+
+def test_external_grpc_port_propagated_to_haproxy(context: ops.testing.Context):
+    """Valid external-grpc-port should be copied from config to haproxy-route relation"""
+    in_ = ops.testing.State(
+        config={
+            "backend-addresses": "10.0.0.1",
+            "backend-ports": "80",
+            "backend-protocol": "https",
+            "external-grpc-port": 50051,
+        },
+        relations=[ops.testing.Relation("haproxy-route")],
+        leader=True,
+    )
+    out = context.run(context.on.config_changed(), in_)
+
+    assert out.unit_status == ops.testing.ActiveStatus("")
+    assert out.get_relations("haproxy-route")[0].local_app_data == {
+        "service": ANY,
+        "ports": "[80]",
+        "hosts": '["10.0.0.1"]',
+        "protocol": '"https"',
+        "external_grpc_port": "50051",
     }
 
 
@@ -159,7 +184,7 @@ class TestGetProxiedEndpointAction:
 
 
 def test_haproxy_route(context: ops.testing.Context):
-    """Valid protocol should be copied from config to haproxy-route relation"""
+    """Valid protocol should be copied from config to haproxy-route-tcp relation."""
     in_ = ops.testing.State(
         config={
             "tcp-backend-addresses": "10.0.0.1",
@@ -167,6 +192,10 @@ def test_haproxy_route(context: ops.testing.Context):
             "tcp-backend-port": 5000,
             "tcp-tls-terminate": True,
             "tcp-hostname": "example.com",
+            "tcp-retry-count": 3,
+            "tcp-retry-redispatch": True,
+            "tcp-load-balancing-algorithm": "source",
+            "tcp-load-balancing-consistent-hashing": True,
         },
         relations=[ops.testing.Relation("haproxy-route-tcp")],
         leader=True,
@@ -179,3 +208,8 @@ def test_haproxy_route(context: ops.testing.Context):
     assert application_data["backend_port"] == "5000"
     assert application_data["hosts"] == '["10.0.0.1"]'
     assert application_data["sni"] == '"example.com"'
+    assert json.loads(application_data["retry"]) == {"count": 3, "redispatch": True}
+    assert json.loads(application_data["load_balancing"]) == {
+        "algorithm": "source",
+        "consistent_hashing": True,
+    }

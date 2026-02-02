@@ -4,7 +4,7 @@
 """ingress-configurator-operator integrator information."""
 
 import logging
-from typing import Annotated, Literal, Optional, cast
+from typing import Annotated, Literal, Optional, Self, cast
 
 import ops
 from annotated_types import Len
@@ -13,7 +13,6 @@ from charms.traefik_k8s.v2.ingress import IngressRequirerData
 from pydantic import BeforeValidator, Field, ValidationError, model_validator
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
-from pydantic.types import StringConstraints
 
 from validators import get_invalid_config_fields, value_has_valid_characters
 
@@ -150,18 +149,19 @@ class Retry:
     redispatch: Optional[bool] = None
 
     @classmethod
-    def from_charm(cls, charm: ops.CharmBase) -> "Retry":
+    def from_charm(cls, charm: ops.CharmBase, prefix: str = "") -> "Retry":
         """Create an Retry class from a charm instance.
 
         Args:
             charm: the ingress-configurator charm.
+            prefix: prefix for the configuration option.
 
         Returns:
             Retry: instance of the retry component.
         """
         return cls(
-            count=cast(Optional[int], charm.config.get("retry-count")),
-            redispatch=cast(Optional[bool], charm.config.get("retry-redispatch")),
+            count=cast(Optional[int], charm.config.get(f"{prefix}retry-count")),
+            redispatch=cast(Optional[bool], charm.config.get(f"{prefix}retry-redispatch")),
         )
 
 
@@ -184,6 +184,9 @@ class State:
         load_balancing_configuration: Load balancing configuration.
         http_server_close: Configure server close after request.
         path_rewrite_expressions: List of path rewrite expressions.
+        header_rewrite_expressions: List of header rewrite expressions.
+        allow_http: Whether to allow HTTP traffic to the service.
+        external_grpc_port: Optional gRPC external port.
     """
 
     _backend_state: BackendState
@@ -203,6 +206,9 @@ class State:
     )
     http_server_close: bool = Field(default=False)
     path_rewrite_expressions: list[str] = Field(default=[])
+    header_rewrite_expressions: list[tuple[str, str]] = Field(default=[])
+    allow_http: bool = Field(default=False)
+    external_grpc_port: int | None = Field(default=None, gt=0, le=65535)
 
     @property
     def backend_addresses(self) -> list[IPvAnyAddress]:
@@ -219,8 +225,38 @@ class State:
         """The backend protocol."""
         return self._backend_state.backend_protocol
 
+    @model_validator(mode="after")
+    def validate_external_grpc_port_requires_https(self) -> Self:
+        """Perform additional validations.
+
+        Returns: this class instance.
+
+        Raises:
+            ValueError: if the validation doesn't pass.
+        """
+        if self.external_grpc_port is not None and self.backend_protocol != "https":
+            msg = "external_grpc_port can only be set when backend_protocol is 'https'."
+            raise ValueError(msg)
+
+        return self
+
+    @model_validator(mode="after")
+    def validate_external_grpc_port_and_not_allow_http(self) -> Self:
+        """Perform additional validations.
+
+        Returns: this class instance.
+
+        Raises:
+            ValueError: if the validation doesn't pass.
+        """
+        if self.external_grpc_port is not None and self.allow_http:
+            msg = "external_grpc_port cannot be set when allow_http is True."
+            raise ValueError(msg)
+
+        return self
+
     @classmethod
-    def from_charm(cls, charm: ops.CharmBase, ingress_data: IngressRequirerData | None) -> "State":
+    def from_charm(cls, charm: ops.CharmBase, ingress_data: IngressRequirerData | None) -> Self:
         """Create an State class from a charm instance.
 
         Args:
@@ -252,6 +288,7 @@ class State:
                 Literal["http", "https"],
                 (charm.config.get("backend-protocol") or "http"),
             )
+            external_grpc_port = cast(int | None, charm.config.get("external-grpc-port"))
             ingress_backend_ports = [ingress_data.app.port] if ingress_data else []
             ingress_backend_addresses = (
                 [cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units]
@@ -294,18 +331,26 @@ class State:
                     bool, charm.config.get("load-balancing-consistent-hashing", False)
                 ),
             )
-            expression_delimiter: Annotated[str, StringConstraints(min_length=1, max_length=1)] = (
-                cast(
-                    str,
-                    charm.config.get("expression-delimiter")
-                    or DEFAULT_PATH_REWRITE_EXPRESSION_DELIMITER,
-                )
-            )
             path_rewrite_expressions = (
-                cast(str, charm.config.get("path-rewrite-expressions")).split(expression_delimiter)
+                # The new line character ('\n') is escaped ('\\n') as set by the
+                # configuration option
+                cast(str, charm.config.get("path-rewrite-expressions")).split("\\n")
                 if charm.config.get("path-rewrite-expressions")
                 else []
             )
+            header_rewrite_expressions = (
+                # The new line character ('\n') is escaped ('\\n') as set by the
+                # configuration option
+                [
+                    cast(tuple[str, str], tuple(elem.split(":", 1)))
+                    for elem in cast(str, charm.config.get("header-rewrite-expressions")).split(
+                        "\\n"
+                    )
+                ]
+                if charm.config.get("header-rewrite-expressions")
+                else []
+            )
+            allow_http = cast(bool, charm.config.get("allow-http", False))
             return cls(
                 _backend_state=BackendState(backend_addresses, backend_ports, backend_protocol),
                 paths=paths,
@@ -318,6 +363,9 @@ class State:
                 load_balancing_configuration=load_balancing_configuration,
                 http_server_close=http_server_close,
                 path_rewrite_expressions=path_rewrite_expressions,
+                header_rewrite_expressions=header_rewrite_expressions,
+                allow_http=allow_http,
+                external_grpc_port=external_grpc_port,
             )
         except ValidationError as exc:
             logger.error(str(exc))

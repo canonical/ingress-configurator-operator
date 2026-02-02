@@ -145,6 +145,7 @@ class SomeCharm(CharmBase):
 
 import json
 import logging
+from collections import defaultdict
 from enum import Enum
 from typing import Annotated, Any, MutableMapping, Optional, cast
 
@@ -173,7 +174,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 1
+LIBPATCH = 3
 
 logger = logging.getLogger(__name__)
 HAPROXY_ROUTE_TCP_RELATION_NAME = "haproxy-route-tcp"
@@ -574,7 +575,7 @@ class TcpRequirerApplicationData(_DatabagModel):
     port: int = Field(description="The port exposed on the provider.", gt=0, le=65535)
     backend_port: Optional[int] = Field(
         description=(
-            "The port where the backend service is listening. " "Defaults to the provider port."
+            "The port where the backend service is listening. Defaults to the provider port."
         ),
         default=None,
         gt=0,
@@ -644,7 +645,7 @@ class TcpRequirerApplicationData(_DatabagModel):
             The validated model.
         """
         if not self.enforce_tls and self.sni is not None:
-            raise ValueError("setting sni and disabling TLS are mutually exclusive.")
+            raise ValueError("You can't set SNI and disable TLS at the same time.")
         return self
 
 
@@ -691,11 +692,11 @@ class HaproxyRouteTcpRequirersData:
 
     Attributes:
         requirers_data: List of requirer data.
-        relation_ids_with_invalid_data: List of relation ids that contains invalid data.
+        relation_ids_with_invalid_data: Set of relation ids that contains invalid data.
     """
 
     requirers_data: list[HaproxyRouteTcpRequirerData]
-    relation_ids_with_invalid_data: list[int]
+    relation_ids_with_invalid_data: set[int]
 
     @model_validator(mode="after")
     def check_ports_unique(self) -> Self:
@@ -708,20 +709,15 @@ class HaproxyRouteTcpRequirersData:
         # Maybe the logic here can be optimized, we want to keep track of
         # the relation IDs that request overlapping ports to ignore them during
         # rendering of the haproxy configuration.
-        port_to_relation_ids: dict[int, list[int]] = {}
+        relation_ids_per_port: dict[int, list[int]] = defaultdict(list[int])
         for requirer_data in self.requirers_data:
-            if not port_to_relation_ids.get(requirer_data.application_data.port):
-                port_to_relation_ids[requirer_data.application_data.port] = [
-                    requirer_data.relation_id
-                ]
-                continue
-            port_to_relation_ids[requirer_data.application_data.port].append(
+            relation_ids_per_port[requirer_data.application_data.port].append(
                 requirer_data.relation_id
             )
 
-        for relation_ids in port_to_relation_ids.values():
+        for relation_ids in relation_ids_per_port.values():
             if len(relation_ids) > 1:
-                self.relation_ids_with_invalid_data.extend(relation_ids)
+                self.relation_ids_with_invalid_data.update(relation_ids)
         return self
 
 
@@ -740,7 +736,7 @@ class HaproxyRouteTcpDataRemovedEvent(EventBase):
 
 
 class HaproxyRouteTcpProviderEvents(CharmEvents):
-    """List of events that the TLS Certificates requirer charm can leverage.
+    """List of events for the haproxy-route TCP provider.
 
     Attributes:
         data_available: This event indicates that
@@ -784,7 +780,6 @@ class HaproxyRouteTcpProvider(Object):
         self.charm = charm
         self.raise_on_validation_error = raise_on_validation_error
         on = self.charm.on
-        self.framework.observe(on[self._relation_name].relation_created, self._configure)
         self.framework.observe(on[self._relation_name].relation_changed, self._configure)
         self.framework.observe(on[self._relation_name].relation_broken, self._on_endpoint_removed)
         self.framework.observe(
@@ -820,7 +815,7 @@ class HaproxyRouteTcpProvider(Object):
             HaproxyRouteRequirersData: Validated data from all haproxy-route requirers.
         """
         requirers_data: list[HaproxyRouteTcpRequirerData] = []
-        relation_ids_with_invalid_data: list[int] = []
+        relation_ids_with_invalid_data: set[int] = set()
         for relation in relations:
             try:
                 application_data = self._get_requirer_application_data(relation)
@@ -842,7 +837,7 @@ class HaproxyRouteTcpProvider(Object):
                     raise HaproxyRouteTcpInvalidRelationDataError(
                         f"haproxy-route-tcp data validation failed for relation: {relation}"
                     ) from exc
-                relation_ids_with_invalid_data.append(relation.id)
+                relation_ids_with_invalid_data.add(relation.id)
                 continue
         return HaproxyRouteTcpRequirersData(
             requirers_data=requirers_data,
@@ -1167,7 +1162,7 @@ class HaproxyRouteTcpRequirer(Object):
         self.update_relation_data()
 
     # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
-    def _generate_application_data(  # noqa: C901
+    def _generate_application_data(
         self,
         *,
         port: Optional[int] = None,
@@ -1465,7 +1460,7 @@ class HaproxyRouteTcpRequirer(Object):
         """
         address = self._unit_address
         if not address:
-            network_binding = self.charm.model.get_binding("juju-info")
+            network_binding = self.charm.model.get_binding(self._relation_name)
             if (
                 network_binding is not None
                 and (bind_address := network_binding.network.bind_address) is not None
@@ -1630,10 +1625,8 @@ class HaproxyRouteTcpRequirer(Object):
         """
         if not upload_bytes_per_second and not download_bytes_per_second:
             logger.error(
-                (
-                    "At least one of `upload_bytes_per_second` "
-                    "or `upload_bytes_per_second` must be set."
-                )
+                "At least one of `upload_bytes_per_second` "
+                "or `upload_bytes_per_second` must be set."
             )
             return self
         self._application_data["bandwidth_limit"] = {
@@ -1682,10 +1675,8 @@ class HaproxyRouteTcpRequirer(Object):
             server_timeout_in_seconds or connect_timeout_in_seconds or queue_timeout_in_seconds
         ):
             logger.error(
-                (
-                    "At least one of `server_timeout_in_seconds`, `connect_timeout_in_seconds` "
-                    "or `queue_timeout_in_seconds` must be set."
-                )
+                "At least one of `server_timeout_in_seconds`, `connect_timeout_in_seconds` "
+                "or `queue_timeout_in_seconds` must be set."
             )
             return self
         self._application_data["timeout"] = self._generate_timeout_configuration(

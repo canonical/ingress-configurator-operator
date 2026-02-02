@@ -39,6 +39,7 @@ def test_adapter_state_from_charm():
         "hostname": "api.example.com",
         "additional-hostnames": "api2.example.com,api3.example.com",
         "http-server-close": True,
+        "allow-http": True,
     }
     ingress_relation_data = IngressRequirerData(
         app=IngressRequirerAppData(model="model", name="name", port=8080),
@@ -65,6 +66,7 @@ def test_adapter_state_from_charm():
     assert charm_state.hostname == charm.config.get("hostname")
     assert charm_state.additional_hostnames == charm.config.get("additional-hostnames").split(",")
     assert charm_state.http_server_close == charm.config.get("http-server-close")
+    assert charm_state.allow_http == charm.config.get("allow-http")
 
 
 def test_integrator_state_from_charm():
@@ -92,6 +94,7 @@ def test_integrator_state_from_charm():
     assert charm_state.retry.count == charm.config.get("retry-count")
     assert charm_state.retry.redispatch == charm.config.get("retry-redispatch")
     assert charm_state.http_server_close == charm.config.get("http-server-close")
+    assert charm_state.allow_http is False
 
 
 def test_state_from_charm_no_backend():
@@ -464,7 +467,22 @@ def test_state_from_charm_load_balancing_default_value():
     assert charm_state.load_balancing_configuration.algorithm == LoadBalancingAlgorithm.LEASTCONN
 
 
-def test_state_from_charm_rewrite_custom_delimiter():
+@pytest.mark.parametrize(
+    "path_rewrite_expression,expected_result",
+    [
+        pytest.param(
+            "%[path,regsub(^/old/(.*),/new/$1)]",
+            ["%[path,regsub(^/old/(.*),/new/$1)]"],
+            id="one_path_expressions",
+        ),
+        pytest.param(
+            "%[path,regsub(^/,/new)]\\n%[path,regsub(^/api,/v1)]",
+            ["%[path,regsub(^/,/new)]", "%[path,regsub(^/api,/v1)]"],
+            id="two_path_expressions",
+        ),
+    ],
+)
+def test_state_from_charm_path_rewrite(path_rewrite_expression: str, expected_result: list[str]):
     """
     arrange: mock a charm with valid HAProxy set-path grammar expressions
     act: instantiate a State
@@ -474,27 +492,119 @@ def test_state_from_charm_rewrite_custom_delimiter():
     charm.config = {
         "backend-addresses": "127.0.0.1",
         "backend-ports": "80",
-        "expression-delimiter": "|",
-        "path-rewrite-expressions": "%[path,regsub(^/,/new)]|%[path,regsub(^/api,/v1)]",
+        "path-rewrite-expressions": path_rewrite_expression,
     }
     charm_state = State.from_charm(charm, None)
-    assert charm_state.path_rewrite_expressions == [
-        "%[path,regsub(^/,/new)]",
-        "%[path,regsub(^/api,/v1)]",
-    ]
+    assert charm_state.path_rewrite_expressions == expected_result
 
 
-def test_state_from_charm_rewrite_default_delimiter():
+@pytest.mark.parametrize(
+    "header_rewrite_expression,expected_result",
+    [
+        pytest.param(
+            "X-Forwarded-For:%[src]",
+            [("X-Forwarded-For", "%[src]")],
+            id="one_header_expressions",
+        ),
+        pytest.param(
+            "X-Forwarded-For:%[src]\\nHost:example.com\\nDate:Wed, 15 Jan 2025 10:20:30 GMT",
+            [
+                ("X-Forwarded-For", "%[src]"),
+                ("Host", "example.com"),
+                ("Date", "Wed, 15 Jan 2025 10:20:30 GMT"),
+            ],
+            id="several_header_expressions",
+        ),
+    ],
+)
+def test_state_from_charm_header_rewrite(
+    header_rewrite_expression: str, expected_result: list[tuple[str, str]]
+):
     """
-    arrange: mock a charm with complex HAProxy set-path grammar expression
+    arrange: mock a charm with valid HAProxy set-header grammar expressions
     act: instantiate a State
-    assert: the path_rewrite_expressions contains the expression
+    assert: the header_rewrite_expressions contains the expressions
     """
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1",
         "backend-ports": "80",
-        "path-rewrite-expressions": "%[path,regsub(^/old/(.*),/new/$1)]",
+        "header-rewrite-expressions": header_rewrite_expression,
     }
     charm_state = State.from_charm(charm, None)
-    assert charm_state.path_rewrite_expressions == ["%[path,regsub(^/old/(.*),/new/$1)]"]
+    assert charm_state.header_rewrite_expressions == expected_result
+
+
+def test_state_from_charm_invalid_header_rewrite():
+    """
+    arrange: mock a charm with invalid HAProxy set-header grammar expressions
+    act: instantiate a State
+    assert: a InvalidStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1",
+        "backend-ports": "80",
+        "header-rewrite-expressions": "X-Forwarded-For",
+    }
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
+
+
+def test_state_from_charm_external_grpc_port_nominal():
+    """
+    arrange: mock a charm with valid external-grpc-port configuration
+    act: instantiate a State
+    assert: the external_grpc_port is set correctly
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1",
+        "backend-ports": "8080",
+        "backend-protocol": "https",
+        "external-grpc-port": 50051,
+    }
+    charm_state = State.from_charm(charm, None)
+    assert charm_state.external_grpc_port == 50051
+
+
+def test_state_from_charm_invalid_external_grpc_port_and_http():
+    """
+    arrange: mock a charm with external-grpc-port but http protocol
+    act: instantiate a State
+    assert: a InvalidStateError is raised with ValueError as cause
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1",
+        "backend-ports": "8080",
+        "backend-protocol": "http",
+        "external-grpc-port": 50051,
+    }
+    with pytest.raises(InvalidStateError) as exc_info:
+        State.from_charm(charm, None)
+    assert isinstance(exc_info.value.__cause__, ValueError)
+    assert "external_grpc_port can only be set when backend_protocol is 'https'" in str(
+        exc_info.value.__cause__
+    )
+
+
+def test_state_from_charm_invalid_external_grpc_port_invalid_and_allow_http():
+    """
+    arrange: mock a charm with external-grpc-port and allow-http both set
+    act: instantiate a State
+    assert: a InvalidStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1",
+        "backend-ports": "8080",
+        "backend-protocol": "https",
+        "external-grpc-port": 50051,
+        "allow-http": True,
+    }
+    with pytest.raises(InvalidStateError) as exc_info:
+        State.from_charm(charm, None)
+    assert "external_grpc_port cannot be set when allow_http is True." in str(
+        exc_info.value.__cause__
+    )

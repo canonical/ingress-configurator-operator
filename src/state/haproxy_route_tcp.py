@@ -12,10 +12,15 @@ from typing import Annotated, cast
 
 import ops
 from annotated_types import Len
+from charms.haproxy.v0.haproxy_route_tcp import (
+    LoadBalancingAlgorithm,
+    TCPLoadBalancingConfiguration,
+)
 from pydantic import Field, ValidationError
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
+from state.charm_state import Retry
 from validators import get_invalid_config_fields
 
 logger = logging.getLogger(__name__)
@@ -42,6 +47,8 @@ class HaproxyRouteTcpRequirements:
         backend_port: Backend port for the TCP route.
         tls_terminate: Whether to enable TLS termination.
         hostname: Optional hostname for SNI (Server Name Indication).
+        retry: Retry configuration.
+        load_balancing_configuration: TCP load balancing configuration.
     """
 
     backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
@@ -49,6 +56,8 @@ class HaproxyRouteTcpRequirements:
     backend_port: Annotated[int, Field(gt=0, le=65535)]
     tls_terminate: bool
     hostname: str | None
+    retry: Retry
+    load_balancing_configuration: TCPLoadBalancingConfiguration
 
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> "HaproxyRouteTcpRequirements":
@@ -77,12 +86,30 @@ class HaproxyRouteTcpRequirements:
         backend_port = cast(int, charm.config.get("tcp-backend-port"))
         hostname = cast(str | None, charm.config.get("tcp-hostname"))
         try:
+            load_balancing_algorithm = LoadBalancingAlgorithm(
+                cast(str, charm.config.get("tcp-load-balancing-algorithm"))
+            )
+        except ValueError as exc:
+            logger.error(str(exc))
+            raise InvalidHaproxyRouteTcpRequirementsError(
+                "Invalid load balancing algorithm."
+            ) from exc
+
+        try:
+            load_balancing_configuration = TCPLoadBalancingConfiguration(
+                algorithm=load_balancing_algorithm,
+                consistent_hashing=cast(
+                    bool, charm.config.get("tcp-load-balancing-consistent-hashing")
+                ),
+            )
             return cls(
                 port=port,
                 backend_port=backend_port,
                 tls_terminate=tls_terminate,
                 hostname=hostname,
                 backend_addresses=config_tcp_backend_addresses,
+                retry=Retry.from_charm(charm, prefix="tcp-"),
+                load_balancing_configuration=load_balancing_configuration,
             )
         except ValidationError as exc:
             logger.error(

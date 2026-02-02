@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 from requests.adapters import DEFAULT_POOLBLOCK, DEFAULT_POOLSIZE, DEFAULT_RETRIES, HTTPAdapter
 
 
-class DNSResolverHTTPSAdapter(HTTPAdapter):
+class DNSResolverAdapter(HTTPAdapter):
     """A simple mounted DNS resolver for HTTP requests, with retry support."""
 
     def __init__(
@@ -52,7 +52,14 @@ class DNSResolverHTTPSAdapter(HTTPAdapter):
         result = urlparse(request.url)
         if result.hostname == self.hostname:
             ip = self.ip
-            if result.scheme == "https" and ip:
+            if result.scheme == "http" and ip:
+                request.url = request.url.replace(
+                    "http://" + result.hostname,
+                    "http://" + ip,
+                )
+                connection_pool_kwargs["server_hostname"] = result.hostname
+                request.headers["Host"] = result.hostname
+            elif result.scheme == "https" and ip:
                 request.url = request.url.replace(
                     "https://" + result.hostname,
                     "https://" + ip,

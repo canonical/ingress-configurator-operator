@@ -36,6 +36,7 @@ requires:
 provides:
   ingress:
     interface: ingress
+    limit: 1
 
 config:
   options:
@@ -48,6 +49,12 @@ config:
     backend-protocol:
       type: string
       description: The protocol that the backend service speaks. "http" (default) or "https".
+    external-grpc-port:
+      type: int
+      description: |
+        (integrator mode) Frontend port to expose gRPC services.
+        If not set, gRPC will be routed through port 443 with HTTPS traffic.
+        Do not set this if the backend is not gRPC.
     health-check-interval:
       type: int
       description: Interval between health checks in seconds.
@@ -93,7 +100,7 @@ config:
     load-balancing-algorithm:
       type: string
       description: |
-        Algorithm to use to load balance incoming requests. 
+        Algorithm to use to load balance incoming requests.
         Can be leastconn, roundrobin, cookie or source
       default: leastconn
     load-balancing-cookie:
@@ -109,19 +116,20 @@ config:
       type: boolean
       default: false
       description: |
-          If set to true, the server will close the connection after each request.
-          This can be useful for certain applications that do not support keep-alive.
+        If set to true, the server will close the connection after each request.
+        This can be useful for certain applications that do not support keep-alive.
     path-rewrite-expressions:
       type: string
       description: |
-        List of path rewrite expressions,
-        separated by the configured expression-delimiter.
-    expression-delimiter:
+        New line ('\n') separated list of path rewrite expressions.
+        Example: "%[path,regsub(^/,/new)]\n%[path,regsub(^/api,/v1)]"
+    header-rewrite-expressions:
       type: string
-      default: ";"
       description: |
-        Tell the charm which delimiter to use to parse a delimited list of path 
-        rewrite expressions. Use a character that does not appear in your rewrite expressions.
+        New line ('\n') separated list of header rewrite expressions.
+        Each header rewrite expression will consist of the header name and the header rewrite
+        expression separated by colon (':').
+        Example: "X-Forwarded-For:%[src]\nHost:maintenance.domain.com"
     # Add haproxy-route-tcp config options
     tcp-backend-addresses:
       type: string
@@ -139,6 +147,31 @@ config:
     tcp-hostname:
       type: string
       description: (integrator mode, TCP) specify the SNI (Server Name Indication).
+    tcp-retry-count:
+      type: int
+      description: Number of times to retry failed connections to the backend.
+    tcp-retry-redispatch:
+      type: boolean
+      default: false
+      description: Whether to redispatch failed connections to another server.
+    tcp-load-balancing-algorithm:
+      type: string
+      description: |
+        Algorithm to use to load balance incoming connections.
+        Can be leastconn, roundrobin or source
+      default: leastconn
+    tcp-load-balancing-consistent-hashing:
+      type: boolean
+      description: |
+        Only applies when the `algorithm` is "source".
+        Use consistent hashing to avoid redirection when servers are added/removed.
+      default: false
+    allow-http:
+      type: boolean
+      default: false
+      description: |
+        If set to true, allows HTTP traffic in addition to HTTPS. Defaults to False.
+        Warning: enabling HTTP is a security risk, make sure you apply the necessary precautions.
 
 charm-libs:
   - lib: haproxy.haproxy_route

@@ -2,7 +2,7 @@
 # See LICENSE file for licensing details.
 
 """Integration tests for the ingress per unit relation."""
-
+import logging
 import socket
 import ssl
 import time
@@ -12,6 +12,7 @@ import pytest
 
 from .conftest import get_unit_addresses
 
+logger = logging.getLogger(__name__)
 
 @pytest.mark.abort_on_fail
 def test_haproxy_route_tcp(
@@ -43,16 +44,18 @@ def test_haproxy_route_tcp(
     haproxy_ip_address = get_unit_addresses(juju, haproxy)[0]
     context = ssl._create_unverified_context()  # pylint: disable=protected-access  # nosec
     deadline = time.time() + 30
+    address = (str(haproxy_ip_address), 4444)
     while time.time() < deadline:
         try:
             with (
-                socket.create_connection((str(haproxy_ip_address), 4444)) as sock,
+                socket.create_connection(address) as sock,
                 context.wrap_socket(sock, server_hostname="example.com") as ssock,
             ):
                 ssock.send(b"ping")
                 server_response = ssock.read()
                 assert "pong" in str(server_response)
-                break
+                return
         except ConnectionRefusedError:
-            continue
+            logger.info(f"connection to %s refused, retrying", address)
+            time.sleep(1)
     raise TimeoutError("timed out waiting for server to respond")

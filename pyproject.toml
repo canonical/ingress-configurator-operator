@@ -14,8 +14,8 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-  "ops==3.3.1",
-  "pydantic==2.12.4",
+  "ops==3.5.1",
+  "pydantic==2.12.5",
 ]
 
 [dependency-groups]
@@ -24,7 +24,7 @@ fmt = [
 ]
 lint = [
   "codespell",
-  "jubilant==1.1.1",
+  "jubilant",
   "mypy",
   "ops[testing]",
   "pep8-naming",
@@ -49,10 +49,9 @@ static = [
 integration = [
   "allure-pytest>=2.8.18",
   "allure-pytest-collection-report @ git+https://github.com/canonical/data-platform-workflows@v24.0.0#subdirectory=python/pytest_plugins/allure_pytest_collection_report",
-  "jubilant==1.1.1",
-  "juju==3.6.*",
+  "jubilant",
   "pytest",
-  "pytest-jubilant==0.7.1",
+  "pytest-jubilant",
 ]
 
 [tool.uv]

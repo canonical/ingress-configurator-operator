@@ -286,6 +286,7 @@ integration = [
     { name = "jubilant" },
     { name = "pytest" },
     { name = "pytest-jubilant" },
+    { name = "requests" },
 ]
 lint = [
     { name = "codespell" },
@@ -326,6 +327,7 @@ integration = [
     { name = "jubilant" },
     { name = "pytest" },
     { name = "pytest-jubilant" },
+    { name = "requests" },
 ]
 lint = [
     { name = "codespell" },

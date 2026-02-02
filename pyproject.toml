@@ -52,6 +52,7 @@ integration = [
   "jubilant",
   "pytest",
   "pytest-jubilant",
+  "requests",
 ]
 
 [tool.uv]

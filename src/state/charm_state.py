@@ -67,7 +67,9 @@ class HealthCheck:
         Raises:
             ValueError: if the validation doesn't pass.
         """
-        all_or_none_health_checks_set = bool(self.interval) == bool(self.rise) == bool(self.fall)
+        all_or_none_health_checks_set = (
+            (self.interval is None) == (self.rise is None) == (self.fall is None)
+        )
         if not all_or_none_health_checks_set:
             raise ValueError(
                 "Health check configuration is incomplete: interval, rise, and fall "

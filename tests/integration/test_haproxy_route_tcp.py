@@ -42,7 +42,9 @@ def test_haproxy_route_tcp(
         },
     )
 
-    juju.wait(lambda status: jubilant.all_active(status, haproxy, application_with_tcp_server))
+    juju.wait(
+        lambda status: jubilant.all_active(status, haproxy, application_with_tcp_server), delay=5
+    )
     haproxy_ip_address = get_unit_addresses(juju, haproxy)[0]
     context = ssl._create_unverified_context()  # pylint: disable=protected-access  # nosec
     deadline = time.time() + 30

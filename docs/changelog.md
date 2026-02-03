@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Each revision is versioned by the date of the revision.
 
+## 2026-01-22
+
+### Added
+
+- Add config options `tcp-enforce-tls`, `tcp-health-check-interval`, `tcp-health-check-rise`
+  `tcp-health-check-fall`, `tcp-health-check-type`, `tcp-health-check-send`,
+  `tcp-health-check-expect`, `tcp-health-check-db-user`.
+
 ## 2026-01-15
 
 ### Added

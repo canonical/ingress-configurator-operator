@@ -9,12 +9,10 @@ platforms:
 
 parts:
   charm:
+    source: .
+    plugin: uv
     build-snaps:
-      - rustup
-    override-build: |
-      rustup default stable
-      craftctl default
-
+    - astral-uv
 name: ingress-configurator
 title: Ingress configurator charm.
 description: |

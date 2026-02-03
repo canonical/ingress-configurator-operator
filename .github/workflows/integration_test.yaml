@@ -7,8 +7,7 @@ on:
 
 jobs:
   integration-tests:
-    uses: 
-      canonical/operator-workflows/.github/workflows/integration_test.yaml@main
+    uses: canonical/operator-workflows/.github/workflows/integration_test.yaml@main
     secrets: inherit
     with:
       extra-arguments: '-x --log-format="%(asctime)s %(levelname)s %(message)s"'
@@ -17,6 +16,7 @@ jobs:
       self-hosted-runner: true
       charmcraft-channel: latest/edge
       modules: '["test_actions.py", "test_adapter.py", "test_integrator.py", "test_haproxy_route_tcp.py"]'
+      with-uv: true
   allure-report:
     if: ${{ !cancelled() && github.event_name == 'schedule' }}
     needs:

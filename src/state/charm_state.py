@@ -8,13 +8,17 @@ from typing import Annotated, Literal, Optional, Self, cast
 
 import ops
 from annotated_types import Len
-from charms.haproxy.v1.haproxy_route import LoadBalancingAlgorithm, LoadBalancingConfiguration
+from charms.haproxy.v1.haproxy_route import (
+    LoadBalancingAlgorithm,
+    LoadBalancingConfiguration,
+    valid_domain_with_wildcard,
+)
 from charms.traefik_k8s.v2.ingress import IngressRequirerData
 from pydantic import BeforeValidator, Field, ValidationError, model_validator
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
-from validators import get_invalid_config_fields, value_has_valid_characters
+from helpers import get_invalid_config_fields, value_has_valid_characters
 
 logger = logging.getLogger()
 CHARM_CONFIG_DELIMITER = ","
@@ -197,10 +201,10 @@ class State:
     timeout: Timeout
     service: str = Field(..., min_length=1)
     paths: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(default=[])
-    hostname: Optional[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(
+    hostname: Optional[Annotated[str, BeforeValidator(valid_domain_with_wildcard)]] = Field(
         default=None
     )
-    additional_hostnames: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = (
+    additional_hostnames: list[Annotated[str, BeforeValidator(valid_domain_with_wildcard)]] = (
         Field(default=[])
     )
     load_balancing_configuration: LoadBalancingConfiguration = Field(

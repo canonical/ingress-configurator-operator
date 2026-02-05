@@ -21,8 +21,8 @@ from pydantic import Field, ValidationError, model_validator
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
+from helpers import get_invalid_config_fields
 from state.charm_state import Retry
-from validators import get_invalid_config_fields
 
 logger = logging.getLogger(__name__)
 

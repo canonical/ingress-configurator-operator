@@ -8,7 +8,7 @@ from typing import Annotated, Literal, Optional, Self, cast
 
 import ops
 from annotated_types import Len
-from charms.haproxy.v1.haproxy_route import (
+from charms.haproxy.v2.haproxy_route import (
     LoadBalancingAlgorithm,
     LoadBalancingConfiguration,
     valid_domain_with_wildcard,

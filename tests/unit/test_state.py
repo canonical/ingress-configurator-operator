@@ -6,7 +6,7 @@
 from unittest.mock import Mock
 
 import pytest
-from charms.haproxy.v1.haproxy_route import LoadBalancingAlgorithm
+from charms.haproxy.v2.haproxy_route import LoadBalancingAlgorithm
 from charms.traefik_k8s.v2.ingress import (
     IngressRequirerAppData,
     IngressRequirerData,

@@ -430,6 +430,7 @@ def test_state_from_charm_valid_hostname_with_wildcard(hostname):
         pytest.param("sub.*.example.com", id="wildcard_not_at_beginning"),
         pytest.param("*.*.example.com", id="multiple_wildcards"),
         pytest.param("example.*.com", id="wildcard_in_middle"),
+        pytest.param("*.com", id="wildcard_tld"),
     ],
 )
 def test_state_from_charm_invalid_hostname_wildcard(invalid_hostname):

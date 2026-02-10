@@ -212,7 +212,7 @@ config:
 
 charm-libs:
   - lib: haproxy.haproxy_route
-    version: "1"
+    version: "2"
   - lib: haproxy.haproxy_route_tcp
     version: "0"
   - lib: traefik_k8s.ingress

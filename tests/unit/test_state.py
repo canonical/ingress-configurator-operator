@@ -6,7 +6,7 @@
 from unittest.mock import Mock
 
 import pytest
-from charms.haproxy.v1.haproxy_route import LoadBalancingAlgorithm
+from charms.haproxy.v2.haproxy_route import LoadBalancingAlgorithm
 from charms.traefik_k8s.v2.ingress import (
     IngressRequirerAppData,
     IngressRequirerData,
@@ -390,6 +390,111 @@ def test_state_from_charm_invalid_additional_hostnames():
         "backend-ports": "8080,8081",
         "hostname": "valid.example.com",
         "additional-hostnames": "invalid$\\",
+    }
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
+
+
+@pytest.mark.parametrize(
+    "hostname",
+    [
+        pytest.param("*.example.com", id="wildcard_hostname"),
+        pytest.param("*.subdomain.example.com", id="wildcard_subdomain"),
+        pytest.param("example.com", id="standard_hostname"),
+        pytest.param("subdomain.example.com", id="standard_subdomain"),
+        pytest.param("a.b.c.d.example.com", id="multi_level_subdomain"),
+    ],
+)
+def test_state_from_charm_valid_hostname_with_wildcard(hostname):
+    """Test State creation with valid hostnames including wildcards.
+
+    arrange: mock a charm with valid hostname including wildcards
+    act: instantiate a State
+    assert: state is created successfully
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1,127.0.0.2",
+        "backend-ports": "8080,8081",
+        "hostname": hostname,
+    }
+    charm_state = State.from_charm(charm, None)
+    assert charm_state.hostname == hostname
+
+
+@pytest.mark.parametrize(
+    "invalid_hostname",
+    [
+        pytest.param("**.example.com", id="double_wildcard"),
+        pytest.param("*example.com", id="wildcard_without_dot"),
+        pytest.param("sub.*.example.com", id="wildcard_not_at_beginning"),
+        pytest.param("*.*.example.com", id="multiple_wildcards"),
+        pytest.param("example.*.com", id="wildcard_in_middle"),
+        pytest.param("*.com", id="wildcard_tld"),
+    ],
+)
+def test_state_from_charm_invalid_hostname_wildcard(invalid_hostname):
+    """Test State creation fails with invalid wildcard hostname.
+
+    arrange: mock a charm with invalid wildcard hostname
+    act: instantiate a State
+    assert: InvalidStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1,127.0.0.2",
+        "backend-ports": "8080,8081",
+        "hostname": invalid_hostname,
+    }
+    with pytest.raises(InvalidStateError):
+        State.from_charm(charm, None)
+
+
+@pytest.mark.parametrize(
+    "additional_hostnames",
+    [
+        pytest.param("*.example.com,*.other.com", id="multiple_wildcards"),
+        pytest.param("*.subdomain.example.com,normal.example.com", id="mixed_wildcard_standard"),
+        pytest.param("example.com,subdomain.example.com", id="multiple_standard"),
+    ],
+)
+def test_state_from_charm_valid_additional_hostnames_with_wildcard(additional_hostnames):
+    """Test State creation with valid additional hostnames including wildcards.
+
+    arrange: mock a charm with valid additional hostnames including wildcards
+    act: instantiate a State
+    assert: state is created successfully
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1,127.0.0.2",
+        "backend-ports": "8080,8081",
+        "additional-hostnames": additional_hostnames,
+    }
+    charm_state = State.from_charm(charm, None)
+    assert charm_state.additional_hostnames == additional_hostnames.split(",")
+
+
+@pytest.mark.parametrize(
+    "invalid_additional_hostnames",
+    [
+        pytest.param("**.example.com", id="double_wildcard"),
+        pytest.param("*example.com,valid.com", id="one_invalid_one_valid"),
+        pytest.param("valid.com,*.*.example.com", id="valid_and_multiple_wildcards"),
+    ],
+)
+def test_state_from_charm_invalid_additional_hostnames_wildcard(invalid_additional_hostnames):
+    """Test State creation fails with invalid wildcard in additional hostnames.
+
+    arrange: mock a charm with invalid wildcard in additional hostnames
+    act: instantiate a State
+    assert: InvalidStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1,127.0.0.2",
+        "backend-ports": "8080,8081",
+        "additional-hostnames": invalid_additional_hostnames,
     }
     with pytest.raises(InvalidStateError):
         State.from_charm(charm, None)

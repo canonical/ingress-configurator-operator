@@ -13,7 +13,7 @@ import typing
 
 import ops
 from charms.haproxy.v0.haproxy_route_tcp import DataValidationError, HaproxyRouteTcpRequirer
-from charms.haproxy.v1.haproxy_route import HaproxyRouteRequirer
+from charms.haproxy.v2.haproxy_route import HaproxyRouteRequirer
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider
 
 from state.charm_state import InvalidStateError, State

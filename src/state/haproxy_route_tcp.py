@@ -18,7 +18,7 @@ from charms.haproxy.v1.haproxy_route_tcp import (
     TCPLoadBalancingConfiguration,
     valid_domain_with_wildcard,
 )
-from pydantic import Field, ValidationError, model_validator
+from pydantic import BeforeValidator, Field, ValidationError, model_validator
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
@@ -136,7 +136,7 @@ class HaproxyRouteTcpRequirements:  # pylint: disable=too-many-instance-attribut
     port: Annotated[int, Field(gt=0, le=65535)]
     backend_port: Annotated[int, Field(gt=0, le=65535)]
     tls_terminate: bool
-    hostname: Annotated[str, valid_domain_with_wildcard] | None
+    hostname: Annotated[str, BeforeValidator(valid_domain_with_wildcard)] | None
     retry: Retry
     load_balancing_configuration: TCPLoadBalancingConfiguration
     enforce_tls: bool

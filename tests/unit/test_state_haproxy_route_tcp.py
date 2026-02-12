@@ -125,6 +125,73 @@ def test_haproxy_route_tcp_requirements_from_charm_ipv6():
     assert requirements.backend_port == 8443
 
 
+@pytest.mark.parametrize(
+    "hostname",
+    [
+        "*.example.com",
+        "*.subdomain.example.com",
+        "example.com",
+        "subdomain.example.com",
+        "a.b.c.d.example.com",
+    ],
+)
+def test_haproxy_route_tcp_requirements_valid_wildcard_sni(hostname):
+    """
+    arrange: mock a charm with valid SNI hostname (including wildcards)
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: hostname is accepted
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "192.168.1.1",
+        "tcp-frontend-port": 443,
+        "tcp-backend-port": 8443,
+        "tcp-tls-terminate": True,
+        "tcp-hostname": hostname,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
+        "tcp-enforce-tls": True,
+    }
+
+    requirements = HaproxyRouteTcpRequirements.from_charm(charm)
+
+    assert requirements.hostname == hostname
+
+
+@pytest.mark.parametrize(
+    "invalid_hostname",
+    [
+        "*.com",
+        "*.*.example.com",
+        "**.example.com",
+        "*example.com",
+        "sub.*.example.com",
+        "example.*.com",
+    ],
+)
+def test_haproxy_route_tcp_requirements_invalid_wildcard_sni(invalid_hostname):
+    """
+    arrange: mock a charm with invalid wildcard SNI hostname
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: InvalidHaproxyRouteTcpRequirementsError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "192.168.1.1",
+        "tcp-frontend-port": 443,
+        "tcp-backend-port": 8443,
+        "tcp-tls-terminate": True,
+        "tcp-hostname": invalid_hostname,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
+        "tcp-enforce-tls": True,
+    }
+
+    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError) as exc_info:
+        HaproxyRouteTcpRequirements.from_charm(charm)
+    assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
+
+
 def test_haproxy_route_tcp_requirements_empty_backend_addresses():
     """
     arrange: mock a charm without backend addresses
@@ -483,6 +550,7 @@ def test_haproxy_route_tcp_requirements_health_check_with_type_generic():
 
     requirements = HaproxyRouteTcpRequirements.from_charm(charm)
 
+    assert requirements.health_check.check_type is not None
     assert requirements.health_check.check_type.value == "generic"
     assert requirements.health_check.send == "PING"
     assert requirements.health_check.expect == "PONG"
@@ -514,6 +582,7 @@ def test_haproxy_route_tcp_requirements_health_check_with_type_mysql():
 
     requirements = HaproxyRouteTcpRequirements.from_charm(charm)
 
+    assert requirements.health_check.check_type is not None
     assert requirements.health_check.check_type.value == "mysql"
     assert requirements.health_check.db_user == "health_checker"
     assert requirements.health_check.send is None
@@ -548,6 +617,7 @@ def test_haproxy_route_tcp_requirements_valid_health_check_types(check_type):
 
     requirements = HaproxyRouteTcpRequirements.from_charm(charm)
 
+    assert requirements.health_check.check_type is not None
     assert requirements.health_check.check_type.value == check_type
 
 

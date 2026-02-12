@@ -6,7 +6,7 @@
 from unittest.mock import Mock
 
 import pytest
-from charms.haproxy.v0.haproxy_route_tcp import LoadBalancingAlgorithm
+from charms.haproxy.v1.haproxy_route_tcp import LoadBalancingAlgorithm
 from ops import CharmBase
 
 from state.haproxy_route_tcp import (

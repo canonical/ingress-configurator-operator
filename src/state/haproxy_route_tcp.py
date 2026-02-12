@@ -12,10 +12,11 @@ from typing import Annotated, Optional, Self, cast
 
 import ops
 from annotated_types import Len
-from charms.haproxy.v0.haproxy_route_tcp import (
+from charms.haproxy.v1.haproxy_route_tcp import (
     LoadBalancingAlgorithm,
     TCPHealthCheckType,
     TCPLoadBalancingConfiguration,
+    valid_domain_with_wildcard,
 )
 from pydantic import Field, ValidationError, model_validator
 from pydantic.dataclasses import dataclass
@@ -135,7 +136,7 @@ class HaproxyRouteTcpRequirements:  # pylint: disable=too-many-instance-attribut
     port: Annotated[int, Field(gt=0, le=65535)]
     backend_port: Annotated[int, Field(gt=0, le=65535)]
     tls_terminate: bool
-    hostname: str | None
+    hostname: Annotated[str, valid_domain_with_wildcard] | None
     retry: Retry
     load_balancing_configuration: TCPLoadBalancingConfiguration
     enforce_tls: bool

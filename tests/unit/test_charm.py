@@ -183,7 +183,38 @@ class TestGetProxiedEndpointAction:
             assert str(excinfo.value) == "Missing haproxy-route relation."
 
 
-def test_haproxy_route(context: ops.testing.Context):
+def test_is_kubernetes_returns_true_when_no_machine_id():
+    """
+    arrange: create a context without a machine_id (Kubernetes substrate)
+    act: run any event and inspect the charm instance
+    assert: is_kubernetes() returns True
+    """
+    context = ops.testing.Context(charm_type=IngressConfiguratorCharm, machine_id=None)
+    state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": "80"},
+        leader=True,
+    )
+
+    with context(context.on.config_changed(), state) as manager:
+        assert manager.charm.is_kubernetes() is True
+
+
+def test_is_kubernetes_returns_false_when_machine_id_is_set():
+    """
+    arrange: create a context with a machine_id set (machine substrate)
+    act: run any event and inspect the charm instance
+    assert: is_kubernetes() returns False
+    """
+    context = ops.testing.Context(charm_type=IngressConfiguratorCharm, machine_id="1")
+    state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": "80"},
+        leader=True,
+    )
+
+    with context(context.on.config_changed(), state) as manager:
+        assert manager.charm.is_kubernetes() is False
+
+
     """Valid protocol should be copied from config to haproxy-route-tcp relation."""
     in_ = ops.testing.State(
         config={

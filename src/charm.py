@@ -65,6 +65,18 @@ class IngressConfiguratorCharm(ops.CharmBase):
         # Action handlers
         self.framework.observe(self.on.get_proxied_endpoints_action, self._on_get_proxied_endpoint)
 
+    def is_kubernetes(self) -> bool:
+        """Return True if the charm is running on a Kubernetes substrate.
+
+        On machine substrates Juju sets the JUJU_MACHINE_ID environment
+        variable, which is surfaced as :attr:`ops.JujuContext.machine_id`.
+        On Kubernetes that variable is absent, so ``machine_id`` is ``None``.
+
+        Returns:
+            True when running on Kubernetes, False on a machine substrate.
+        """
+        return self.model._backend._juju_context.machine_id is None
+
     def _reconcile(self, _: ops.EventBase) -> None:
         """Refresh haproxy-route requirer data."""
         try:

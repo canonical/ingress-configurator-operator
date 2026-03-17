@@ -64,90 +64,39 @@ def test_get_node_ips_empty_cluster():
     assert ips == []
 
 
-def test_create_nodeport_service_name():
+def test_create_nodeport_service():
     """
     arrange: mock a lightkube client
-    act: call create_nodeport_service with app_name "myapp"
-    assert: the service is created with name "myapp-service"
+    act: call create_nodeport_service with port 9090, protocol UDP, and app_name "myapp"
+    assert: the created service has the correct name, type, selector, port and protocol
     """
     client = MagicMock()
 
-    create_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")
+    create_nodeport_service(client, port=9090, protocol="UDP", app_name="myapp")
 
     service = client.create.call_args[0][0]
     assert service.metadata.name == "myapp-service"
-
-
-def test_create_nodeport_service_type():
-    """
-    arrange: mock a lightkube client
-    act: call create_nodeport_service
-    assert: the service spec type is NodePort
-    """
-    client = MagicMock()
-
-    create_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")
-
-    service = client.create.call_args[0][0]
     assert service.spec.type == "NodePort"
-
-
-def test_create_nodeport_service_selector():
-    """
-    arrange: mock a lightkube client
-    act: call create_nodeport_service with app_name "myapp"
-    assert: the selector targets the given app name
-    """
-    client = MagicMock()
-
-    create_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")
-
-    service = client.create.call_args[0][0]
     assert service.spec.selector == {"app": "myapp"}
-
-
-def test_create_nodeport_service_port_and_protocol():
-    """
-    arrange: mock a lightkube client
-    act: call create_nodeport_service with port 9090 and protocol UDP
-    assert: the service port and protocol match the supplied values
-    """
-    client = MagicMock()
-
-    create_nodeport_service(client, port=9090, protocol="UDP", app_name="backend")
-
-    service = client.create.call_args[0][0]
     assert service.spec.ports[0].port == 9090
     assert service.spec.ports[0].protocol == "UDP"
 
 
-def test_get_nodeport_service_requests_correct_name():
+def test_get_nodeport_service():
     """
-    arrange: mock a lightkube client
+    arrange: mock a lightkube client returning a service object
     act: call get_nodeport_service with app_name "myapp"
-    assert: client.get is called with the service name "myapp-service"
+    assert: client.get is called with the service name "myapp-service" and the service is returned
     """
     from lightkube.resources.core_v1 import Service
 
-    client = MagicMock()
-
-    get_nodeport_service(client, "myapp")
-
-    client.get.assert_called_once_with(Service, name="myapp-service")
-
-
-def test_get_nodeport_service_returns_service():
-    """
-    arrange: mock a lightkube client returning a service object
-    act: call get_nodeport_service
-    assert: the returned value is the service from the client
-    """
     client = MagicMock()
     mock_service = MagicMock()
     client.get.return_value = mock_service
 
     result = get_nodeport_service(client, "myapp")
 
+    client.get.assert_called_once_with(Service, name="myapp-service")
     assert result is mock_service
 
 

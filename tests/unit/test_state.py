@@ -768,11 +768,12 @@ def test_state_from_charm_kubernetes_backend_default_protocol():
     assert charm_state.kubernetes_backend_state.backend_protocol == "TCP"
 
 
-def test_state_from_charm_kubernetes_overrides_backend_addresses():
+def test_state_from_charm_kubernetes_overrides_backend_addresses_and_ports():
     """
-    arrange: mock a charm with config addresses and provide KubernetesData with node IPs
+    arrange: mock a charm with config addresses/ports and provide KubernetesData with node IPs
+        and a service port
     act: instantiate a State
-    assert: backend_addresses are taken from the kubernetes node IPs, not charm config
+    assert: backend_addresses and backend_ports are taken from kubernetes, not charm config
     """
     charm = Mock(CharmBase)
     charm.config = {
@@ -789,28 +790,6 @@ def test_state_from_charm_kubernetes_overrides_backend_addresses():
     charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
 
     assert [str(a) for a in charm_state.backend_addresses] == ["10.0.0.1", "10.0.0.2"]
-
-
-def test_state_from_charm_kubernetes_overrides_backend_ports():
-    """
-    arrange: mock a charm with config ports and provide KubernetesData with a service port
-    act: instantiate a State
-    assert: backend_ports are taken from the kubernetes service target port, not charm config
-    """
-    charm = Mock(CharmBase)
-    charm.config = {
-        "backend-addresses": "127.0.0.1",
-        "backend-ports": "80",
-    }
-    kubernetes_data = KubernetesData(
-        node_ips=["10.0.0.1"],
-        service_name="my-service",
-        service_target_port=8080,
-        service_protocol="TCP",
-    )
-
-    charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
-
     assert charm_state.backend_ports == [8080]
 
 

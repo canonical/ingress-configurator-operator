@@ -21,13 +21,14 @@ Deployment topology:
   Machine model: haproxy  ◄──  self-signed-certificates
 """
 
-import json
 import re
 import subprocess
 from typing import Callable
 
 import jubilant
 import pytest
+from lightkube import Client
+from lightkube.resources.core_v1 import Node
 from requests import Session
 
 from .conftest import (
@@ -128,26 +129,22 @@ def _assert_nodeport_service_exists(k8s_juju: jubilant.Juju, app_name: str) -> N
 
 
 def _get_k8s_node_external_ips() -> list[str]:
-    """Fetch ExternalIP addresses of all K8s nodes via kubectl.
+    """Fetch ExternalIP addresses of all K8s nodes via lightkube.
+
+    Uses the ambient ``KUBECONFIG`` (or in-cluster config) to create a
+    lightkube :class:`~lightkube.Client` and lists all :class:`Node` resources,
+    mirroring the logic in :func:`kubernetes.get_node_ips`.
 
     Returns:
         A list of ExternalIP address strings for every node in the cluster.
-
-    Raises:
-        subprocess.CalledProcessError: When kubectl exits with a non-zero status.
     """
-    result = subprocess.run(
-        ["kubectl", "get", "nodes", "--output", "json"],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    nodes = json.loads(result.stdout)
+    client = Client()
     return [
-        addr["address"]
-        for item in nodes["items"]
-        for addr in item["status"]["addresses"]
-        if addr["type"] == "ExternalIP"
+        address.address
+        for node in client.list(Node)
+        if node.status and node.status.addresses
+        for address in node.status.addresses
+        if address.type == "ExternalIP"
     ]
 
 

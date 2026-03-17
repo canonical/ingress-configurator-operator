@@ -214,7 +214,6 @@ def test_is_kubernetes_returns_false_when_machine_id_is_set():
     with context(context.on.config_changed(), state) as manager:
         assert manager.charm.is_kubernetes() is False
 
-
     """Valid protocol should be copied from config to haproxy-route-tcp relation."""
     in_ = ops.testing.State(
         config={

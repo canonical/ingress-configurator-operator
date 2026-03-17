@@ -5,7 +5,18 @@
 
 from unittest.mock import MagicMock
 
-from kubernetes import KubernetesData, create_nodeport_service, delete_nodeport_service, ensure_nodeport_service, get_kubernetes_data, get_node_ips, get_nodeport_service, replace_nodeport_service
+from lightkube import ApiError
+
+from kubernetes import (
+    KubernetesData,
+    create_nodeport_service,
+    delete_nodeport_service,
+    ensure_nodeport_service,
+    get_kubernetes_data,
+    get_node_ips,
+    get_nodeport_service,
+    replace_nodeport_service,
+)
 
 
 def _make_node(*addresses: tuple[str, str]) -> MagicMock:
@@ -122,10 +133,8 @@ def test_get_kubernetes_data_returns_kubernetes_data():
     assert result.node_ips == ["1.2.3.4"]
 
 
-def _make_api_error(code: int) -> "ApiError":
+def _make_api_error(code: int) -> ApiError:
     """Create an ApiError with the given HTTP status code."""
-    from lightkube import ApiError
-
     return ApiError(status={"code": code, "message": str(code), "status": "Failure"})
 
 
@@ -248,8 +257,6 @@ def test_ensure_nodeport_service_reraises_non_404_api_error():
     act: call ensure_nodeport_service
     assert: the ApiError is re-raised
     """
-    from lightkube import ApiError
-
     import pytest
 
     client = MagicMock()

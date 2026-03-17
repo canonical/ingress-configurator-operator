@@ -5,7 +5,7 @@
 
 import logging
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, cast
 
 from lightkube import ApiError, Client
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
@@ -140,9 +140,7 @@ def delete_nodeport_service(client: Client, app_name: str) -> None:
     client.delete(Service, name=f"{app_name}-service")
 
 
-def ensure_nodeport_service(
-    client: Client, port: int, protocol: Protocol, app_name: str
-) -> None:
+def ensure_nodeport_service(client: Client, port: int, protocol: Protocol, app_name: str) -> None:
     """Create or update the NodePort service so its port and protocol match the given values.
 
     If the service does not exist it is created. If it exists but its port or
@@ -156,6 +154,8 @@ def ensure_nodeport_service(
     """
     try:
         service = get_nodeport_service(client, app_name)
+        if service.spec is None or service.spec.ports is None:
+            raise ValueError(f"NodePort service for {app_name!r} has no spec or ports")
         existing_port = service.spec.ports[0]
         if existing_port.port != port or existing_port.protocol != protocol:
             replace_nodeport_service(client, port, protocol, app_name)
@@ -178,10 +178,14 @@ def get_kubernetes_data(client: Client, app_name: str) -> KubernetesData:
     """
     node_ips = get_node_ips(client)
     service = get_nodeport_service(client, app_name)
+    if service.spec is None or service.spec.ports is None:
+        raise ValueError(f"NodePort service for {app_name!r} has no spec or ports")
+    if service.metadata is None or service.metadata.name is None:
+        raise ValueError(f"NodePort service for {app_name!r} has no metadata name")
     port = service.spec.ports[0]
     return KubernetesData(
         node_ips=node_ips,
         service_name=service.metadata.name,
-        service_target_port=port.targetPort,
-        service_protocol=port.protocol,
+        service_target_port=cast(int, port.targetPort),
+        service_protocol=cast(Protocol, port.protocol),
     )

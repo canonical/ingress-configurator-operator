@@ -14,8 +14,8 @@ from charms.traefik_k8s.v2.ingress import (
 )
 from ops import CharmBase
 
-from state.charm_state import InvalidStateError, KubernetesBackendState, State
 from kubernetes import KubernetesData
+from state.charm_state import InvalidStateError, KubernetesBackendState, State
 
 
 def test_adapter_state_from_charm():

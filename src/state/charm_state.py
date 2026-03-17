@@ -351,7 +351,7 @@ class State:
                 raise InvalidStateError("No valid mode detected.")
             backend_addresses = config_backend_addresses or ingress_backend_addresses
             backend_ports = config_backend_ports or ingress_backend_ports
-            
+
             load_balancing_algorithm = LoadBalancingAlgorithm(
                 cast(
                     Optional[str],
@@ -398,8 +398,9 @@ class State:
             )
             service = f"{charm.model.name}-{charm.app.name}"
             if kubernetes_data:
-                backend_addresses = kubernetes_backend_state.backend_addresses
-                backend_ports = kubernetes_backend_state.backend_ports
+                k8s_state = cast(KubernetesBackendState, kubernetes_backend_state)
+                backend_addresses = k8s_state.backend_addresses
+                backend_ports = k8s_state.backend_ports
                 service = kubernetes_data.service_name
             return cls(
                 _backend_state=BackendState(backend_addresses, backend_ports, backend_protocol),

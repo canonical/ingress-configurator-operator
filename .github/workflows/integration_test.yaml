@@ -15,7 +15,7 @@ jobs:
       juju-channel: 3/stable
       self-hosted-runner: true
       charmcraft-channel: latest/edge
-      modules: '["test_actions.py", "test_adapter.py", "test_integrator.py", "test_haproxy_route_tcp.py"]'
+      modules: '["test_actions.py", "test_adapter.py", "test_integrator.py", "test_integrator_kubernetes.py", "test_haproxy_route_tcp.py"]'
       with-uv: true
   allure-report:
     if: ${{ !cancelled() && github.event_name == 'schedule' }}

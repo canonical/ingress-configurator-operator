@@ -6,7 +6,7 @@
 import json
 import pathlib
 from ipaddress import IPv4Address, IPv6Address, ip_address
-from typing import Callable, cast
+from typing import Callable, Generator, cast
 
 import jubilant
 import pytest
@@ -234,3 +234,186 @@ def application_with_tcp_server_fixture(application: str, juju: jubilant.Juju):
     command = "sudo snap install ping-pong-tcp; sudo snap set ping-pong-tcp host=0.0.0.0"
     juju.ssh(target=f"{application}/0", command=command)
     yield application
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    """Add custom CLI options for Kubernetes integration tests.
+
+    Args:
+        parser: The pytest argument parser.
+    """
+    parser.addoption(
+        "--machine-controller",
+        default="localhost",
+        help="Name of the Juju machine controller used to deploy haproxy (default: localhost).",
+    )
+    parser.addoption(
+        "--k8s-controller",
+        default="microk8s",
+        help="Name of the Juju Kubernetes controller (default: microk8s).",
+    )
+
+
+@pytest.fixture(scope="session", name="machine_controller_name")
+def machine_controller_name_fixture(pytestconfig: pytest.Config) -> str:
+    """Return the name of the machine controller.
+
+    Args:
+        pytestconfig: The pytest config object.
+
+    Returns:
+        The machine controller name.
+    """
+    return cast(str, pytestconfig.getoption("--machine-controller"))
+
+
+@pytest.fixture(scope="session", name="k8s_controller_name")
+def k8s_controller_name_fixture(pytestconfig: pytest.Config) -> str:
+    """Return the name of the Kubernetes controller.
+
+    Args:
+        pytestconfig: The pytest config object.
+
+    Returns:
+        The Kubernetes controller name.
+    """
+    return cast(str, pytestconfig.getoption("--k8s-controller"))
+
+
+@pytest.fixture(scope="module", name="machine_model")
+def machine_model_fixture(
+    machine_controller_name: str, pytestconfig: pytest.Config
+) -> Generator[jubilant.Juju, None, None]:
+    """Create a temporary machine model for haproxy and related dependencies.
+
+    Args:
+        machine_controller_name: Name of the machine controller.
+        pytestconfig: The pytest config object.
+
+    Yields:
+        A jubilant.Juju instance connected to the temporary machine model.
+    """
+    keep = cast(bool, pytestconfig.getoption("--keep-models"))
+    with jubilant.temp_model(keep=keep, controller=machine_controller_name) as juju:
+        juju.wait_timeout = JUJU_WAIT_TIMEOUT
+        yield juju
+
+
+@pytest.fixture(scope="module", name="machine_haproxy")
+def machine_haproxy_fixture(
+    machine_model: jubilant.Juju, machine_controller_name: str
+) -> Generator[tuple[jubilant.Juju, str, str], None, None]:
+    """Deploy haproxy on the machine model and expose its haproxy-route endpoint as an offer.
+
+    Args:
+        machine_model: jubilant.Juju instance for the machine model.
+        machine_controller_name: Name of the machine controller.
+
+    Yields:
+        A tuple of (machine_model juju, haproxy app name, offer URL).
+    """
+    machine_model.deploy(
+        charm="haproxy",
+        app=HAPROXY_APP_NAME,
+        channel=HAPROXY_CHANNEL,
+        revision=HAPROXY_REVISION,
+        config={"external-hostname": MOCK_HAPROXY_HOSTNAME},
+        base=HAPROXY_BASE,
+    )
+    machine_model.deploy(
+        charm="self-signed-certificates",
+        app=CERTIFICATES_APP_NAME,
+        channel=CERTIFICATES_CHANNEL,
+        revision=CERTIFICATES_REVISION,
+    )
+    machine_model.integrate(
+        f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates"
+    )
+    machine_model.wait(
+        lambda status: jubilant.all_active(status, HAPROXY_APP_NAME, CERTIFICATES_APP_NAME),
+    )
+    machine_model.offer(HAPROXY_APP_NAME, endpoint="haproxy-route")
+    offer_url = f"{machine_controller_name}:admin/{machine_model.model}.{HAPROXY_APP_NAME}"
+    yield machine_model, HAPROXY_APP_NAME, offer_url
+
+
+@pytest.fixture(scope="module", name="k8s_juju")
+def k8s_juju_fixture(
+    k8s_controller_name: str, pytestconfig: pytest.Config
+) -> Generator[jubilant.Juju, None, None]:
+    """Create a temporary Kubernetes model for the ingress-configurator and ingress requirer.
+
+    Args:
+        k8s_controller_name: Name of the Kubernetes controller.
+        pytestconfig: The pytest config object.
+
+    Yields:
+        A jubilant.Juju instance connected to the temporary K8s model.
+    """
+    keep = cast(bool, pytestconfig.getoption("--keep-models"))
+    with jubilant.temp_model(keep=keep, controller=k8s_controller_name) as juju:
+        juju.wait_timeout = JUJU_WAIT_TIMEOUT
+        yield juju
+
+
+@pytest.fixture(scope="module", name="k8s_application")
+def k8s_application_fixture(
+    charm: str,
+    k8s_juju: jubilant.Juju,
+    machine_haproxy: tuple[jubilant.Juju, str, str],
+) -> Generator[str, None, None]:
+    """Deploy the ingress-configurator on the K8s model and integrate with haproxy cross-model.
+
+    Args:
+        charm: Path to the packed charm file.
+        k8s_juju: jubilant.Juju instance for the K8s model.
+        machine_haproxy: Tuple of (machine juju, haproxy app name, offer URL).
+
+    Yields:
+        The ingress-configurator application name.
+    """
+    metadata = yaml.safe_load(pathlib.Path("./charmcraft.yaml").read_text(encoding="UTF-8"))
+    app_name = metadata["name"]
+    _, _, offer_url = machine_haproxy
+
+    k8s_juju.deploy(charm=charm, app=app_name, base="ubuntu@24.04")
+    k8s_juju.cli("consume", offer_url, include_model=True)
+    k8s_juju.integrate(f"{app_name}:haproxy-route", HAPROXY_APP_NAME)
+    yield app_name
+
+
+@pytest.fixture(scope="module", name="k8s_ingress_requirer")
+def k8s_ingress_requirer_fixture(
+    k8s_juju: jubilant.Juju, k8s_application: str
+) -> Generator[str, None, None]:
+    """Deploy any-charm as an ingress requirer on the K8s model.
+
+    Args:
+        k8s_juju: jubilant.Juju instance for the K8s model.
+        k8s_application: The ingress-configurator application name.
+
+    Yields:
+        The ingress requirer application name.
+    """
+    k8s_juju.deploy(
+        charm="any-charm",
+        channel="beta",
+        app=INGRESS_REQUIRER_APP_NAME,
+        config={
+            "src-overwrite": json.dumps(
+                {
+                    "any_charm.py": pathlib.Path(HAPROXY_INGRESS_REQUIRER_SRC).read_text(
+                        encoding="utf-8"
+                    ),
+                    "ingress.py": pathlib.Path(INGRESS_LIB_SRC).read_text(encoding="utf-8"),
+                }
+            ),
+            "python-packages": "pydantic",
+        },
+    )
+    k8s_juju.wait(lambda status: jubilant.all_agents_idle(status, INGRESS_REQUIRER_APP_NAME))
+    for unit in k8s_juju.status().apps[INGRESS_REQUIRER_APP_NAME].units:
+        k8s_juju.run(unit, "rpc", {"method": "start_server"})
+    k8s_juju.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{k8s_application}:ingress")
+    k8s_juju.wait(lambda status: jubilant.all_active(status, INGRESS_REQUIRER_APP_NAME))
+    yield INGRESS_REQUIRER_APP_NAME

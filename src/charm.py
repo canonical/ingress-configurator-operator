@@ -15,12 +15,12 @@ import ops
 from charms.haproxy.v1.haproxy_route_tcp import DataValidationError, HaproxyRouteTcpRequirer
 from charms.haproxy.v2.haproxy_route import HaproxyRouteRequirer
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider
+from lightkube import Client
 
 from kubernetes import (
     ensure_nodeport_service,
     get_kubernetes_data,
 )
-from lightkube import Client
 from state.charm_state import InvalidStateError, State
 from state.haproxy_route_tcp import (
     HaproxyRouteTcpRequirements,
@@ -112,7 +112,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                     )
                 kubernetes_data = (
                     get_kubernetes_data(self.lightkube_client, ingress_relation_data.app.name)
-                    if self.is_kubernetes()
+                    if self.is_kubernetes() and ingress_relation_data is not None
                     else None
                 )
                 charm_state = State.from_charm(self, ingress_relation_data, kubernetes_data)

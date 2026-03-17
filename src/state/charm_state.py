@@ -249,6 +249,11 @@ class State:
         """The backend protocol."""
         return self._backend_state.backend_protocol
 
+    @property
+    def kubernetes_backend_state(self) -> "KubernetesBackendState | None":
+        """Kubernetes-specific backend configuration."""
+        return self._kubernetes_backend_state
+
     @model_validator(mode="after")
     def validate_external_grpc_port_requires_https(self) -> Self:
         """Perform additional validations.

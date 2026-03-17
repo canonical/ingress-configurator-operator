@@ -16,6 +16,8 @@ from charms.haproxy.v1.haproxy_route_tcp import DataValidationError, HaproxyRout
 from charms.haproxy.v2.haproxy_route import HaproxyRouteRequirer
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider
 
+from kubernetes import get_kubernetes_data
+from lightkube import Client
 from state.charm_state import InvalidStateError, State
 from state.haproxy_route_tcp import (
     HaproxyRouteTcpRequirements,
@@ -42,6 +44,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
             args: Arguments passed to the CharmBase parent constructor.
         """
         super().__init__(*args)
+        self._lightkube_client: Client | None = None
+        self._lightkube_field_manager = self.app.name
         self._haproxy_route = HaproxyRouteRequirer(self, HAPROXY_ROUTE_RELATION)
         self._haproxy_route_tcp = HaproxyRouteTcpRequirer(self, HAPROXY_ROUTE_TCP_RELATION)
 
@@ -65,6 +69,15 @@ class IngressConfiguratorCharm(ops.CharmBase):
         # Action handlers
         self.framework.observe(self.on.get_proxied_endpoints_action, self._on_get_proxied_endpoint)
 
+    @property
+    def lightkube_client(self) -> Client:
+        """Returns a lightkube client configured for this charm."""
+        if self._lightkube_client is None:
+            self._lightkube_client = Client(
+                namespace=self.model.name, field_manager=self._lightkube_field_manager
+            )
+        return self._lightkube_client
+
     def is_kubernetes(self) -> bool:
         """Return True if the charm is running on a Kubernetes substrate.
 
@@ -85,7 +98,12 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 ingress_relation_data = (
                     self._ingress.get_data(ingress_relation) if ingress_relation else None
                 )
-                charm_state = State.from_charm(self, ingress_relation_data)
+                kubernetes_data = (
+                    get_kubernetes_data(self.lightkube_client, ingress_relation_data.app.name)
+                    if self.is_kubernetes()
+                    else None
+                )
+                charm_state = State.from_charm(self, ingress_relation_data, kubernetes_data)
                 # Assign consistent_hashing to a local variable due to line length limit
                 consistent_hashing = charm_state.load_balancing_configuration.consistent_hashing
                 params = {

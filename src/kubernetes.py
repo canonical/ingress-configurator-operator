@@ -98,6 +98,19 @@ def get_nodeport_service(client: Client, app_name: str) -> Service:
     return client.get(Service, name=f"{app_name}-service")
 
 
+def delete_nodeport_service(client: Client, app_name: str) -> None:
+    """Delete the NodePort service for the given app.
+
+    The service name is derived by suffixing app_name with "-service", matching
+    the naming convention used by :func:`create_nodeport_service`.
+
+    Args:
+        client: A lightkube Client instance.
+        app_name: The app name; the service is deleted as "{app_name}-service".
+    """
+    client.delete(Service, name=f"{app_name}-service")
+
+
 def get_kubernetes_data(client: Client, app_name: str) -> KubernetesData:
     """Fetch node IPs and NodePort service details and return structured data.
 

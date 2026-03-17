@@ -122,25 +122,6 @@ def test_get_kubernetes_data_returns_kubernetes_data():
     assert result.node_ips == ["10.0.0.1"]
 
 
-def test_kubernetes_data_holds_node_ips_and_service_details():
-    """
-    arrange: create a KubernetesData with known values
-    act: access all fields
-    assert: all fields match the provided values
-    """
-    data = KubernetesData(
-        node_ips=["10.0.0.1", "10.0.0.2"],
-        service_name="myapp-service",
-        service_target_port=8080,
-        service_protocol="TCP",
-    )
-
-    assert data.node_ips == ["10.0.0.1", "10.0.0.2"]
-    assert data.service_name == "myapp-service"
-    assert data.service_target_port == 8080
-    assert data.service_protocol == "TCP"
-
-
 def _make_api_error(code: int) -> "ApiError":
     """Create an ApiError with the given HTTP status code."""
     from lightkube import ApiError
@@ -151,59 +132,20 @@ def _make_api_error(code: int) -> "ApiError":
 # replace_nodeport_service
 
 
-def test_replace_nodeport_service_name():
+def test_replace_nodeport_service():
     """
     arrange: mock a lightkube client
-    act: call replace_nodeport_service with app_name "myapp"
-    assert: the service is replaced with name "myapp-service"
+    act: call replace_nodeport_service with port 9090, protocol UDP, and app_name "myapp"
+    assert: the replaced service has the correct name, type, selector, port and protocol
     """
     client = MagicMock()
 
-    replace_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")
+    replace_nodeport_service(client, port=9090, protocol="UDP", app_name="myapp")
 
     service = client.replace.call_args[0][0]
     assert service.metadata.name == "myapp-service"
-
-
-def test_replace_nodeport_service_type():
-    """
-    arrange: mock a lightkube client
-    act: call replace_nodeport_service
-    assert: the replaced service spec type is NodePort
-    """
-    client = MagicMock()
-
-    replace_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")
-
-    service = client.replace.call_args[0][0]
     assert service.spec.type == "NodePort"
-
-
-def test_replace_nodeport_service_selector():
-    """
-    arrange: mock a lightkube client
-    act: call replace_nodeport_service with app_name "myapp"
-    assert: the selector targets the given app name
-    """
-    client = MagicMock()
-
-    replace_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")
-
-    service = client.replace.call_args[0][0]
     assert service.spec.selector == {"app": "myapp"}
-
-
-def test_replace_nodeport_service_port_and_protocol():
-    """
-    arrange: mock a lightkube client
-    act: call replace_nodeport_service with port 9090 and protocol UDP
-    assert: the replaced service port and protocol match the supplied values
-    """
-    client = MagicMock()
-
-    replace_nodeport_service(client, port=9090, protocol="UDP", app_name="backend")
-
-    service = client.replace.call_args[0][0]
     assert service.spec.ports[0].port == 9090
     assert service.spec.ports[0].protocol == "UDP"
 

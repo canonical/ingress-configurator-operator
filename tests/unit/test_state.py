@@ -793,13 +793,16 @@ def test_state_from_charm_kubernetes_overrides_backend_addresses_and_ports():
     assert charm_state.backend_ports == [8080]
 
 
-def test_state_from_charm_kubernetes_sets_service_name():
+def test_state_from_charm_service_name():
     """
-    arrange: mock a charm and provide KubernetesData with a service name
-    act: instantiate a State
-    assert: service is set to kubernetes_data.service_name
+    arrange: mock a charm with and without KubernetesData
+    act: instantiate a State in both cases
+    assert: service is kubernetes_data.service_name when kubernetes_data is provided,
+        and "{model}-{app}" otherwise
     """
     charm = Mock(CharmBase)
+    charm.model.name = "test-model"
+    charm.app.name = "test-app"
     charm.config = {
         "backend-addresses": "127.0.0.1",
         "backend-ports": "80",
@@ -811,28 +814,11 @@ def test_state_from_charm_kubernetes_sets_service_name():
         service_protocol="TCP",
     )
 
-    charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
+    with_kubernetes = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
+    without_kubernetes = State.from_charm(charm, None, kubernetes_data=None)
 
-    assert charm_state.service == "my-k8s-service"
-
-
-def test_state_from_charm_without_kubernetes_sets_service_from_model_and_app():
-    """
-    arrange: mock a charm without kubernetes_data
-    act: instantiate a State
-    assert: service is "{model}-{app}"
-    """
-    charm = Mock(CharmBase)
-    charm.model.name = "test-model"
-    charm.app.name = "test-app"
-    charm.config = {
-        "backend-addresses": "127.0.0.1",
-        "backend-ports": "80",
-    }
-
-    charm_state = State.from_charm(charm, None, kubernetes_data=None)
-
-    assert charm_state.service == "test-model-test-app"
+    assert with_kubernetes.service == "my-k8s-service"
+    assert without_kubernetes.service == "test-model-test-app"
 
 
 def test_state_from_charm_kubernetes_backend_protocol_from_config():

@@ -17,32 +17,32 @@ def _make_node(*addresses: tuple[str, str]) -> MagicMock:
     return node
 
 
-def test_get_node_ips_returns_internal_ips():
+def test_get_node_ips_returns_external_ips():
     """
-    arrange: mock a client returning two nodes each with an InternalIP
+    arrange: mock a client returning two nodes each with an ExternalIP
     act: call get_node_ips
-    assert: the InternalIP addresses of all nodes are returned
+    assert: the ExternalIP addresses of all nodes are returned
     """
     client = MagicMock()
     client.list.return_value = [
-        _make_node(("InternalIP", "10.0.0.1"), ("Hostname", "node1")),
-        _make_node(("InternalIP", "10.0.0.2"), ("ExternalIP", "1.2.3.4")),
+        _make_node(("ExternalIP", "1.2.3.4"), ("Hostname", "node1")),
+        _make_node(("ExternalIP", "5.6.7.8"), ("InternalIP", "10.0.0.1")),
     ]
 
     ips = get_node_ips(client)
 
-    assert ips == ["10.0.0.1", "10.0.0.2"]
+    assert ips == ["1.2.3.4", "5.6.7.8"]
 
 
-def test_get_node_ips_skips_non_internal_addresses():
+def test_get_node_ips_skips_non_external_addresses():
     """
-    arrange: mock a client returning a node with only ExternalIP and Hostname
+    arrange: mock a client returning a node with only InternalIP and Hostname
     act: call get_node_ips
     assert: an empty list is returned
     """
     client = MagicMock()
     client.list.return_value = [
-        _make_node(("ExternalIP", "1.2.3.4"), ("Hostname", "node1")),
+        _make_node(("InternalIP", "10.0.0.1"), ("Hostname", "node1")),
     ]
 
     ips = get_node_ips(client)
@@ -111,7 +111,7 @@ def test_get_kubernetes_data_returns_kubernetes_data():
     mock_service.metadata.name = "myapp-service"
     mock_service.spec.ports = [MagicMock(targetPort=8080, protocol="TCP")]
     client.get.return_value = mock_service
-    client.list.return_value = [_make_node(("InternalIP", "10.0.0.1"))]
+    client.list.return_value = [_make_node(("ExternalIP", "1.2.3.4"))]
 
     result = get_kubernetes_data(client, "myapp")
 
@@ -119,7 +119,7 @@ def test_get_kubernetes_data_returns_kubernetes_data():
     assert result.service_name == "myapp-service"
     assert result.service_target_port == 8080
     assert result.service_protocol == "TCP"
-    assert result.node_ips == ["10.0.0.1"]
+    assert result.node_ips == ["1.2.3.4"]
 
 
 def _make_api_error(code: int) -> "ApiError":

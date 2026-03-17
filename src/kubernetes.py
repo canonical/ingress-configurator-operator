@@ -38,19 +38,19 @@ class KubernetesData:
 
 
 def get_node_ips(client: Client) -> list[str]:
-    """Fetch the InternalIP addresses of all nodes in the cluster.
+    """Fetch the ExternalIP addresses of all nodes in the cluster.
 
     Args:
         client: A lightkube Client instance.
 
     Returns:
-        A list of InternalIP addresses from all cluster nodes.
+        A list of ExternalIP addresses from all cluster nodes.
     """
     ips: list[str] = []
     for node in client.list(Node):
         if node.status and node.status.addresses:
             for address in node.status.addresses:
-                if address.type == "InternalIP":
+                if address.type == "ExternalIP":
                     ips.append(address.address)
     return ips
 

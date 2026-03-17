@@ -22,13 +22,12 @@ Deployment topology:
 """
 
 import re
-import subprocess
 from typing import Callable
 
 import jubilant
 import pytest
-from lightkube import Client
-from lightkube.resources.core_v1 import Node
+from lightkube import ApiError, Client
+from lightkube.resources.core_v1 import Node, Service
 from requests import Session
 
 from .conftest import (
@@ -101,30 +100,20 @@ def _assert_nodeport_service_exists(k8s_juju: jubilant.Juju, app_name: str) -> N
         app_name: The application name whose NodePort service is checked.
 
     Raises:
-        AssertionError: When the NodePort service is not found.
+        AssertionError: When the NodePort service is not found or has the wrong type.
     """
     service_name = f"{app_name}-service"
     namespace = k8s_juju.model or "default"
-    result = subprocess.run(
-        [
-            "kubectl",
-            "get",
-            "service",
-            service_name,
-            "--namespace",
-            namespace,
-            "--output",
-            "jsonpath={.spec.type}",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0, (
-        f"NodePort service '{service_name}' not found in namespace '{namespace}': {result.stderr}"
-    )
-    assert result.stdout == "NodePort", (
-        f"Service '{service_name}' exists but has type '{result.stdout}', expected 'NodePort'"
+    client = Client(namespace=namespace)
+    try:
+        service = client.get(Service, name=service_name)
+    except ApiError as e:
+        raise AssertionError(
+            f"NodePort service '{service_name}' not found in namespace '{namespace}': {e}"
+        ) from e
+    assert service.spec is not None and service.spec.type == "NodePort", (
+        f"Service '{service_name}' exists but has type "
+        f"'{service.spec.type if service.spec else None}', expected 'NodePort'"
     )
 
 

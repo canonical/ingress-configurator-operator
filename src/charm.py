@@ -69,6 +69,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         self.framework.observe(self._ingress.on.data_provided, self._reconcile)
         self.framework.observe(self._ingress.on.data_removed, self._reconcile)
         self.framework.observe(self.on[INGRESS_RELATION].relation_changed, self._reconcile)
+        self.framework.observe(self.on.update_status, self._on_update_status)
 
         # Action handlers
         self.framework.observe(self.on.get_proxied_endpoints_action, self._on_get_proxied_endpoint)
@@ -163,6 +164,17 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self.unit.status = ops.BlockedStatus(
                 "Error updating haproxy-route-tcp relation data, check your configuration."
             )
+
+    def _on_update_status(self, event: ops.UpdateStatusEvent) -> None:
+        """Periodically refresh node IPs and reconcile the NodePort service.
+
+        On Kubernetes substrates, node IPs can change over time. This handler
+        ensures the haproxy-route relation data stays in sync with the current
+        cluster state by delegating to the standard reconcile flow.
+        """
+        if not self.is_kubernetes():
+            return
+        self._reconcile(event)
 
     def _on_get_proxied_endpoint(self, event: ops.ActionEvent) -> None:
         """Handle the get_proxied_endpoints action."""

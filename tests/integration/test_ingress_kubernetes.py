@@ -21,6 +21,8 @@ Deployment topology:
   Machine model: haproxy  ◄──  self-signed-certificates
 """
 
+import json
+import re
 import subprocess
 from typing import Callable
 
@@ -54,8 +56,9 @@ def test_kubernetes_ingress_routes_through_haproxy(
         code path: a NodePort service is created, node IPs are fetched, and haproxy-route
         data is populated with those values.
     assert: all applications reach active status; the NodePort service for the ingress
-        requirer exists in the Kubernetes cluster; haproxy routes HTTPS requests to the
-        backend through the NodePort.
+        requirer exists in the Kubernetes cluster; haproxy backend addresses match the
+        Kubernetes node IPs; haproxy routes HTTPS requests to the backend through the
+        NodePort.
     """
     machine_model, _, _ = machine_haproxy
 
@@ -68,15 +71,20 @@ def test_kubernetes_ingress_routes_through_haproxy(
         error=jubilant.any_error,
     )
 
-    _assert_nodeport_service_exists(
-        k8s_juju=k8s_juju,
-        app_name=INGRESS_REQUIRER_APP_NAME,
+    _assert_nodeport_service_exists(k8s_juju=k8s_juju, app_name=INGRESS_REQUIRER_APP_NAME)
+
+    node_ips = _get_k8s_node_external_ips()
+    haproxy_backend_ips = _get_haproxy_backend_server_ips(
+        machine_model=machine_model,
+        service_name=f"{INGRESS_REQUIRER_APP_NAME}-service",
+    )
+    assert set(node_ips) == set(haproxy_backend_ips), (
+        f"Haproxy backend IPs {sorted(haproxy_backend_ips)!r} "
+        f"don't match K8s node IPs {sorted(node_ips)!r}"
     )
 
     haproxy_address = str(get_unit_addresses(machine_model, HAPROXY_APP_NAME)[0])
-    session = http_session(
-        dns_entries=[(MOCK_HAPROXY_HOSTNAME, haproxy_address)],
-    )
+    session = http_session(dns_entries=[(MOCK_HAPROXY_HOSTNAME, haproxy_address)])
     response = session.get(f"https://{MOCK_HAPROXY_HOSTNAME}/", verify=False, timeout=30)
     assert response.status_code == 200
 
@@ -117,3 +125,57 @@ def _assert_nodeport_service_exists(k8s_juju: jubilant.Juju, app_name: str) -> N
     assert result.stdout == "NodePort", (
         f"Service '{service_name}' exists but has type '{result.stdout}', expected 'NodePort'"
     )
+
+
+def _get_k8s_node_external_ips() -> list[str]:
+    """Fetch ExternalIP addresses of all K8s nodes via kubectl.
+
+    Returns:
+        A list of ExternalIP address strings for every node in the cluster.
+
+    Raises:
+        subprocess.CalledProcessError: When kubectl exits with a non-zero status.
+    """
+    result = subprocess.run(
+        ["kubectl", "get", "nodes", "--output", "json"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    nodes = json.loads(result.stdout)
+    return [
+        addr["address"]
+        for item in nodes["items"]
+        for addr in item["status"]["addresses"]
+        if addr["type"] == "ExternalIP"
+    ]
+
+
+def _get_haproxy_backend_server_ips(machine_model: jubilant.Juju, service_name: str) -> list[str]:
+    """Read the haproxy config and return server IPs for the named backend.
+
+    Reads ``/etc/haproxy/haproxy.cfg`` from the first haproxy unit and
+    extracts the IP address of every ``server`` line in the ``backend
+    <service_name>`` section.
+
+    Args:
+        machine_model: jubilant.Juju instance connected to the machine model.
+        service_name: The haproxy backend name to look up (e.g.
+            ``"ingress-requirer-service"``).
+
+    Returns:
+        A list of IP address strings found in the backend section's server lines.
+    """
+    unit = next(iter(machine_model.status().apps[HAPROXY_APP_NAME].units))
+    task = machine_model.exec("cat /etc/haproxy/haproxy.cfg", unit=unit)
+    config = task.stdout
+
+    backend_match = re.search(
+        rf"^backend {re.escape(service_name)}\b(.*?)(?=^[a-z]|\Z)",
+        config,
+        re.MULTILINE | re.DOTALL,
+    )
+    if not backend_match:
+        return []
+    backend_section = backend_match.group(1)
+    return re.findall(r"^\s+server\s+\S+\s+(\d[\d.]+):", backend_section, re.MULTILINE)

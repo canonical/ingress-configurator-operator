@@ -5,7 +5,7 @@
 
 from unittest.mock import MagicMock
 
-from kubernetes import KubernetesData, create_nodeport_service, get_kubernetes_data, get_node_ips, get_nodeport_service
+from kubernetes import KubernetesData, create_nodeport_service, delete_nodeport_service, ensure_nodeport_service, get_kubernetes_data, get_node_ips, get_nodeport_service, replace_nodeport_service
 
 
 def _make_node(*addresses: tuple[str, str]) -> MagicMock:
@@ -190,3 +190,179 @@ def test_kubernetes_data_holds_node_ips_and_service_details():
     assert data.service_name == "myapp-service"
     assert data.service_target_port == 8080
     assert data.service_protocol == "TCP"
+
+
+def _make_api_error(code: int) -> "ApiError":
+    """Create an ApiError with the given HTTP status code."""
+    from lightkube import ApiError
+
+    return ApiError(status={"code": code, "message": str(code), "status": "Failure"})
+
+
+# replace_nodeport_service
+
+
+def test_replace_nodeport_service_name():
+    """
+    arrange: mock a lightkube client
+    act: call replace_nodeport_service with app_name "myapp"
+    assert: the service is replaced with name "myapp-service"
+    """
+    client = MagicMock()
+
+    replace_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")
+
+    service = client.replace.call_args[0][0]
+    assert service.metadata.name == "myapp-service"
+
+
+def test_replace_nodeport_service_type():
+    """
+    arrange: mock a lightkube client
+    act: call replace_nodeport_service
+    assert: the replaced service spec type is NodePort
+    """
+    client = MagicMock()
+
+    replace_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")
+
+    service = client.replace.call_args[0][0]
+    assert service.spec.type == "NodePort"
+
+
+def test_replace_nodeport_service_selector():
+    """
+    arrange: mock a lightkube client
+    act: call replace_nodeport_service with app_name "myapp"
+    assert: the selector targets the given app name
+    """
+    client = MagicMock()
+
+    replace_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")
+
+    service = client.replace.call_args[0][0]
+    assert service.spec.selector == {"app": "myapp"}
+
+
+def test_replace_nodeport_service_port_and_protocol():
+    """
+    arrange: mock a lightkube client
+    act: call replace_nodeport_service with port 9090 and protocol UDP
+    assert: the replaced service port and protocol match the supplied values
+    """
+    client = MagicMock()
+
+    replace_nodeport_service(client, port=9090, protocol="UDP", app_name="backend")
+
+    service = client.replace.call_args[0][0]
+    assert service.spec.ports[0].port == 9090
+    assert service.spec.ports[0].protocol == "UDP"
+
+
+# delete_nodeport_service
+
+
+def test_delete_nodeport_service_calls_client_delete():
+    """
+    arrange: mock a lightkube client
+    act: call delete_nodeport_service with app_name "myapp"
+    assert: client.delete is called with the service name "myapp-service"
+    """
+    from lightkube.resources.core_v1 import Service
+
+    client = MagicMock()
+
+    delete_nodeport_service(client, "myapp")
+
+    client.delete.assert_called_once_with(Service, name="myapp-service")
+
+
+# ensure_nodeport_service
+
+
+def test_ensure_nodeport_service_creates_when_not_found():
+    """
+    arrange: mock a client that raises ApiError 404 on get
+    act: call ensure_nodeport_service
+    assert: create_nodeport_service is called with the correct arguments
+    """
+    client = MagicMock()
+    client.get.side_effect = _make_api_error(404)
+
+    ensure_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")
+
+    assert client.create.called
+    service = client.create.call_args[0][0]
+    assert service.metadata.name == "myapp-service"
+    assert service.spec.ports[0].port == 8080
+    assert service.spec.ports[0].protocol == "TCP"
+
+
+def test_ensure_nodeport_service_does_nothing_when_port_and_protocol_match():
+    """
+    arrange: mock a client returning a service whose port and protocol already match
+    act: call ensure_nodeport_service
+    assert: neither create nor replace is called
+    """
+    client = MagicMock()
+    existing = MagicMock()
+    existing.spec.ports = [MagicMock(port=8080, protocol="TCP")]
+    client.get.return_value = existing
+
+    ensure_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")
+
+    client.create.assert_not_called()
+    client.replace.assert_not_called()
+
+
+def test_ensure_nodeport_service_replaces_when_port_differs():
+    """
+    arrange: mock a client returning a service with a different port
+    act: call ensure_nodeport_service with the new port
+    assert: replace_nodeport_service is called with the new port
+    """
+    client = MagicMock()
+    existing = MagicMock()
+    existing.spec.ports = [MagicMock(port=9090, protocol="TCP")]
+    client.get.return_value = existing
+
+    ensure_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")
+
+    assert client.replace.called
+    service = client.replace.call_args[0][0]
+    assert service.spec.ports[0].port == 8080
+
+
+def test_ensure_nodeport_service_replaces_when_protocol_differs():
+    """
+    arrange: mock a client returning a service with a different protocol
+    act: call ensure_nodeport_service with the new protocol
+    assert: replace_nodeport_service is called with the new protocol
+    """
+    client = MagicMock()
+    existing = MagicMock()
+    existing.spec.ports = [MagicMock(port=8080, protocol="UDP")]
+    client.get.return_value = existing
+
+    ensure_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")
+
+    assert client.replace.called
+    service = client.replace.call_args[0][0]
+    assert service.spec.ports[0].protocol == "TCP"
+
+
+def test_ensure_nodeport_service_reraises_non_404_api_error():
+    """
+    arrange: mock a client that raises ApiError 500 on get
+    act: call ensure_nodeport_service
+    assert: the ApiError is re-raised
+    """
+    from lightkube import ApiError
+
+    import pytest
+
+    client = MagicMock()
+    client.get.side_effect = _make_api_error(500)
+
+    with pytest.raises(ApiError):
+        ensure_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")

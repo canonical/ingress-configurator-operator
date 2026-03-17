@@ -249,8 +249,8 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
     parser.addoption(
         "--k8s-controller",
-        default="microk8s",
-        help="Name of the Juju Kubernetes controller (default: microk8s).",
+        default="kubernetes",
+        help="Name of the Juju Kubernetes controller (default: kubernetes).",
     )
 
 

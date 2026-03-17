@@ -9,7 +9,7 @@ it must create a NodePort service and forward node IPs + the NodePort as backend
 addresses to haproxy via a cross-model haproxy-route relation.
 
 Prerequisites (passed as pytest CLI options):
-  --k8s-controller   Name of the Juju K8s controller (default: microk8s)
+  --k8s-controller   Name of the Juju K8s controller (default: kubernetes)
   --machine-controller  Name of the Juju machine controller (default: localhost)
   --charm-file       Path to the packed ingress-configurator charm
 

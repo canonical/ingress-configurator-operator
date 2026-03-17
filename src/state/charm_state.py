@@ -351,7 +351,7 @@ class State:
                 raise InvalidStateError("No valid mode detected.")
             backend_addresses = config_backend_addresses or ingress_backend_addresses
             backend_ports = config_backend_ports or ingress_backend_ports
-
+            
             load_balancing_algorithm = LoadBalancingAlgorithm(
                 cast(
                     Optional[str],
@@ -390,19 +390,24 @@ class State:
             kubernetes_backend_state = (
                 KubernetesBackendState(
                     backend_addresses=kubernetes_data.node_ips,
-                    backend_ports=kubernetes_data.service_target_port,
+                    backend_ports=[kubernetes_data.service_target_port],
                     backend_protocol=kubernetes_data.service_protocol,
                 )
                 if kubernetes_data is not None
                 else None
             )
+            service = f"{charm.model.name}-{charm.app.name}"
+            if kubernetes_data:
+                backend_addresses = kubernetes_backend_state.backend_addresses
+                backend_ports = kubernetes_backend_state.backend_ports
+                service = kubernetes_data.service_name
             return cls(
                 _backend_state=BackendState(backend_addresses, backend_ports, backend_protocol),
                 paths=paths,
                 health_check=HealthCheck.from_charm(charm),
                 retry=Retry.from_charm(charm),
                 timeout=Timeout.from_charm(charm),
-                service=f"{charm.model.name}-{charm.app.name}",
+                service=service,
                 hostname=hostname,
                 additional_hostnames=additional_hostnames,
                 load_balancing_configuration=load_balancing_configuration,

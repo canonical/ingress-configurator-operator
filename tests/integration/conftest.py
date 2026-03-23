@@ -255,6 +255,7 @@ def machine_controller_name_fixture() -> str:
     """
     return "localhost"
 
+
 @pytest.fixture(scope="module", name="juju_machine")
 def juju_machine_fixture(
     juju: jubilant.Juju, machine_controller_name: str, pytestconfig: pytest.Config

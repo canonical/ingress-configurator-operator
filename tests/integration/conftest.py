@@ -58,9 +58,7 @@ def juju_fixture(request: pytest.FixtureRequest):
 
 
 @pytest.fixture(scope="module", name="application")
-def application_fixture(
-    pytestconfig: pytest.Config, juju_machine: jubilant.Juju, charm: str
-):
+def application_fixture(pytestconfig: pytest.Config, juju_machine: jubilant.Juju, charm: str):
     """Deploy the ingress-configurator application.
 
     Args:
@@ -175,7 +173,10 @@ def ingress_requirer_fixture(
     pytestconfig: pytest.Config, juju_machine: jubilant.Juju, application: str
 ):
     """Deploy and configure any-charm to serve as an ingress requirer for the ingress interface."""
-    if pytestconfig.getoption("--no-setup") and INGRESS_REQUIRER_APP_NAME in juju_machine.status().apps:
+    if (
+        pytestconfig.getoption("--no-setup")
+        and INGRESS_REQUIRER_APP_NAME in juju_machine.status().apps
+    ):
         yield INGRESS_REQUIRER_APP_NAME
         return
     juju_machine.deploy(
@@ -253,6 +254,7 @@ def machine_controller_name_fixture() -> str:
         The machine controller name.
     """
     return "localhost"
+
 
 @pytest.fixture(scope="module", name="juju_machine")
 def juju_machine_fixture(

@@ -255,7 +255,6 @@ def machine_controller_name_fixture() -> str:
     """
     return "localhost"
 
-
 @pytest.fixture(scope="module", name="juju_machine")
 def juju_machine_fixture(
     machine_controller_name: str, pytestconfig: pytest.Config
@@ -269,6 +268,11 @@ def juju_machine_fixture(
     Yields:
         A jubilant.Juju instance connected to the temporary machine model.
     """
+    try:
+        juju.cli("bootstrap", "lxd", machine_controller_name, include_model=False)
+    except jubilant.CLIError as ex:
+        if "already exists" not in ex.stderr:
+            raise
     keep = cast(bool, pytestconfig.getoption("--keep-models"))
     with jubilant.temp_model(keep=keep, controller=machine_controller_name) as juju:
         juju.wait_timeout = JUJU_WAIT_TIMEOUT

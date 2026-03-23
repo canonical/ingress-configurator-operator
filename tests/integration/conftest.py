@@ -403,10 +403,10 @@ def k8s_ingress_requirer_fixture(
 def jubilant_temp_controller(
     juju: jubilant.Juju, controller: str, model: str = ""
 ) -> Generator[jubilant.Juju, None, None]:
+    status = juju.status()
+    original_controller_name = status.model.controller
+    original_model_name = status.model.name
     try:
-        status = juju.status()
-        original_controller_name = status.model.controller
-        original_model_name = status.model.name
         juju.cli("switch", f"{controller}:{model}", include_model=False)
         yield juju
     finally:

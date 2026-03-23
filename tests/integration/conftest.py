@@ -257,7 +257,7 @@ def machine_controller_name_fixture() -> str:
 
 @pytest.fixture(scope="module", name="juju_machine")
 def juju_machine_fixture(
-    machine_controller_name: str, pytestconfig: pytest.Config
+    juju: jubilant.Juju, machine_controller_name: str, pytestconfig: pytest.Config
 ) -> Generator[jubilant.Juju, None, None]:
     """Create a temporary machine model for haproxy and related dependencies.
 

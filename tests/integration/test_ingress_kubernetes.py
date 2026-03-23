@@ -41,7 +41,7 @@ from .conftest import (
 
 @pytest.mark.abort_on_fail
 def test_kubernetes_ingress_routes_through_haproxy(
-    k8s_juju: jubilant.Juju,
+    juju: jubilant.Juju,
     k8s_application: str,
     machine_haproxy: tuple[jubilant.Juju, str, str],
     k8s_ingress_requirer: str,
@@ -62,7 +62,7 @@ def test_kubernetes_ingress_routes_through_haproxy(
     """
     machine_model, _, _ = machine_haproxy
 
-    k8s_juju.wait(
+    juju.wait(
         lambda status: jubilant.all_active(status, k8s_application, k8s_ingress_requirer),
         error=jubilant.any_error,
     )
@@ -71,7 +71,7 @@ def test_kubernetes_ingress_routes_through_haproxy(
         error=jubilant.any_error,
     )
 
-    _assert_nodeport_service_exists(k8s_juju=k8s_juju, app_name=INGRESS_REQUIRER_APP_NAME)
+    _assert_nodeport_service_exists(juju=juju, app_name=INGRESS_REQUIRER_APP_NAME)
 
     node_ips = _get_k8s_node_external_ips()
     haproxy_backend_ips = _get_haproxy_backend_server_ips(
@@ -89,21 +89,21 @@ def test_kubernetes_ingress_routes_through_haproxy(
     assert response.status_code == 200
 
 
-def _assert_nodeport_service_exists(k8s_juju: jubilant.Juju, app_name: str) -> None:
+def _assert_nodeport_service_exists(juju: jubilant.Juju, app_name: str) -> None:
     """Assert that the NodePort service for *app_name* exists in the K8s cluster.
 
     The service name follows the ``{app_name}-service`` convention used by
     :func:`kubernetes.create_nodeport_service`.
 
     Args:
-        k8s_juju: jubilant.Juju instance connected to the K8s model.
+        juju: jubilant.Juju instance connected to the K8s model.
         app_name: The application name whose NodePort service is checked.
 
     Raises:
         AssertionError: When the NodePort service is not found or has the wrong type.
     """
     service_name = f"{app_name}-service"
-    namespace = k8s_juju.model or "default"
+    namespace = juju.model or "default"
     client = Client(namespace=namespace)
     try:
         service = client.get(Service, name=service_name)

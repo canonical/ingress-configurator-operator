@@ -236,26 +236,8 @@ def application_with_tcp_server_fixture(application: str, juju: jubilant.Juju):
     yield application
 
 
-def pytest_addoption(parser: pytest.Parser) -> None:
-    """Add custom CLI options for Kubernetes integration tests.
-
-    Args:
-        parser: The pytest argument parser.
-    """
-    parser.addoption(
-        "--machine-controller",
-        default="localhost",
-        help="Name of the Juju machine controller used to deploy haproxy (default: localhost).",
-    )
-    parser.addoption(
-        "--k8s-controller",
-        default="kubernetes",
-        help="Name of the Juju Kubernetes controller (default: kubernetes).",
-    )
-
-
 @pytest.fixture(scope="session", name="machine_controller_name")
-def machine_controller_name_fixture(pytestconfig: pytest.Config) -> str:
+def machine_controller_name_fixture() -> str:
     """Return the name of the machine controller.
 
     Args:
@@ -264,11 +246,11 @@ def machine_controller_name_fixture(pytestconfig: pytest.Config) -> str:
     Returns:
         The machine controller name.
     """
-    return cast(str, pytestconfig.getoption("--machine-controller"))
+    return "localhost"
 
 
 @pytest.fixture(scope="session", name="k8s_controller_name")
-def k8s_controller_name_fixture(pytestconfig: pytest.Config) -> str:
+def k8s_controller_name_fixture() -> str:
     """Return the name of the Kubernetes controller.
 
     Args:
@@ -277,8 +259,7 @@ def k8s_controller_name_fixture(pytestconfig: pytest.Config) -> str:
     Returns:
         The Kubernetes controller name.
     """
-    return cast(str, pytestconfig.getoption("--k8s-controller"))
-
+    return "testing"
 
 @pytest.fixture(scope="module", name="machine_model")
 def machine_model_fixture(

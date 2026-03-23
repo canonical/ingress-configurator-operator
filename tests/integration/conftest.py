@@ -275,9 +275,9 @@ def juju_machine_fixture(
         if "already exists" not in ex.stderr:
             raise
     keep = cast(bool, pytestconfig.getoption("--keep-models"))
-    with jubilant.temp_model(keep=keep, controller=machine_controller_name) as juju:
-        juju.wait_timeout = JUJU_WAIT_TIMEOUT
-        yield juju
+    with jubilant.temp_model(keep=keep, controller=machine_controller_name) as machine_model:
+        machine_model.wait_timeout = JUJU_WAIT_TIMEOUT
+        yield machine_model
 
 
 @pytest.fixture(scope="module", name="machine_haproxy")

@@ -10,13 +10,16 @@ jobs:
     uses: canonical/operator-workflows/.github/workflows/integration_test.yaml@main
     secrets: inherit
     with:
+      channel: 1.33-classic/stable
       extra-arguments: '-x --log-format="%(asctime)s %(levelname)s %(message)s"'
-      provider: lxd
+      use-canonical-k8s: true
+      provider: k8s
       juju-channel: 3/stable
       self-hosted-runner: true
       charmcraft-channel: latest/edge
-      modules: '["test_actions.py", "test_adapter.py", "test_integrator.py", "test_haproxy_route_tcp.py"]'
+      modules: '["test_actions.py", "test_adapter.py", "test_integrator.py", "test_ingress_kubernetes.py", "test_haproxy_route_tcp.py"]'
       with-uv: true
+      pre-run-script: tests/integration/prepare.sh
   allure-report:
     if: ${{ !cancelled() && github.event_name == 'schedule' }}
     needs:

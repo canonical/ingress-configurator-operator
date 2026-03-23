@@ -15,7 +15,12 @@ import ops
 from charms.haproxy.v1.haproxy_route_tcp import DataValidationError, HaproxyRouteTcpRequirer
 from charms.haproxy.v2.haproxy_route import HaproxyRouteRequirer
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider
+from lightkube import Client
 
+from kubernetes import (
+    ensure_nodeport_service,
+    get_kubernetes_data,
+)
 from state.charm_state import InvalidStateError, State
 from state.haproxy_route_tcp import (
     HaproxyRouteTcpRequirements,
@@ -42,6 +47,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
             args: Arguments passed to the CharmBase parent constructor.
         """
         super().__init__(*args)
+        self._lightkube_client: Client | None = None
+        self._lightkube_field_manager = self.app.name
         self._haproxy_route = HaproxyRouteRequirer(self, HAPROXY_ROUTE_RELATION)
         self._haproxy_route_tcp = HaproxyRouteTcpRequirer(self, HAPROXY_ROUTE_TCP_RELATION)
 
@@ -61,9 +68,32 @@ class IngressConfiguratorCharm(ops.CharmBase):
         )
         self.framework.observe(self._ingress.on.data_provided, self._reconcile)
         self.framework.observe(self._ingress.on.data_removed, self._reconcile)
+        self.framework.observe(self.on[INGRESS_RELATION].relation_changed, self._reconcile)
+        self.framework.observe(self.on.update_status, self._on_update_status)
 
         # Action handlers
         self.framework.observe(self.on.get_proxied_endpoints_action, self._on_get_proxied_endpoint)
+
+    @property
+    def lightkube_client(self) -> Client:
+        """Returns a lightkube client configured for this charm."""
+        if self._lightkube_client is None:
+            self._lightkube_client = Client(
+                namespace=self.model.name, field_manager=self._lightkube_field_manager
+            )
+        return self._lightkube_client
+
+    def is_kubernetes(self) -> bool:
+        """Return True if the charm is running on a Kubernetes substrate.
+
+        On machine substrates Juju sets the JUJU_MACHINE_ID environment
+        variable, which is surfaced as :attr:`ops.JujuContext.machine_id`.
+        On Kubernetes that variable is absent, so ``machine_id`` is ``None``.
+
+        Returns:
+            True when running on Kubernetes, False on a machine substrate.
+        """
+        return self.model._backend._juju_context.machine_id is None
 
     def _reconcile(self, _: ops.EventBase) -> None:
         """Refresh haproxy-route requirer data."""
@@ -73,7 +103,19 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 ingress_relation_data = (
                     self._ingress.get_data(ingress_relation) if ingress_relation else None
                 )
-                charm_state = State.from_charm(self, ingress_relation_data)
+                if self.is_kubernetes() and ingress_relation_data is not None:
+                    ensure_nodeport_service(
+                        self.lightkube_client,
+                        ingress_relation_data.app.port,
+                        "TCP",
+                        ingress_relation_data.app.name,
+                    )
+                kubernetes_data = (
+                    get_kubernetes_data(self.lightkube_client, ingress_relation_data.app.name)
+                    if self.is_kubernetes() and ingress_relation_data is not None
+                    else None
+                )
+                charm_state = State.from_charm(self, ingress_relation_data, kubernetes_data)
                 # Assign consistent_hashing to a local variable due to line length limit
                 consistent_hashing = charm_state.load_balancing_configuration.consistent_hashing
                 params = {
@@ -122,6 +164,17 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self.unit.status = ops.BlockedStatus(
                 "Error updating haproxy-route-tcp relation data, check your configuration."
             )
+
+    def _on_update_status(self, event: ops.UpdateStatusEvent) -> None:
+        """Periodically refresh node IPs and reconcile the NodePort service.
+
+        On Kubernetes substrates, node IPs can change over time. This handler
+        ensures the haproxy-route relation data stays in sync with the current
+        cluster state by delegating to the standard reconcile flow.
+        """
+        if not self.is_kubernetes():
+            return
+        self._reconcile(event)
 
     def _on_get_proxied_endpoint(self, event: ops.ActionEvent) -> None:
         """Handle the get_proxied_endpoints action."""

@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Each revision is versioned by the date of the revision.
 
+## 2026-03-17
+
+### Added
+
+- Added support for NodePort routing for Kubernetes substrates  when an ingress in integrated, overriding the old routing behavior.
+
 ## 2026-01-22
 
 ### Added

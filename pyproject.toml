@@ -14,6 +14,7 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
+  "lightkube>=0.15.0",
   "ops==3.6.0",
   "pydantic==2.12.5",
   "validators>=0.35.0",
@@ -26,6 +27,7 @@ fmt = [
 lint = [
   "codespell",
   "jubilant",
+  "lightkube>=0.15.0",
   "mypy",
   "ops[testing]",
   "pep8-naming",
@@ -37,6 +39,7 @@ lint = [
 ]
 unit = [
   "coverage[toml]",
+  "lightkube>=0.15.0",
   "ops[testing]",
   "pytest",
 ]
@@ -51,6 +54,7 @@ integration = [
   "allure-pytest>=2.8.18",
   "allure-pytest-collection-report @ git+https://github.com/canonical/data-platform-workflows@v24.0.0#subdirectory=python/pytest_plugins/allure_pytest_collection_report",
   "jubilant",
+  "lightkube>=0.15.0",
   "pytest",
   "pytest-jubilant",
   "requests",

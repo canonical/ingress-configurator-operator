@@ -19,6 +19,7 @@ from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
 from helpers import get_invalid_config_fields, value_has_valid_characters
+from kubernetes import KubernetesData
 
 logger = logging.getLogger()
 CHARM_CONFIG_DELIMITER = ","
@@ -42,6 +43,21 @@ class BackendState:
     backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
     backend_ports: Annotated[list[Annotated[int, Field(gt=0, le=65535)]], Len(min_length=1)]
     backend_protocol: Literal["http", "https"]
+
+
+@dataclass(frozen=True)
+class KubernetesBackendState:
+    """Charm state subset that contains Kubernetes-specific backend configuration.
+
+    Attributes:
+        service_name: The name of the Kubernetes service.
+        service_port: The port exposed by the Kubernetes service.
+        service_protocol: The protocol for the Kubernetes service backend.
+    """
+
+    backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
+    backend_ports: Annotated[list[Annotated[int, Field(gt=0, le=65535)]], Len(min_length=1)]
+    backend_protocol: Literal["TCP", "UDP", "SCTP"] = "TCP"
 
 
 @dataclass(frozen=True)
@@ -193,6 +209,7 @@ class State:
         header_rewrite_expressions: List of header rewrite expressions.
         allow_http: Whether to allow HTTP traffic to the service.
         external_grpc_port: Optional gRPC external port.
+        kubernetes_backend_state: Optional Kubernetes-specific backend configuration.
     """
 
     _backend_state: BackendState
@@ -215,6 +232,7 @@ class State:
     header_rewrite_expressions: list[tuple[str, str]] = Field(default=[])
     allow_http: bool = Field(default=False)
     external_grpc_port: int | None = Field(default=None, gt=0, le=65535)
+    _kubernetes_backend_state: KubernetesBackendState | None = None
 
     @property
     def backend_addresses(self) -> list[IPvAnyAddress]:
@@ -230,6 +248,11 @@ class State:
     def backend_protocol(self) -> Literal["http", "https"]:
         """The backend protocol."""
         return self._backend_state.backend_protocol
+
+    @property
+    def kubernetes_backend_state(self) -> "KubernetesBackendState | None":
+        """Kubernetes-specific backend configuration."""
+        return self._kubernetes_backend_state
 
     @model_validator(mode="after")
     def validate_external_grpc_port_requires_https(self) -> Self:
@@ -262,12 +285,19 @@ class State:
         return self
 
     @classmethod
-    def from_charm(cls, charm: ops.CharmBase, ingress_data: IngressRequirerData | None) -> Self:
+    def from_charm(
+        cls,
+        charm: ops.CharmBase,
+        ingress_data: IngressRequirerData | None,
+        kubernetes_data: KubernetesData | None = None,
+    ) -> Self:
         """Create an State class from a charm instance.
 
         Args:
             charm: the ingress-configurator charm.
             ingress_data: the ingress requirer relation data.
+            kubernetes_data: optional Kubernetes API data used to populate the
+                Kubernetes backend state.
 
         Raises:
             InvalidStateError: when the integrator mode config is invalid.
@@ -357,13 +387,28 @@ class State:
                 else []
             )
             allow_http = cast(bool, charm.config.get("allow-http", False))
+            kubernetes_backend_state = (
+                KubernetesBackendState(
+                    backend_addresses=kubernetes_data.node_ips,
+                    backend_ports=[kubernetes_data.service_target_port],
+                    backend_protocol=kubernetes_data.service_protocol,
+                )
+                if kubernetes_data is not None
+                else None
+            )
+            service = f"{charm.model.name}-{charm.app.name}"
+            if kubernetes_data:
+                k8s_state = cast(KubernetesBackendState, kubernetes_backend_state)
+                backend_addresses = k8s_state.backend_addresses
+                backend_ports = k8s_state.backend_ports
+                service = kubernetes_data.service_name
             return cls(
                 _backend_state=BackendState(backend_addresses, backend_ports, backend_protocol),
                 paths=paths,
                 health_check=HealthCheck.from_charm(charm),
                 retry=Retry.from_charm(charm),
                 timeout=Timeout.from_charm(charm),
-                service=f"{charm.model.name}-{charm.app.name}",
+                service=service,
                 hostname=hostname,
                 additional_hostnames=additional_hostnames,
                 load_balancing_configuration=load_balancing_configuration,
@@ -372,6 +417,7 @@ class State:
                 header_rewrite_expressions=header_rewrite_expressions,
                 allow_http=allow_http,
                 external_grpc_port=external_grpc_port,
+                _kubernetes_backend_state=kubernetes_backend_state,
             )
         except ValidationError as exc:
             logger.error(str(exc))

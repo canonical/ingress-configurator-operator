@@ -14,7 +14,7 @@ from .conftest import MOCK_HAPROXY_HOSTNAME, get_unit_addresses
 
 @pytest.mark.abort_on_fail
 def test_config_hostnames_and_paths(
-    juju: jubilant.Juju,
+    juju_machine: jubilant.Juju,
     application: str,
     haproxy: str,
     any_charm_backend: str,
@@ -23,17 +23,17 @@ def test_config_hostnames_and_paths(
     """Test the charm configuration in integrator mode.
 
     Args:
-        juju: Jubilant juju fixture
+        juju_machine: Jubilant juju_machine fixture
         application: Name of the ingress-configurator application.
         haproxy: Name of the haproxy application.
         any_charm_backend: Any charm running an apache webserver.
         http_session: Modified requests session fixture for making HTTP requests.
     """
-    juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
+    juju_machine.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
     backend_addresses = ",".join(
-        [str(address) for address in get_unit_addresses(juju, any_charm_backend)]
+        [str(address) for address in get_unit_addresses(juju_machine, any_charm_backend)]
     )
-    juju.config(
+    juju_machine.config(
         app=application,
         values={
             "backend-addresses": backend_addresses,
@@ -41,12 +41,12 @@ def test_config_hostnames_and_paths(
             "paths": "/api/v1,/api/v2",
         },
     )
-    juju.wait(
+    juju_machine.wait(
         lambda status: jubilant.all_active(status, haproxy, application, any_charm_backend),
         error=jubilant.any_error,
     )
 
-    haproxy_address = str(get_unit_addresses(juju, haproxy)[0])
+    haproxy_address = str(get_unit_addresses(juju_machine, haproxy)[0])
     session = http_session(
         dns_entries=[
             (MOCK_HAPROXY_HOSTNAME, haproxy_address),
@@ -62,7 +62,7 @@ def test_config_hostnames_and_paths(
         )
         assert response.status_code == 200 and f"{path_component} ok!" in response.text
 
-    juju.config(
+    juju_machine.config(
         app=application,
         values={
             "paths": "/api/v1",
@@ -70,7 +70,7 @@ def test_config_hostnames_and_paths(
             "additional-hostnames": f"api2.{MOCK_HAPROXY_HOSTNAME},api3.{MOCK_HAPROXY_HOSTNAME}",
         },
     )
-    juju.wait(
+    juju_machine.wait(
         lambda status: jubilant.all_active(status, haproxy, application, any_charm_backend),
         error=jubilant.any_error,
     )

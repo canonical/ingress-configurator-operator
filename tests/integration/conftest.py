@@ -60,7 +60,10 @@ def juju_fixture(request: pytest.FixtureRequest):
 
 @pytest.fixture(scope="module", name="application")
 def application_fixture(
-    pytestconfig: pytest.Config, juju_machine: jubilant.Juju, charm: str, machine_controller_name: str
+    pytestconfig: pytest.Config,
+    juju_machine: jubilant.Juju,
+    charm: str,
+    machine_controller_name: str,
 ):
     """Deploy the ingress-configurator application.
 
@@ -130,7 +133,10 @@ def any_charm_backend_fixture(
 ):
     """Deploy any-charm and configure it to serve as a requirer for the http interface."""
     with jubilant_temp_controller(juju_machine, machine_controller_name, juju_machine.model):
-        if pytestconfig.getoption("--no-setup") and ANY_CHARM_APP_NAME in juju_machine.status().apps:
+        if (
+            pytestconfig.getoption("--no-setup")
+            and ANY_CHARM_APP_NAME in juju_machine.status().apps
+        ):
             yield ANY_CHARM_APP_NAME
             return
         juju_machine.deploy(
@@ -401,13 +407,14 @@ def k8s_ingress_requirer_fixture(
 
 @contextlib.contextmanager
 def jubilant_temp_controller(
-    juju: jubilant.Juju, controller: str, model: str = ""
+    juju: jubilant.Juju, controller: str, model: str | None = None
 ) -> Generator[jubilant.Juju, None, None]:
     status = juju.status()
     original_controller_name = status.model.controller
     original_model_name = status.model.name
     try:
-        juju.cli("switch", f"{controller}:{model}", include_model=False)
+        target_model = model or ""
+        juju.cli("switch", f"{controller}:{target_model}", include_model=False)
         yield juju
     finally:
         juju.cli(

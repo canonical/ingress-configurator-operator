@@ -286,7 +286,9 @@ def juju_machine_fixture(
         keep = cast(bool, pytestconfig.getoption("--keep-models"))
         with jubilant.temp_model(keep=keep, controller=machine_controller_name) as juju_machine:
             juju_machine.wait_timeout = JUJU_WAIT_TIMEOUT
-            juju.cli("switch", f"{machine_controller_name}:{juju_machine.model}", include_model=False)
+            juju.cli(
+                "switch", f"{machine_controller_name}:{juju_machine.model}", include_model=False
+            )
             yield juju_machine
     finally:
         juju.cli(

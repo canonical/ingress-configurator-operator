@@ -36,6 +36,7 @@ from .conftest import (
     INGRESS_REQUIRER_APP_NAME,
     MOCK_HAPROXY_HOSTNAME,
     get_unit_addresses,
+    jubilant_temp_controller,
 )
 
 
@@ -43,9 +44,10 @@ from .conftest import (
 def test_kubernetes_ingress_routes_through_haproxy(
     juju: jubilant.Juju,
     k8s_application: str,
-    machine_haproxy: tuple[jubilant.Juju, str, str],
     k8s_ingress_requirer: str,
     http_session: Callable[..., Session],
+    machine_controller_name: str,
+    lxd_model: str,
 ) -> None:
     """Deploy ingress-configurator and AnyCharm on K8s, integrate with machine haproxy.
 
@@ -60,30 +62,30 @@ def test_kubernetes_ingress_routes_through_haproxy(
         Kubernetes node IPs; haproxy routes HTTPS requests to the backend through the
         NodePort.
     """
-    machine_model, _, _ = machine_haproxy
 
     juju.wait(
         lambda status: jubilant.all_active(status, k8s_application, k8s_ingress_requirer),
         error=jubilant.any_error,
     )
-    machine_model.wait(
-        lambda status: jubilant.all_active(status, HAPROXY_APP_NAME, CERTIFICATES_APP_NAME),
-        error=jubilant.any_error,
-    )
-
     _assert_nodeport_service_exists(juju=juju, app_name=INGRESS_REQUIRER_APP_NAME)
+    with jubilant_temp_controller(juju, machine_controller_name, lxd_model):
+        juju.wait(
+            lambda status: jubilant.all_active(status, HAPROXY_APP_NAME, CERTIFICATES_APP_NAME),
+            error=jubilant.any_error,
+        )
+        haproxy_backend_ips = _get_haproxy_backend_server_ips(
+            machine_model=juju,
+            service_name=f"{INGRESS_REQUIRER_APP_NAME}-service",
+        )
+        haproxy_address = str(get_unit_addresses(juju, HAPROXY_APP_NAME)[0])
 
     node_ips = _get_k8s_node_external_ips()
-    haproxy_backend_ips = _get_haproxy_backend_server_ips(
-        machine_model=machine_model,
-        service_name=f"{INGRESS_REQUIRER_APP_NAME}-service",
-    )
+    
     assert set(node_ips) == set(haproxy_backend_ips), (
         f"Haproxy backend IPs {sorted(haproxy_backend_ips)!r} "
         f"don't match K8s node IPs {sorted(node_ips)!r}"
     )
 
-    haproxy_address = str(get_unit_addresses(machine_model, HAPROXY_APP_NAME)[0])
     session = http_session(dns_entries=[(MOCK_HAPROXY_HOSTNAME, haproxy_address)])
     response = session.get(f"https://{MOCK_HAPROXY_HOSTNAME}/", verify=False, timeout=30)
     assert response.status_code == 200

@@ -21,14 +21,14 @@ def test_haproxy_route_tcp(
     application_with_tcp_server: str,
     haproxy: str,
     juju: jubilant.Juju,
-    machine_controller_name: str,
+    lxd_controller: str,
     lxd_model: str,
 ):
     """Deploy the charm with anycharm ingress per unit requirer that installs apache2.
 
     Assert that the requirer endpoints are available.
     """
-    with jubilant_temp_controller(juju, machine_controller_name, lxd_model):
+    with jubilant_temp_controller(juju, lxd_controller, lxd_model):
         juju.integrate(
             f"{haproxy}:haproxy-route-tcp",
             application_with_tcp_server,

@@ -74,8 +74,8 @@ def juju_fixture(request: pytest.FixtureRequest):
         yield juju
 
 
-@pytest.fixture(scope="session", name="machine_controller_name")
-def machine_controller_name_fixture() -> str:
+@pytest.fixture(scope="session", name="lxd_controller")
+def lxd_controller_fixture() -> str:
     """Return the name of the machine controller.
 
     Args:
@@ -109,7 +109,7 @@ def lxd_model_fixture(
 def application_fixture(
     pytestconfig: pytest.Config,
     juju: jubilant.Juju,
-    machine_controller_name: str,
+    lxd_controller: str,
     lxd_model: str,
     charm: str,
 ):
@@ -124,7 +124,7 @@ def application_fixture(
     """
     metadata = yaml.safe_load(pathlib.Path("./charmcraft.yaml").read_text(encoding="UTF-8"))
     app_name = metadata["name"]
-    with jubilant_temp_controller(juju, machine_controller_name, lxd_model):
+    with jubilant_temp_controller(juju, lxd_controller, lxd_model):
         if pytestconfig.getoption("--no-setup") and app_name in juju.status().apps:
             yield app_name
             return
@@ -138,7 +138,7 @@ def application_fixture(
 
 @pytest.fixture(scope="module", name="haproxy")
 def haproxy_fixture(
-    pytestconfig: pytest.Config, juju: jubilant.Juju, machine_controller_name: str, lxd_model: str
+    pytestconfig: pytest.Config, juju: jubilant.Juju, lxd_controller: str, lxd_model: str
 ):
     """_summary_
 
@@ -148,7 +148,7 @@ def haproxy_fixture(
     Yields:
         The haproxy app name.
     """
-    with jubilant_temp_controller(juju, machine_controller_name, lxd_model):
+    with jubilant_temp_controller(juju, lxd_controller, lxd_model):
         if pytestconfig.getoption("--no-setup") and HAPROXY_APP_NAME in juju.status().apps:
             yield HAPROXY_APP_NAME
             return
@@ -175,10 +175,10 @@ def haproxy_fixture(
 
 @pytest.fixture(scope="module", name="any_charm_backend")
 def any_charm_backend_fixture(
-    pytestconfig: pytest.Config, juju: jubilant.Juju, machine_controller_name: str, lxd_model: str
+    pytestconfig: pytest.Config, juju: jubilant.Juju, lxd_controller: str, lxd_model: str
 ):
     """Deploy any-charm and configure it to serve as a requirer for the http interface."""
-    with jubilant_temp_controller(juju, machine_controller_name, lxd_model):
+    with jubilant_temp_controller(juju, lxd_controller, lxd_model):
         if pytestconfig.getoption("--no-setup") and ANY_CHARM_APP_NAME in juju.status().apps:
             yield ANY_CHARM_APP_NAME
             return
@@ -231,12 +231,12 @@ def http_session() -> Callable[[list[tuple[str, IPv4Address | IPv6Address]]], Se
 def ingress_requirer_fixture(
     pytestconfig: pytest.Config,
     juju: jubilant.Juju,
-    machine_controller_name: str,
+    lxd_controller: str,
     lxd_model: str,
     application: str,
 ):
     """Deploy and configure any-charm to serve as an ingress requirer for the ingress interface."""
-    with jubilant_temp_controller(juju, machine_controller_name, lxd_model):
+    with jubilant_temp_controller(juju, lxd_controller, lxd_model):
         if (
             pytestconfig.getoption("--no-setup")
             and INGRESS_REQUIRER_APP_NAME in juju.status().apps
@@ -290,7 +290,7 @@ def get_unit_addresses(juju: jubilant.Juju, application: str) -> list[IPv4Addres
 
 @pytest.fixture(scope="module", name="application_with_tcp_server")
 def application_with_tcp_server_fixture(
-    application: str, juju: jubilant.Juju, machine_controller_name: str, lxd_model: str
+    application: str, juju: jubilant.Juju, lxd_controller: str, lxd_model: str
 ):
     """Deploy the ingress-configurator application.
 
@@ -301,7 +301,7 @@ def application_with_tcp_server_fixture(
     Yields:
         The ingress-configurator app name.
     """
-    with jubilant_temp_controller(juju, machine_controller_name, lxd_model):
+    with jubilant_temp_controller(juju, lxd_controller, lxd_model):
         juju.wait(
             lambda status: jubilant.all_active(status, application),
         )
@@ -312,18 +312,18 @@ def application_with_tcp_server_fixture(
 
 @pytest.fixture(scope="module", name="machine_haproxy")
 def machine_haproxy_fixture(
-    juju: jubilant.Juju, machine_controller_name: str, lxd_model: str
+    juju: jubilant.Juju, lxd_controller: str, lxd_model: str
 ) -> Generator[tuple[jubilant.Juju, str, str], None, None]:
     """Deploy haproxy on the machine model and expose its haproxy-route endpoint as an offer.
 
     Args:
         juju: jubilant.Juju instance.
-        machine_controller_name: Name of the machine controller.
+        lxd_controller: Name of the machine controller.
 
     Yields:
         A tuple of (juju juju, haproxy app name, offer URL).
     """
-    with jubilant_temp_controller(juju, machine_controller_name, lxd_model):
+    with jubilant_temp_controller(juju, lxd_controller, lxd_model):
         juju.deploy(
             charm="haproxy",
             app=HAPROXY_APP_NAME,
@@ -343,7 +343,7 @@ def machine_haproxy_fixture(
             lambda status: jubilant.all_active(status, HAPROXY_APP_NAME, CERTIFICATES_APP_NAME),
         )
         juju.offer(HAPROXY_APP_NAME, endpoint="haproxy-route")
-        offer_url = f"{machine_controller_name}:admin/{juju.model}.{HAPROXY_APP_NAME}"
+        offer_url = f"{lxd_controller}:admin/{juju.model}.{HAPROXY_APP_NAME}"
         yield juju, HAPROXY_APP_NAME, offer_url
 
 

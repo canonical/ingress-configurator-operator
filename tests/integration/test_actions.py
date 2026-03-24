@@ -12,7 +12,7 @@ from .conftest import MOCK_HAPROXY_HOSTNAME, jubilant_temp_controller
 
 def test_action_get_proxied_endpoints_nominal(
     juju: jubilant.Juju,
-    machine_controller_name: str,
+    lxd_controller: str,
     lxd_model: str,
     application: str,
     haproxy: str,
@@ -26,7 +26,7 @@ def test_action_get_proxied_endpoints_nominal(
         haproxy: Name of the haproxy application.
         ingress_requirer: Any charm running an apache webserver.
     """
-    with jubilant_temp_controller(juju, machine_controller_name, lxd_model):
+    with jubilant_temp_controller(juju, lxd_controller, lxd_model):
         juju.config(
             haproxy,
             {"external-hostname": f"{MOCK_HAPROXY_HOSTNAME}"},

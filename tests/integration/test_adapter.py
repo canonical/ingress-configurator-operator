@@ -13,7 +13,7 @@ from .conftest import MOCK_HAPROXY_HOSTNAME, get_unit_addresses, jubilant_temp_c
 
 def test_adapter_end_to_end_routing(
     juju: jubilant.Juju,
-    machine_controller_name: str,
+    lxd_controller: str,
     lxd_model: str,
     application: str,
     haproxy: str,
@@ -29,7 +29,7 @@ def test_adapter_end_to_end_routing(
         ingress_requirer: Any charm running an apache webserver.
         http_session: Modified requests session fixture for making HTTP requests.
     """
-    with jubilant_temp_controller(juju, machine_controller_name, lxd_model):
+    with jubilant_temp_controller(juju, lxd_controller, lxd_model):
         juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
         juju.wait(
             lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
@@ -45,7 +45,7 @@ def test_adapter_end_to_end_routing(
 
 def test_adapter_http(
     juju: jubilant.Juju,
-    machine_controller_name: str,
+    lxd_controller: str,
     lxd_model: str,
     application: str,
     haproxy: str,
@@ -61,7 +61,7 @@ def test_adapter_http(
         ingress_requirer: Any charm running an apache webserver.
         http_session: Modified requests session fixture for making HTTP requests.
     """
-    with jubilant_temp_controller(juju, machine_controller_name, lxd_model):
+    with jubilant_temp_controller(juju, lxd_controller, lxd_model):
         juju.wait(
             lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
             error=jubilant.any_error,

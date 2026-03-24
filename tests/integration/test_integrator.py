@@ -15,7 +15,7 @@ from .conftest import MOCK_HAPROXY_HOSTNAME, get_unit_addresses, jubilant_temp_c
 @pytest.mark.abort_on_fail
 def test_config_hostnames_and_paths(
     juju: jubilant.Juju,
-    machine_controller_name: str,
+    lxd_controller: str,
     lxd_model: str,
     application: str,
     haproxy: str,
@@ -31,7 +31,7 @@ def test_config_hostnames_and_paths(
         any_charm_backend: Any charm running an apache webserver.
         http_session: Modified requests session fixture for making HTTP requests.
     """
-    with jubilant_temp_controller(juju, machine_controller_name, lxd_model):
+    with jubilant_temp_controller(juju, lxd_controller, lxd_model):
         juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
         backend_addresses = ",".join(
             [str(address) for address in get_unit_addresses(juju, any_charm_backend)]

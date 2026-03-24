@@ -46,7 +46,7 @@ def test_kubernetes_ingress_routes_through_haproxy(
     k8s_application: str,
     k8s_ingress_requirer: str,
     http_session: Callable[..., Session],
-    machine_controller_name: str,
+    lxd_controller: str,
     lxd_model: str,
 ) -> None:
     """Deploy ingress-configurator and AnyCharm on K8s, integrate with machine haproxy.
@@ -67,7 +67,7 @@ def test_kubernetes_ingress_routes_through_haproxy(
         error=jubilant.any_error,
     )
     _assert_nodeport_service_exists(juju=juju, app_name=INGRESS_REQUIRER_APP_NAME)
-    with jubilant_temp_controller(juju, machine_controller_name, lxd_model):
+    with jubilant_temp_controller(juju, lxd_controller, lxd_model):
         juju.wait(
             lambda status: jubilant.all_active(status, HAPROXY_APP_NAME, CERTIFICATES_APP_NAME),
             error=jubilant.any_error,

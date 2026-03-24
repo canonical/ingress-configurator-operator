@@ -117,7 +117,7 @@ def application_fixture(
     """Deploy the ingress-configurator application.
 
     Args:
-        juju_machine: Jubilant juju_machine fixture.
+        juju: Jubilant juju fixture.
         charm_file: Path to the packed charm file.
 
     Yields:
@@ -142,7 +142,7 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, machine_co
     """_summary_
 
     Args:
-        juju_machine: Jubilant juju_machine fixture.
+        juju: Jubilant juju fixture.
 
     Yields:
         The haproxy app name.
@@ -175,33 +175,36 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, machine_co
 
 
 @pytest.fixture(scope="module", name="any_charm_backend")
-def any_charm_backend_fixture(pytestconfig: pytest.Config, juju_machine: jubilant.Juju):
+def any_charm_backend_fixture(
+    pytestconfig: pytest.Config, juju: jubilant.Juju, machine_controller_name: str, lxd_model: str
+):
     """Deploy any-charm and configure it to serve as a requirer for the http interface."""
-    if pytestconfig.getoption("--no-setup") and ANY_CHARM_APP_NAME in juju_machine.status().apps:
+    with jubilant_temp_controller(juju, machine_controller_name, lxd_model):
+        if pytestconfig.getoption("--no-setup") and ANY_CHARM_APP_NAME in juju.status().apps:
+            yield ANY_CHARM_APP_NAME
+            return
+        juju.deploy(
+            charm="any-charm",
+            channel="beta",
+            app=ANY_CHARM_APP_NAME,
+            config={
+                "src-overwrite": json.dumps(
+                    {
+                        "any_charm.py": pathlib.Path(HAPROXY_HTTP_REQUIRER_SRC).read_text(
+                            encoding="utf-8"
+                        )
+                    }
+                ),
+            },
+            num_units=2,
+        )
+        juju.wait(
+            lambda status: jubilant.all_active(status, ANY_CHARM_APP_NAME, CERTIFICATES_APP_NAME)
+        )
+        for unit in juju.status().apps[ANY_CHARM_APP_NAME].units:
+            juju.run(unit, "rpc", {"method": "start_server"})
+        juju.wait(lambda status: jubilant.all_active(status, ANY_CHARM_APP_NAME))
         yield ANY_CHARM_APP_NAME
-        return
-    juju_machine.deploy(
-        charm="any-charm",
-        channel="beta",
-        app=ANY_CHARM_APP_NAME,
-        config={
-            "src-overwrite": json.dumps(
-                {
-                    "any_charm.py": pathlib.Path(HAPROXY_HTTP_REQUIRER_SRC).read_text(
-                        encoding="utf-8"
-                    )
-                }
-            ),
-        },
-        num_units=2,
-    )
-    juju_machine.wait(
-        lambda status: jubilant.all_active(status, ANY_CHARM_APP_NAME, CERTIFICATES_APP_NAME)
-    )
-    for unit in juju_machine.status().apps[ANY_CHARM_APP_NAME].units:
-        juju_machine.run(unit, "rpc", {"method": "start_server"})
-    juju_machine.wait(lambda status: jubilant.all_active(status, ANY_CHARM_APP_NAME))
-    yield ANY_CHARM_APP_NAME
 
 
 @pytest.fixture(scope="module")
@@ -228,42 +231,42 @@ def http_session() -> Callable[[list[tuple[str, IPv4Address | IPv6Address]]], Se
 @pytest.fixture(scope="module", name="ingress_requirer")
 def ingress_requirer_fixture(
     pytestconfig: pytest.Config,
-    juju_machine: jubilant.Juju,
+    juju: jubilant.Juju,
+    machine_controller_name: str,
+    lxd_model: str,
     application: str,
 ):
     """Deploy and configure any-charm to serve as an ingress requirer for the ingress interface."""
-    if (
-        pytestconfig.getoption("--no-setup")
-        and INGRESS_REQUIRER_APP_NAME in juju_machine.status().apps
-    ):
-        yield INGRESS_REQUIRER_APP_NAME
-        return
-    juju_machine.deploy(
-        charm="any-charm",
-        channel="beta",
-        app=INGRESS_REQUIRER_APP_NAME,
-        config={
-            "src-overwrite": json.dumps(
-                {
-                    "any_charm.py": pathlib.Path(HAPROXY_INGRESS_REQUIRER_SRC).read_text(
-                        encoding="utf-8"
-                    ),
-                    "ingress.py": pathlib.Path(INGRESS_LIB_SRC).read_text(encoding="utf-8"),
-                }
-            ),
-            "python-packages": "pydantic",
-        },
-    )
-    juju_machine.wait(
-        lambda status: jubilant.all_active(
-            status, INGRESS_REQUIRER_APP_NAME, "self-signed-certificates"
+    with jubilant_temp_controller(juju, machine_controller_name, lxd_model):
+        if pytestconfig.getoption("--no-setup") and INGRESS_REQUIRER_APP_NAME in juju.status().apps:
+            yield INGRESS_REQUIRER_APP_NAME
+            return
+        juju.deploy(
+            charm="any-charm",
+            channel="beta",
+            app=INGRESS_REQUIRER_APP_NAME,
+            config={
+                "src-overwrite": json.dumps(
+                    {
+                        "any_charm.py": pathlib.Path(HAPROXY_INGRESS_REQUIRER_SRC).read_text(
+                            encoding="utf-8"
+                        ),
+                        "ingress.py": pathlib.Path(INGRESS_LIB_SRC).read_text(encoding="utf-8"),
+                    }
+                ),
+                "python-packages": "pydantic",
+            },
         )
-    )
-    for unit in juju_machine.status().apps[INGRESS_REQUIRER_APP_NAME].units:
-        juju_machine.run(unit, "rpc", {"method": "start_server"})
-    juju_machine.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{application}:ingress")
-    juju_machine.wait(lambda status: jubilant.all_active(status, INGRESS_REQUIRER_APP_NAME))
-    yield INGRESS_REQUIRER_APP_NAME
+        juju.wait(
+            lambda status: jubilant.all_active(
+                status, INGRESS_REQUIRER_APP_NAME, "self-signed-certificates"
+            )
+        )
+        for unit in juju.status().apps[INGRESS_REQUIRER_APP_NAME].units:
+            juju.run(unit, "rpc", {"method": "start_server"})
+        juju.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{application}:ingress")
+        juju.wait(lambda status: jubilant.all_active(status, INGRESS_REQUIRER_APP_NAME))
+        yield INGRESS_REQUIRER_APP_NAME
 
 
 def get_unit_addresses(juju: jubilant.Juju, application: str) -> list[IPv4Address | IPv6Address]:
@@ -284,60 +287,64 @@ def get_unit_addresses(juju: jubilant.Juju, application: str) -> list[IPv4Addres
 
 
 @pytest.fixture(scope="module", name="application_with_tcp_server")
-def application_with_tcp_server_fixture(application: str, juju_machine: jubilant.Juju):
+def application_with_tcp_server_fixture(
+    application: str, juju: jubilant.Juju, machine_controller_name: str, lxd_model: str
+):
     """Deploy the ingress-configurator application.
 
     Args:
         application: The ingress-configurator application name.
-        juju_machine: Jubilant juju_machine fixture.
+        juju: Jubilant juju fixture.
 
     Yields:
         The ingress-configurator app name.
     """
-    juju_machine.wait(
-        lambda status: jubilant.all_active(status, application),
-    )
-    command = "sudo snap install ping-pong-tcp; sudo snap set ping-pong-tcp host=0.0.0.0"
-    juju_machine.ssh(target=f"{application}/0", command=command)
-    yield application
+    with jubilant_temp_controller(juju, machine_controller_name, lxd_model):
+        juju.wait(
+            lambda status: jubilant.all_active(status, application),
+        )
+        command = "sudo snap install ping-pong-tcp; sudo snap set ping-pong-tcp host=0.0.0.0"
+        juju.ssh(target=f"{application}/0", command=command)
+        yield application
 
 
 @pytest.fixture(scope="module", name="machine_haproxy")
 def machine_haproxy_fixture(
-    juju_machine: jubilant.Juju, machine_controller_name: str
+    juju: jubilant.Juju, machine_controller_name: str, lxd_model: str
 ) -> Generator[tuple[jubilant.Juju, str, str], None, None]:
     """Deploy haproxy on the machine model and expose its haproxy-route endpoint as an offer.
 
     Args:
-        juju_machine: jubilant.Juju instance for the machine model.
+        juju: jubilant.Juju instance.
         machine_controller_name: Name of the machine controller.
 
     Yields:
-        A tuple of (juju_machine juju, haproxy app name, offer URL).
+        A tuple of (juju juju, haproxy app name, offer URL).
     """
-    juju_machine.deploy(
-        charm="haproxy",
-        app=HAPROXY_APP_NAME,
-        channel=HAPROXY_CHANNEL,
-        revision=HAPROXY_REVISION,
-        config={"external-hostname": MOCK_HAPROXY_HOSTNAME},
-        base=HAPROXY_BASE,
-    )
-    juju_machine.deploy(
-        charm="self-signed-certificates",
-        app=CERTIFICATES_APP_NAME,
-        channel=CERTIFICATES_CHANNEL,
-        revision=CERTIFICATES_REVISION,
-    )
-    juju_machine.integrate(
-        f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates"
-    )
-    juju_machine.wait(
-        lambda status: jubilant.all_active(status, HAPROXY_APP_NAME, CERTIFICATES_APP_NAME),
-    )
-    juju_machine.offer(HAPROXY_APP_NAME, endpoint="haproxy-route")
-    offer_url = f"{machine_controller_name}:admin/{juju_machine.model}.{HAPROXY_APP_NAME}"
-    yield juju_machine, HAPROXY_APP_NAME, offer_url
+    with jubilant_temp_controller(juju, machine_controller_name, lxd_model):
+        juju.deploy(
+            charm="haproxy",
+            app=HAPROXY_APP_NAME,
+            channel=HAPROXY_CHANNEL,
+            revision=HAPROXY_REVISION,
+            config={"external-hostname": MOCK_HAPROXY_HOSTNAME},
+            base=HAPROXY_BASE,
+        )
+        juju.deploy(
+            charm="self-signed-certificates",
+            app=CERTIFICATES_APP_NAME,
+            channel=CERTIFICATES_CHANNEL,
+            revision=CERTIFICATES_REVISION,
+        )
+        juju.integrate(
+            f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates"
+        )
+        juju.wait(
+            lambda status: jubilant.all_active(status, HAPROXY_APP_NAME, CERTIFICATES_APP_NAME),
+        )
+        juju.offer(HAPROXY_APP_NAME, endpoint="haproxy-route")
+        offer_url = f"{machine_controller_name}:admin/{juju.model}.{HAPROXY_APP_NAME}"
+        yield juju, HAPROXY_APP_NAME, offer_url
 
 
 @pytest.fixture(scope="module", name="k8s_application")
@@ -401,5 +408,3 @@ def k8s_ingress_requirer_fixture(
     juju.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{k8s_application}:ingress")
     juju.wait(lambda status: jubilant.all_active(status, INGRESS_REQUIRER_APP_NAME))
     yield INGRESS_REQUIRER_APP_NAME
-
-

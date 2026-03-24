@@ -3,7 +3,6 @@
 
 """Integration tests configuration."""
 
-import contextlib
 import json
 import pathlib
 from ipaddress import IPv4Address, IPv6Address, ip_address
@@ -125,10 +124,7 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju_machine: jubilant.Juju):
 @pytest.fixture(scope="module", name="any_charm_backend")
 def any_charm_backend_fixture(pytestconfig: pytest.Config, juju_machine: jubilant.Juju):
     """Deploy any-charm and configure it to serve as a requirer for the http interface."""
-    if (
-        pytestconfig.getoption("--no-setup")
-        and ANY_CHARM_APP_NAME in juju_machine.status().apps
-    ):
+    if pytestconfig.getoption("--no-setup") and ANY_CHARM_APP_NAME in juju_machine.status().apps:
         yield ANY_CHARM_APP_NAME
         return
     juju_machine.deploy(
@@ -290,6 +286,7 @@ def juju_machine_fixture(
         keep = cast(bool, pytestconfig.getoption("--keep-models"))
         with jubilant.temp_model(keep=keep, controller=machine_controller_name) as machine_model:
             machine_model.wait_timeout = JUJU_WAIT_TIMEOUT
+            juju.cli("switch", f"{machine_controller_name}:{machine_model}", include_model=False)
             yield machine_model
     finally:
         juju.cli(

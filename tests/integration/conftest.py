@@ -57,6 +57,50 @@ def juju_fixture(request: pytest.FixtureRequest):
         yield juju
 
 
+
+@pytest.fixture(scope="session", name="machine_controller_name")
+def machine_controller_name_fixture() -> str:
+    """Return the name of the machine controller.
+
+    Args:
+        pytestconfig: The pytest config object.
+
+    Returns:
+        The machine controller name.
+    """
+    return "localhost"
+
+
+@pytest.fixture(scope="module", name="juju_machine")
+def juju_machine_fixture(
+    juju: jubilant.Juju, machine_controller_name: str, pytestconfig: pytest.Config
+) -> Generator[jubilant.Juju, None, None]:
+    """Create a temporary machine model for haproxy and related dependencies.
+
+    Args:
+        machine_controller_name: Name of the machine controller.
+        pytestconfig: The pytest config object.
+
+    Yields:
+        A jubilant.Juju instance connected to the temporary machine model.
+    """
+    status = juju.status()
+    original_controller_name = status.model.controller
+    original_model_name = status.model.name
+    try:
+        juju.cli("bootstrap", "lxd", machine_controller_name, include_model=False)
+    except jubilant.CLIError as ex:
+        if "already exists" not in ex.stderr:
+            raise
+    keep = cast(bool, pytestconfig.getoption("--keep-models"))
+    with jubilant.temp_model(keep=keep, controller=machine_controller_name) as juju_machine:
+        juju_machine.wait_timeout = JUJU_WAIT_TIMEOUT
+        juju.cli(
+            "switch", f"{machine_controller_name}:{juju_machine.model}", include_model=False
+        )
+        yield juju_machine
+
+
 @pytest.fixture(scope="module", name="application")
 def application_fixture(
     pytestconfig: pytest.Config,
@@ -247,49 +291,6 @@ def application_with_tcp_server_fixture(application: str, juju_machine: jubilant
     command = "sudo snap install ping-pong-tcp; sudo snap set ping-pong-tcp host=0.0.0.0"
     juju_machine.ssh(target=f"{application}/0", command=command)
     yield application
-
-
-@pytest.fixture(scope="session", name="machine_controller_name")
-def machine_controller_name_fixture() -> str:
-    """Return the name of the machine controller.
-
-    Args:
-        pytestconfig: The pytest config object.
-
-    Returns:
-        The machine controller name.
-    """
-    return "localhost"
-
-
-@pytest.fixture(scope="module", name="juju_machine")
-def juju_machine_fixture(
-    juju: jubilant.Juju, machine_controller_name: str, pytestconfig: pytest.Config
-) -> Generator[jubilant.Juju, None, None]:
-    """Create a temporary machine model for haproxy and related dependencies.
-
-    Args:
-        machine_controller_name: Name of the machine controller.
-        pytestconfig: The pytest config object.
-
-    Yields:
-        A jubilant.Juju instance connected to the temporary machine model.
-    """
-    status = juju.status()
-    original_controller_name = status.model.controller
-    original_model_name = status.model.name
-    try:
-        juju.cli("bootstrap", "lxd", machine_controller_name, include_model=False)
-    except jubilant.CLIError as ex:
-        if "already exists" not in ex.stderr:
-            raise
-    keep = cast(bool, pytestconfig.getoption("--keep-models"))
-    with jubilant.temp_model(keep=keep, controller=machine_controller_name) as juju_machine:
-        juju_machine.wait_timeout = JUJU_WAIT_TIMEOUT
-        juju.cli(
-            "switch", f"{machine_controller_name}:{juju_machine.model}", include_model=False
-        )
-        yield juju
 
 
 @pytest.fixture(scope="module", name="machine_haproxy")

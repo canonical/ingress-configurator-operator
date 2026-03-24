@@ -57,7 +57,10 @@ def test_action_get_proxied_endpoints_nominal(
         assert task.results == {"endpoints": f'["https://{hostname}/"]'}, task.results
 
         # Test with configured additional_hostnames on ingress
-        additional_hostnames = ["test1.ingress.addition_hostname", "test2.ingress.addition_hostname"]
+        additional_hostnames = [
+            "test1.ingress.addition_hostname",
+            "test2.ingress.addition_hostname",
+        ]
         juju.config(
             application,
             {"additional-hostnames": ",".join(additional_hostnames)},
@@ -69,4 +72,6 @@ def test_action_get_proxied_endpoints_nominal(
         task = juju.run(unit, "get-proxied-endpoints")
 
         endpoints = set(json.loads(task.results["endpoints"]))
-        assert endpoints == {f"https://{h}/" for h in [hostname, *additional_hostnames]}, task.results
+        assert endpoints == {f"https://{h}/" for h in [hostname, *additional_hostnames]}, (
+            task.results
+        )

@@ -50,6 +50,7 @@ def jubilant_temp_controller(
             "switch", f"{original_controller_name}:{original_model_name}", include_model=False
         )
 
+
 @pytest.fixture(scope="session", name="charm")
 def charm_fixture(pytestconfig: pytest.Config):
     """Pytest fixture that packs the charm and returns the filename, or --charm-file if set."""
@@ -74,7 +75,6 @@ def juju_fixture(request: pytest.FixtureRequest):
         yield juju
 
 
-
 @pytest.fixture(scope="session", name="machine_controller_name")
 def machine_controller_name_fixture() -> str:
     """Return the name of the machine controller.
@@ -88,11 +88,11 @@ def machine_controller_name_fixture() -> str:
     return "localhost"
 
 
-@pytest.fixture(scope="session", name="lxd_model")
+@pytest.fixture(scope="module", name="lxd_model")
 def lxd_model_fixture(
     request: pytest.FixtureRequest, juju: jubilant.Juju, lxd_controller, lxd_model_name
 ) -> Generator[str, None, None]:
-    "Create the lxd_model and return its name."
+    """Create the lxd_model and return its name."""
     with jubilant_temp_controller(juju, lxd_controller):
         try:
             juju.add_model(lxd_model_name)
@@ -138,7 +138,9 @@ def application_fixture(
 
 
 @pytest.fixture(scope="module", name="haproxy")
-def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, machine_controller_name: str, lxd_model: str):
+def haproxy_fixture(
+    pytestconfig: pytest.Config, juju: jubilant.Juju, machine_controller_name: str, lxd_model: str
+):
     """_summary_
 
     Args:
@@ -165,9 +167,7 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, machine_co
             channel=CERTIFICATES_CHANNEL,
             revision=CERTIFICATES_REVISION,
         )
-        juju.integrate(
-            f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates"
-        )
+        juju.integrate(f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates")
         juju.wait(
             lambda status: jubilant.all_active(status, HAPROXY_APP_NAME, CERTIFICATES_APP_NAME),
         )
@@ -238,7 +238,10 @@ def ingress_requirer_fixture(
 ):
     """Deploy and configure any-charm to serve as an ingress requirer for the ingress interface."""
     with jubilant_temp_controller(juju, machine_controller_name, lxd_model):
-        if pytestconfig.getoption("--no-setup") and INGRESS_REQUIRER_APP_NAME in juju.status().apps:
+        if (
+            pytestconfig.getoption("--no-setup")
+            and INGRESS_REQUIRER_APP_NAME in juju.status().apps
+        ):
             yield INGRESS_REQUIRER_APP_NAME
             return
         juju.deploy(
@@ -336,9 +339,7 @@ def machine_haproxy_fixture(
             channel=CERTIFICATES_CHANNEL,
             revision=CERTIFICATES_REVISION,
         )
-        juju.integrate(
-            f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates"
-        )
+        juju.integrate(f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates")
         juju.wait(
             lambda status: jubilant.all_active(status, HAPROXY_APP_NAME, CERTIFICATES_APP_NAME),
         )

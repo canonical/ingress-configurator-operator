@@ -62,7 +62,6 @@ def test_kubernetes_ingress_routes_through_haproxy(
         Kubernetes node IPs; haproxy routes HTTPS requests to the backend through the
         NodePort.
     """
-
     juju.wait(
         lambda status: jubilant.all_active(status, k8s_application, k8s_ingress_requirer),
         error=jubilant.any_error,
@@ -80,7 +79,7 @@ def test_kubernetes_ingress_routes_through_haproxy(
         haproxy_address = str(get_unit_addresses(juju, HAPROXY_APP_NAME)[0])
 
     node_ips = _get_k8s_node_external_ips()
-    
+
     assert set(node_ips) == set(haproxy_backend_ips), (
         f"Haproxy backend IPs {sorted(haproxy_backend_ips)!r} "
         f"don't match K8s node IPs {sorted(node_ips)!r}"

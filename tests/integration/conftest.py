@@ -35,7 +35,6 @@ INGRESS_REQUIRER_APP_NAME = "ingress-requirer"
 
 
 @contextlib.contextmanager
-@contextlib.contextmanager
 def jubilant_temp_controller(
     juju: jubilant.Juju, controller: str, model: str = ""
 ) -> Generator[jubilant.Juju, None, None]:

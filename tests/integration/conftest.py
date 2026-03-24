@@ -289,7 +289,7 @@ def juju_machine_fixture(
             juju.cli(
                 "switch", f"{machine_controller_name}:{juju_machine.model}", include_model=False
             )
-            yield juju_machine
+            yield juju
     finally:
         juju.cli(
             "switch", f"{original_controller_name}:{original_model_name}", include_model=False

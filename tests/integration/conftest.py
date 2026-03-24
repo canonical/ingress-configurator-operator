@@ -283,17 +283,13 @@ def juju_machine_fixture(
     except jubilant.CLIError as ex:
         if "already exists" not in ex.stderr:
             raise
-        keep = cast(bool, pytestconfig.getoption("--keep-models"))
-        with jubilant.temp_model(keep=keep, controller=machine_controller_name) as juju_machine:
-            juju_machine.wait_timeout = JUJU_WAIT_TIMEOUT
-            juju.cli(
-                "switch", f"{machine_controller_name}:{juju_machine.model}", include_model=False
-            )
-            yield juju
-    finally:
+    keep = cast(bool, pytestconfig.getoption("--keep-models"))
+    with jubilant.temp_model(keep=keep, controller=machine_controller_name) as juju_machine:
+        juju_machine.wait_timeout = JUJU_WAIT_TIMEOUT
         juju.cli(
-            "switch", f"{original_controller_name}:{original_model_name}", include_model=False
+            "switch", f"{machine_controller_name}:{juju_machine.model}", include_model=False
         )
+        yield juju
 
 
 @pytest.fixture(scope="module", name="machine_haproxy")

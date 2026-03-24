@@ -19,6 +19,7 @@ jobs:
       charmcraft-channel: latest/edge
       modules: '["test_actions.py", "test_adapter.py", "test_integrator.py", "test_ingress_kubernetes.py", "test_haproxy_route_tcp.py"]'
       with-uv: true
+      pre-run-script: tests/integration/prepare.sh
   allure-report:
     if: ${{ !cancelled() && github.event_name == 'schedule' }}
     needs:

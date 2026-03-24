@@ -3,6 +3,7 @@
 
 """Integration tests configuration."""
 
+import contextlib
 import json
 import pathlib
 from ipaddress import IPv4Address, IPv6Address, ip_address
@@ -32,6 +33,22 @@ CERTIFICATES_REVISION = 263
 ANY_CHARM_APP_NAME = "any-charm-backend"
 INGRESS_REQUIRER_APP_NAME = "ingress-requirer"
 
+
+@contextlib.contextmanager
+@contextlib.contextmanager
+def jubilant_temp_controller(
+    juju: jubilant.Juju, controller: str, model: str = ""
+) -> Generator[jubilant.Juju, None, None]:
+    try:
+        status = juju.status()
+        original_controller_name = status.model.controller
+        original_model_name = status.model.name
+        juju.cli("switch", f"{controller}:{model}", include_model=False)
+        yield juju
+    finally:
+        juju.cli(
+            "switch", f"{original_controller_name}:{original_model_name}", include_model=False
+        )
 
 @pytest.fixture(scope="session", name="charm")
 def charm_fixture(pytestconfig: pytest.Config):
@@ -71,40 +88,30 @@ def machine_controller_name_fixture() -> str:
     return "localhost"
 
 
-@pytest.fixture(scope="module", name="juju_machine")
-def juju_machine_fixture(
-    juju: jubilant.Juju, machine_controller_name: str, pytestconfig: pytest.Config
-) -> Generator[jubilant.Juju, None, None]:
-    """Create a temporary machine model for haproxy and related dependencies.
-
-    Args:
-        machine_controller_name: Name of the machine controller.
-        pytestconfig: The pytest config object.
-
-    Yields:
-        A jubilant.Juju instance connected to the temporary machine model.
-    """
-    status = juju.status()
-    original_controller_name = status.model.controller
-    original_model_name = status.model.name
-    try:
-        juju.cli("bootstrap", "lxd", machine_controller_name, include_model=False)
-    except jubilant.CLIError as ex:
-        if "already exists" not in ex.stderr:
-            raise
-    keep = cast(bool, pytestconfig.getoption("--keep-models"))
-    with jubilant.temp_model(keep=keep, controller=machine_controller_name) as juju_machine:
-        juju_machine.wait_timeout = JUJU_WAIT_TIMEOUT
-        juju.cli(
-            "switch", f"{machine_controller_name}:{juju_machine.model}", include_model=False
-        )
-        yield juju_machine
+@pytest.fixture(scope="session", name="lxd_model")
+def lxd_model_fixture(
+    request: pytest.FixtureRequest, juju: jubilant.Juju, lxd_controller, lxd_model_name
+) -> Generator[str, None, None]:
+    "Create the lxd_model and return its name."
+    with jubilant_temp_controller(juju, lxd_controller):
+        try:
+            juju.add_model(lxd_model_name)
+        except jubilant.CLIError as ex:
+            if "already exists" not in ex.stderr:
+                raise
+    yield lxd_model_name
+    keep_models = cast(bool, request.config.getoption("--keep-models"))
+    if not keep_models:
+        with jubilant_temp_controller(juju, lxd_controller):
+            juju.destroy_model(lxd_model_name, destroy_storage=True, force=True)
 
 
 @pytest.fixture(scope="module", name="application")
 def application_fixture(
     pytestconfig: pytest.Config,
-    juju_machine: jubilant.Juju,
+    juju: jubilant.Juju,
+    machine_controller_name: str,
+    lxd_model: str,
     charm: str,
 ):
     """Deploy the ingress-configurator application.
@@ -118,19 +125,20 @@ def application_fixture(
     """
     metadata = yaml.safe_load(pathlib.Path("./charmcraft.yaml").read_text(encoding="UTF-8"))
     app_name = metadata["name"]
-    if pytestconfig.getoption("--no-setup") and app_name in juju_machine.status().apps:
+    with jubilant_temp_controller(juju, machine_controller_name, lxd_model):
+        if pytestconfig.getoption("--no-setup") and app_name in juju.status().apps:
+            yield app_name
+            return
+        juju.deploy(
+            charm=charm,
+            app=app_name,
+            base="ubuntu@24.04",
+        )
         yield app_name
-        return
-    juju_machine.deploy(
-        charm=charm,
-        app=app_name,
-        base="ubuntu@24.04",
-    )
-    yield app_name
 
 
 @pytest.fixture(scope="module", name="haproxy")
-def haproxy_fixture(pytestconfig: pytest.Config, juju_machine: jubilant.Juju):
+def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, machine_controller_name: str, lxd_model: str):
     """_summary_
 
     Args:
@@ -139,30 +147,31 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju_machine: jubilant.Juju):
     Yields:
         The haproxy app name.
     """
-    if pytestconfig.getoption("--no-setup") and HAPROXY_APP_NAME in juju_machine.status().apps:
+    with jubilant_temp_controller(juju, machine_controller_name, lxd_model):
+        if pytestconfig.getoption("--no-setup") and HAPROXY_APP_NAME in juju.status().apps:
+            yield HAPROXY_APP_NAME
+            return
+        juju.deploy(
+            charm="haproxy",
+            app=HAPROXY_APP_NAME,
+            channel=HAPROXY_CHANNEL,
+            revision=HAPROXY_REVISION,
+            config={"external-hostname": MOCK_HAPROXY_HOSTNAME},
+            base=HAPROXY_BASE,
+        )
+        juju.deploy(
+            charm="self-signed-certificates",
+            app=CERTIFICATES_APP_NAME,
+            channel=CERTIFICATES_CHANNEL,
+            revision=CERTIFICATES_REVISION,
+        )
+        juju.integrate(
+            f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates"
+        )
+        juju.wait(
+            lambda status: jubilant.all_active(status, HAPROXY_APP_NAME, CERTIFICATES_APP_NAME),
+        )
         yield HAPROXY_APP_NAME
-        return
-    juju_machine.deploy(
-        charm="haproxy",
-        app=HAPROXY_APP_NAME,
-        channel=HAPROXY_CHANNEL,
-        revision=HAPROXY_REVISION,
-        config={"external-hostname": MOCK_HAPROXY_HOSTNAME},
-        base=HAPROXY_BASE,
-    )
-    juju_machine.deploy(
-        charm="self-signed-certificates",
-        app=CERTIFICATES_APP_NAME,
-        channel=CERTIFICATES_CHANNEL,
-        revision=CERTIFICATES_REVISION,
-    )
-    juju_machine.integrate(
-        f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates"
-    )
-    juju_machine.wait(
-        lambda status: jubilant.all_active(status, HAPROXY_APP_NAME, CERTIFICATES_APP_NAME),
-    )
-    yield HAPROXY_APP_NAME
 
 
 @pytest.fixture(scope="module", name="any_charm_backend")
@@ -392,3 +401,5 @@ def k8s_ingress_requirer_fixture(
     juju.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{k8s_application}:ingress")
     juju.wait(lambda status: jubilant.all_active(status, INGRESS_REQUIRER_APP_NAME))
     yield INGRESS_REQUIRER_APP_NAME
+
+

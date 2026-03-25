@@ -325,7 +325,9 @@ def k8s_application_fixture(
     app_name = metadata["name"]
 
     juju_k8s.deploy(charm=charm, app=app_name)
-    juju_k8s.integrate(f"{app_name}:haproxy-route", f"{lxd_controller}:admin/{lxd_model}.{HAPROXY_APP_NAME}")
+    juju_k8s.integrate(
+        f"{app_name}:haproxy-route", f"{lxd_controller}:admin/{lxd_model}.{HAPROXY_APP_NAME}"
+    )
     yield app_name
 
 
@@ -362,5 +364,5 @@ def k8s_ingress_requirer_fixture(
     for unit in juju_k8s.status().apps[INGRESS_REQUIRER_APP_NAME].units:
         juju_k8s.run(unit, "rpc", {"method": "start_server"})
     juju_k8s.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{k8s_application}:ingress")
-    juju_k8s.wait(lambda status: jubilant.all_active(status, INGRESS_REQUIRER_APP_NAME))
+    juju_k8s.wait(lambda status: jubilant.all_agents_idle(status, INGRESS_REQUIRER_APP_NAME))
     yield INGRESS_REQUIRER_APP_NAME

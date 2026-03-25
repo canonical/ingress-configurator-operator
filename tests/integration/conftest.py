@@ -78,13 +78,20 @@ def juju_fixture(request: pytest.FixtureRequest):
 def lxd_controller_fixture() -> str:
     """Return the name of the machine controller.
 
-    Args:
-        pytestconfig: The pytest config object.
-
     Returns:
         The machine controller name.
     """
     return "localhost"
+
+
+@pytest.fixture(scope="session", name="lxd_model_name")
+def lxd_model_name_fixture() -> str:
+    """Return the name of the machine model.
+
+    Returns:
+        The machine model name.
+    """
+    return "testing"
 
 
 @pytest.fixture(scope="module", name="lxd_model")

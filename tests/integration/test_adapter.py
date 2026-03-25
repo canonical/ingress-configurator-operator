@@ -8,7 +8,7 @@ from typing import Callable
 import jubilant
 from requests import Session
 
-from .conftest import MOCK_HAPROXY_HOSTNAME, get_unit_addresses, jubilant_temp_controller
+from .conftest import MOCK_HAPROXY_HOSTNAME, get_unit_addresses
 
 
 def test_adapter_end_to_end_routing(
@@ -29,18 +29,17 @@ def test_adapter_end_to_end_routing(
         ingress_requirer: Any charm running an apache webserver.
         http_session: Modified requests session fixture for making HTTP requests.
     """
-    with jubilant_temp_controller(juju, lxd_controller, lxd_model):
-        juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
-        juju.wait(
-            lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
-            error=jubilant.any_error,
-        )
+    juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
+    juju.wait(
+        lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
+        error=jubilant.any_error,
+    )
 
-        session = http_session(
-            dns_entries=[(MOCK_HAPROXY_HOSTNAME, str(get_unit_addresses(juju, haproxy)[0]))]
-        )
-        response = session.get(f"https://{MOCK_HAPROXY_HOSTNAME}", verify=False, timeout=30)
-        assert "Apache2 Default Page" in response.text
+    session = http_session(
+        dns_entries=[(MOCK_HAPROXY_HOSTNAME, str(get_unit_addresses(juju, haproxy)[0]))]
+    )
+    response = session.get(f"https://{MOCK_HAPROXY_HOSTNAME}", verify=False, timeout=30)
+    assert "Apache2 Default Page" in response.text
 
 
 def test_adapter_http(
@@ -61,21 +60,20 @@ def test_adapter_http(
         ingress_requirer: Any charm running an apache webserver.
         http_session: Modified requests session fixture for making HTTP requests.
     """
-    with jubilant_temp_controller(juju, lxd_controller, lxd_model):
-        juju.wait(
-            lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
-            error=jubilant.any_error,
-        )
-        addr = str(get_unit_addresses(juju, haproxy)[0])
-        session = http_session(dns_entries=[(MOCK_HAPROXY_HOSTNAME, addr)])
+    juju.wait(
+        lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
+        error=jubilant.any_error,
+    )
+    addr = str(get_unit_addresses(juju, haproxy)[0])
+    session = http_session(dns_entries=[(MOCK_HAPROXY_HOSTNAME, addr)])
 
-        response = session.get(f"http://{MOCK_HAPROXY_HOSTNAME}", verify=False, timeout=30)
-        assert response.history[0].status_code == 302
-        juju.config(application, {"allow-http": True})
-        juju.wait(
-            lambda status: jubilant.all_active(status, haproxy, application),
-            error=jubilant.any_error,
-        )
+    response = session.get(f"http://{MOCK_HAPROXY_HOSTNAME}", verify=False, timeout=30)
+    assert response.history[0].status_code == 302
+    juju.config(application, {"allow-http": True})
+    juju.wait(
+        lambda status: jubilant.all_active(status, haproxy, application),
+        error=jubilant.any_error,
+    )
 
-        response = session.get(f"http://{MOCK_HAPROXY_HOSTNAME}", verify=False, timeout=30)
-        assert "Apache2 Default Page" in response.text
+    response = session.get(f"http://{MOCK_HAPROXY_HOSTNAME}", verify=False, timeout=30)
+    assert "Apache2 Default Page" in response.text

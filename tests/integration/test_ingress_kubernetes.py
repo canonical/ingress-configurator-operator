@@ -36,18 +36,16 @@ from .conftest import (
     INGRESS_REQUIRER_APP_NAME,
     MOCK_HAPROXY_HOSTNAME,
     get_unit_addresses,
-    jubilant_temp_controller,
 )
 
 
 @pytest.mark.abort_on_fail
 def test_kubernetes_ingress_routes_through_haproxy(
     juju: jubilant.Juju,
+    juju_k8s: jubilant.Juju,
     k8s_application: str,
     k8s_ingress_requirer: str,
     http_session: Callable[..., Session],
-    lxd_controller: str,
-    lxd_model: str,
 ) -> None:
     """Deploy ingress-configurator and AnyCharm on K8s, integrate with machine haproxy.
 
@@ -62,21 +60,20 @@ def test_kubernetes_ingress_routes_through_haproxy(
         Kubernetes node IPs; haproxy routes HTTPS requests to the backend through the
         NodePort.
     """
-    juju.wait(
+    juju_k8s.wait(
         lambda status: jubilant.all_active(status, k8s_application, k8s_ingress_requirer),
         error=jubilant.any_error,
     )
     _assert_nodeport_service_exists(juju=juju, app_name=INGRESS_REQUIRER_APP_NAME)
-    with jubilant_temp_controller(juju, lxd_controller, lxd_model):
-        juju.wait(
-            lambda status: jubilant.all_active(status, HAPROXY_APP_NAME, CERTIFICATES_APP_NAME),
-            error=jubilant.any_error,
-        )
-        haproxy_backend_ips = _get_haproxy_backend_server_ips(
-            machine_model=juju,
-            service_name=f"{INGRESS_REQUIRER_APP_NAME}-service",
-        )
-        haproxy_address = str(get_unit_addresses(juju, HAPROXY_APP_NAME)[0])
+    juju.wait(
+        lambda status: jubilant.all_active(status, HAPROXY_APP_NAME, CERTIFICATES_APP_NAME),
+        error=jubilant.any_error,
+    )
+    haproxy_backend_ips = _get_haproxy_backend_server_ips(
+        machine_model=juju,
+        service_name=f"{INGRESS_REQUIRER_APP_NAME}-service",
+    )
+    haproxy_address = str(get_unit_addresses(juju, HAPROXY_APP_NAME)[0])
 
     node_ips = _get_k8s_node_external_ips()
 

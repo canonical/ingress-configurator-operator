@@ -89,7 +89,7 @@ def juju_fixture(lxd_controller: str, lxd_model: str):
     yield juju
 
 
-@pytest.fixture(scope="module", name="juju")
+@pytest.fixture(scope="module", name="juju_k8s")
 def juju_k8s_fixture(k8s_controller: str, k8s_model: str):
     """Pytest fixture that wraps :meth:`jubilant.with_model`."""
     juju = jubilant.Juju(model=f"{k8s_controller}:{k8s_model}")

@@ -375,8 +375,8 @@ def k8s_application_fixture(
     _, _, offer_url = machine_haproxy
 
     juju.deploy(charm=charm, app=app_name, base="ubuntu@24.04")
-    juju.cli("consume", offer_url, include_model=True)
-    juju.integrate(f"{app_name}:haproxy-route", HAPROXY_APP_NAME)
+    # juju.cli("consume", offer_url, include_model=False)
+    juju.integrate(f"{app_name}:haproxy-route", offer_url)
     yield app_name
 
 

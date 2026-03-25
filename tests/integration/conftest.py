@@ -324,7 +324,7 @@ def k8s_application_fixture(
     metadata = yaml.safe_load(pathlib.Path("./charmcraft.yaml").read_text(encoding="UTF-8"))
     app_name = metadata["name"]
 
-    juju_k8s.deploy(charm=charm, app=app_name)
+    juju_k8s.deploy(charm=charm, app=app_name, trust=True)
     juju_k8s.integrate(
         f"{app_name}:haproxy-route", f"{lxd_controller}:admin/{lxd_model}.{HAPROXY_APP_NAME}"
     )

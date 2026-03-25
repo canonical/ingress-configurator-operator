@@ -173,6 +173,7 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
         revision=CERTIFICATES_REVISION,
     )
     juju.integrate(f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates")
+    juju.offer(HAPROXY_APP_NAME, endpoint="haproxy-route")
     juju.wait(
         lambda status: jubilant.all_active(status, HAPROXY_APP_NAME, CERTIFICATES_APP_NAME),
     )
@@ -302,64 +303,29 @@ def application_with_tcp_server_fixture(application: str, juju: jubilant.Juju):
     yield application
 
 
-@pytest.fixture(scope="module", name="machine_haproxy")
-def machine_haproxy_fixture(
-    juju: jubilant.Juju, lxd_controller: str
-) -> Generator[tuple[str, str], None, None]:
-    """Deploy haproxy on the machine model and expose its haproxy-route endpoint as an offer.
-
-    Args:
-        juju: jubilant.Juju instance.
-        lxd_controller: Name of the machine controller.
-
-    Yields:
-        A tuple of (juju juju, haproxy app name, offer URL).
-    """
-    juju.deploy(
-        charm="haproxy",
-        app=HAPROXY_APP_NAME,
-        channel=HAPROXY_CHANNEL,
-        revision=HAPROXY_REVISION,
-        config={"external-hostname": MOCK_HAPROXY_HOSTNAME},
-        base=HAPROXY_BASE,
-    )
-    juju.deploy(
-        charm="self-signed-certificates",
-        app=CERTIFICATES_APP_NAME,
-        channel=CERTIFICATES_CHANNEL,
-        revision=CERTIFICATES_REVISION,
-    )
-    juju.integrate(f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates")
-    juju.wait(
-        lambda status: jubilant.all_active(status, HAPROXY_APP_NAME, CERTIFICATES_APP_NAME),
-    )
-    juju.offer(HAPROXY_APP_NAME, endpoint="haproxy-route")
-    offer_url = f"{lxd_controller}:admin/{juju.model}.{HAPROXY_APP_NAME}"
-    yield HAPROXY_APP_NAME, offer_url
-
-
 @pytest.fixture(scope="module", name="k8s_application")
 def k8s_application_fixture(
     charm: str,
-    machine_haproxy: tuple[str, str],
     juju_k8s: jubilant.Juju,
+    lxd_controller: str,
+    lxd_model: str,
 ) -> Generator[str, None, None]:
     """Deploy the ingress-configurator on the K8s model and integrate with haproxy cross-model.
 
     Args:
         charm: Path to the packed charm file.
         juju_k8s: jubilant.Juju instance for the K8s model.
-        machine_haproxy: Tuple of (haproxy app name, offer URL).
+        lxd_controller: the LXD controller name.
+        lxd_model: the LXD model name.
 
     Yields:
         The ingress-configurator application name.
     """
     metadata = yaml.safe_load(pathlib.Path("./charmcraft.yaml").read_text(encoding="UTF-8"))
     app_name = metadata["name"]
-    _, offer_url = machine_haproxy
 
     juju_k8s.deploy(charm=charm, app=app_name)
-    juju_k8s.integrate(f"{app_name}:haproxy-route", offer_url)
+    juju_k8s.integrate(f"{app_name}:haproxy-route", f"{lxd_controller}:admin/{lxd_model}.{HAPROXY_APP_NAME}")
     yield app_name
 
 

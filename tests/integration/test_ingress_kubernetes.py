@@ -33,7 +33,6 @@ from requests import Session
 from .conftest import (
     CERTIFICATES_APP_NAME,
     HAPROXY_APP_NAME,
-    INGRESS_REQUIRER_APP_NAME,
     MOCK_HAPROXY_HOSTNAME,
     get_unit_addresses,
 )
@@ -42,8 +41,8 @@ from .conftest import (
 @pytest.mark.abort_on_fail
 def test_kubernetes_ingress_routes_through_haproxy(
     juju: jubilant.Juju,
+    haproxy: str,
     juju_k8s: jubilant.Juju,
-    k8s_application: str,
     k8s_ingress_requirer: str,
     http_session: Callable[..., Session],
 ) -> None:
@@ -60,20 +59,16 @@ def test_kubernetes_ingress_routes_through_haproxy(
         Kubernetes node IPs; haproxy routes HTTPS requests to the backend through the
         NodePort.
     """
-    juju_k8s.wait(
-        lambda status: jubilant.all_active(status, k8s_application, k8s_ingress_requirer),
-        error=jubilant.any_error,
-    )
-    _assert_nodeport_service_exists(juju=juju, app_name=INGRESS_REQUIRER_APP_NAME)
+    _assert_nodeport_service_exists(juju=juju_k8s, app_name=k8s_ingress_requirer)
     juju.wait(
-        lambda status: jubilant.all_active(status, HAPROXY_APP_NAME, CERTIFICATES_APP_NAME),
+        lambda status: jubilant.all_active(status, haproxy, CERTIFICATES_APP_NAME),
         error=jubilant.any_error,
     )
     haproxy_backend_ips = _get_haproxy_backend_server_ips(
         machine_model=juju,
-        service_name=f"{INGRESS_REQUIRER_APP_NAME}-service",
+        service_name=f"{k8s_ingress_requirer}-service",
     )
-    haproxy_address = str(get_unit_addresses(juju, HAPROXY_APP_NAME)[0])
+    haproxy_address = str(get_unit_addresses(juju, haproxy)[0])
 
     node_ips = _get_k8s_node_external_ips()
 

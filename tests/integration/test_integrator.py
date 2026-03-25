@@ -15,8 +15,6 @@ from .conftest import MOCK_HAPROXY_HOSTNAME, get_unit_addresses
 @pytest.mark.abort_on_fail
 def test_config_hostnames_and_paths(
     juju: jubilant.Juju,
-    lxd_controller: str,
-    lxd_model: str,
     application: str,
     haproxy: str,
     any_charm_backend: str,

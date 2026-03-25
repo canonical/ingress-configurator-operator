@@ -346,8 +346,8 @@ def machine_haproxy_fixture(
 @pytest.fixture(scope="module", name="k8s_application")
 def k8s_application_fixture(
     charm: str,
-    juju_k8s: jubilant.Juju,
     machine_haproxy: tuple[str, str],
+    juju_k8s: jubilant.Juju,
 ) -> Generator[str, None, None]:
     """Deploy the ingress-configurator on the K8s model and integrate with haproxy cross-model.
 

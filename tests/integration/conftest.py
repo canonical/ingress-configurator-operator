@@ -3,11 +3,10 @@
 
 """Integration tests configuration."""
 
-import contextlib
 import json
 import pathlib
 from ipaddress import IPv4Address, IPv6Address, ip_address
-from typing import Callable, Generator, cast
+from typing import Callable, Generator
 
 import jubilant
 import pytest
@@ -61,6 +60,7 @@ def lxd_model_fixture() -> str:
     """
     return "testing"
 
+
 @pytest.fixture(scope="session", name="k8s_controller")
 def k8s_controller_fixture() -> str:
     """Return the name of the machine controller.
@@ -101,7 +101,7 @@ def juju_k8s_fixture(juju: jubilant.Juju, k8s_controller: str, k8s_model: str):
     )
     try:
         juju.add_model(k8s_model, "k8s")
-    except jubilant.CLIError as err:
+    except jubilant.CLIError:
         if not "already exists":
             raise
     new_juju = jubilant.Juju(model=f"{k8s_controller}:{k8s_model}")
@@ -233,14 +233,9 @@ def http_session() -> Callable[[list[tuple[str, IPv4Address | IPv6Address]]], Se
 
 
 @pytest.fixture(scope="module", name="ingress_requirer")
-def ingress_requirer_fixture(
-    pytestconfig: pytest.Config, juju: jubilant.Juju, application: str
-):
+def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, application: str):
     """Deploy and configure any-charm to serve as an ingress requirer for the ingress interface."""
-    if (
-        pytestconfig.getoption("--no-setup")
-        and INGRESS_REQUIRER_APP_NAME in juju.status().apps
-    ):
+    if pytestconfig.getoption("--no-setup") and INGRESS_REQUIRER_APP_NAME in juju.status().apps:
         yield INGRESS_REQUIRER_APP_NAME
         return
     juju.deploy(

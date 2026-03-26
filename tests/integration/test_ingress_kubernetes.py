@@ -59,6 +59,7 @@ def test_kubernetes_ingress_routes_through_haproxy(
         Kubernetes node IPs; haproxy routes HTTPS requests to the backend through the
         NodePort.
     """
+    assert juju_k8s.model
     namespace = juju_k8s.model.split(":")[1]
     _assert_nodeport_service_exists(namespace=namespace, app_name=k8s_ingress_requirer)
     juju.wait(

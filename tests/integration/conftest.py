@@ -260,8 +260,6 @@ def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, a
             status, INGRESS_REQUIRER_APP_NAME, "self-signed-certificates"
         )
     )
-    for unit in juju.status().apps[INGRESS_REQUIRER_APP_NAME].units:
-        juju.run(unit, "rpc", {"method": "start_server"})
     juju.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{application}:ingress")
     juju.wait(lambda status: jubilant.all_active(status, INGRESS_REQUIRER_APP_NAME))
     yield INGRESS_REQUIRER_APP_NAME
@@ -360,8 +358,6 @@ def k8s_ingress_requirer_fixture(
             "python-packages": "pydantic",
         },
     )
-    for unit in juju_k8s.status().apps[INGRESS_REQUIRER_APP_NAME].units:
-        juju_k8s.run(unit, "rpc", {"method": "start_server"})
     juju_k8s.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{k8s_application}:ingress")
     juju_k8s.wait(lambda status: jubilant.all_active(status, INGRESS_REQUIRER_APP_NAME))
     yield INGRESS_REQUIRER_APP_NAME

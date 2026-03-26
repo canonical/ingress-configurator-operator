@@ -56,9 +56,7 @@ def get_node_ips(client: Client) -> list[str]:
     return [
         address.address
         for node in nodes
-        if node.status
-        and node.metadata
-        and _WORKER_LABEL in set(node.metadata.labels or {})
+        if node.status and node.metadata and _WORKER_LABEL in set(node.metadata.labels or {})
         for address in node.status.addresses
         if address.type == "InternalIP"
     ]

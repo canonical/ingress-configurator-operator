@@ -59,7 +59,8 @@ def test_kubernetes_ingress_routes_through_haproxy(
         Kubernetes node IPs; haproxy routes HTTPS requests to the backend through the
         NodePort.
     """
-    _assert_nodeport_service_exists(juju=juju_k8s, app_name=k8s_ingress_requirer)
+    namespace = juju_k8s.model.split(":")[1]
+    _assert_nodeport_service_exists(namespace=namespace, app_name=k8s_ingress_requirer)
     juju.wait(
         lambda status: jubilant.all_active(status, haproxy, CERTIFICATES_APP_NAME),
         error=jubilant.any_error,
@@ -82,21 +83,20 @@ def test_kubernetes_ingress_routes_through_haproxy(
     assert response.status_code == 200
 
 
-def _assert_nodeport_service_exists(juju: jubilant.Juju, app_name: str) -> None:
+def _assert_nodeport_service_exists(namespace: str, app_name: str) -> None:
     """Assert that the NodePort service for *app_name* exists in the K8s cluster.
 
     The service name follows the ``{app_name}-service`` convention used by
     :func:`kubernetes.create_nodeport_service`.
 
     Args:
-        juju: jubilant.Juju instance connected to the K8s model.
+        namespace: the K8s namespace.
         app_name: The application name whose NodePort service is checked.
 
     Raises:
         AssertionError: When the NodePort service is not found or has the wrong type.
     """
     service_name = f"{app_name}-service"
-    namespace = juju.model or "default"
     client = Client(namespace=namespace)
     try:
         service = client.get(Service, name=service_name)

@@ -46,13 +46,9 @@ def get_node_ips(client: Client) -> list[str]:
     Returns:
         A list of ExternalIP addresses from all cluster nodes.
     """
-    ips: list[str] = []
-    for node in client.list(Node):
-        if node.status and node.status.addresses:
-            for address in node.status.addresses:
-                if address.type == "ExternalIP":
-                    ips.append(address.address)
-    return ips
+    nodes = client.list(Node)
+    addresses_lists = [node.status.addresses for node in nodes if node.status]
+    return [address for address_lists in addresses_lists for address in address_lists]
 
 
 def create_nodeport_service(

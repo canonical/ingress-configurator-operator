@@ -99,10 +99,12 @@ class IngressConfiguratorCharm(ops.CharmBase):
         """Refresh haproxy-route requirer data."""
         try:
             if self._haproxy_route.relation is not None:
+                logger.debug("executing reconcile look for haproxy route relation.")
                 ingress_relation = self.model.get_relation(self._ingress.relation_name)
                 ingress_relation_data = (
                     self._ingress.get_data(ingress_relation) if ingress_relation else None
                 )
+                logger.debug(ingress_relation_data)
                 if self.is_kubernetes() and ingress_relation_data is not None:
                     ensure_nodeport_service(
                         self.lightkube_client,
@@ -115,6 +117,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                     if self.is_kubernetes() and ingress_relation_data is not None
                     else None
                 )
+                logger.debug(kubernetes_data)
                 charm_state = State.from_charm(self, ingress_relation_data, kubernetes_data)
                 # Assign consistent_hashing to a local variable due to line length limit
                 consistent_hashing = charm_state.load_balancing_configuration.consistent_hashing

@@ -18,42 +18,49 @@ from kubernetes import (
     replace_nodeport_service,
 )
 
+_WORKER_LABELS: dict[str, str] = {"node-role.kubernetes.io/worker": ""}
 
-def _make_node(*addresses: tuple[str, str]) -> MagicMock:
-    """Create a mock Node with the given (type, address) pairs."""
+
+def _make_node(*addresses: tuple[str, str], labels: dict[str, str] | None = None) -> MagicMock:
+    """Create a mock worker Node with the given (type, address) pairs and optional labels.
+
+    By default the node is created with the ``node-role.kubernetes.io/worker`` label so
+    that it is treated as a worker node by :func:`get_node_ips`.
+    """
     node = MagicMock()
     node.status.addresses = [
         MagicMock(type=addr_type, address=addr) for addr_type, addr in addresses
     ]
+    node.metadata.labels = _WORKER_LABELS if labels is None else labels
     return node
 
 
-def test_get_node_ips_returns_external_ips():
+def test_get_node_ips_returns_internal_ips_from_worker_nodes():
     """
-    arrange: mock a client returning two nodes each with an ExternalIP
+    arrange: mock a client returning two worker nodes each with an InternalIP and other address types
     act: call get_node_ips
-    assert: the ExternalIP addresses of all nodes are returned
+    assert: only the InternalIP addresses are returned
     """
     client = MagicMock()
     client.list.return_value = [
-        _make_node(("ExternalIP", "1.2.3.4"), ("Hostname", "node1")),
-        _make_node(("ExternalIP", "5.6.7.8"), ("InternalIP", "10.0.0.1")),
+        _make_node(("InternalIP", "10.0.0.1"), ("Hostname", "node1")),
+        _make_node(("InternalIP", "10.0.0.2"), ("ExternalIP", "5.6.7.8")),
     ]
 
     ips = get_node_ips(client)
 
-    assert ips == ["1.2.3.4", "5.6.7.8"]
+    assert ips == ["10.0.0.1", "10.0.0.2"]
 
 
-def test_get_node_ips_skips_non_external_addresses():
+def test_get_node_ips_skips_non_internal_ip_addresses():
     """
-    arrange: mock a client returning a node with only InternalIP and Hostname
+    arrange: mock a client returning a worker node with only ExternalIP and Hostname addresses
     act: call get_node_ips
     assert: an empty list is returned
     """
     client = MagicMock()
     client.list.return_value = [
-        _make_node(("InternalIP", "10.0.0.1"), ("Hostname", "node1")),
+        _make_node(("ExternalIP", "1.2.3.4"), ("Hostname", "node1")),
     ]
 
     ips = get_node_ips(client)
@@ -69,6 +76,65 @@ def test_get_node_ips_empty_cluster():
     """
     client = MagicMock()
     client.list.return_value = []
+
+    ips = get_node_ips(client)
+
+    assert ips == []
+
+
+def test_get_node_ips_excludes_control_plane_nodes():
+    """
+    arrange: mock a client returning one control-plane node (no worker label) and one worker node
+    act: call get_node_ips
+    assert: only the worker node's address is returned
+    """
+    client = MagicMock()
+    client.list.return_value = [
+        _make_node(
+            ("InternalIP", "1.2.3.4"),
+            labels={"node-role.kubernetes.io/control-plane": ""},
+        ),
+        _make_node(("InternalIP", "10.0.0.1")),
+    ]
+
+    ips = get_node_ips(client)
+
+    assert ips == ["10.0.0.1"]
+
+
+def test_get_node_ips_excludes_master_nodes():
+    """
+    arrange: mock a client returning one master-labelled node (no worker label) and one worker node
+    act: call get_node_ips
+    assert: only the worker node's address is returned
+    """
+    client = MagicMock()
+    client.list.return_value = [
+        _make_node(
+            ("InternalIP", "1.2.3.4"),
+            labels={"node-role.kubernetes.io/master": ""},
+        ),
+        _make_node(("InternalIP", "10.0.0.1")),
+    ]
+
+    ips = get_node_ips(client)
+
+    assert ips == ["10.0.0.1"]
+
+
+def test_get_node_ips_returns_empty_when_all_nodes_are_control_plane():
+    """
+    arrange: mock a client returning only a control-plane node (no worker label)
+    act: call get_node_ips
+    assert: an empty list is returned
+    """
+    client = MagicMock()
+    client.list.return_value = [
+        _make_node(
+            ("ExternalIP", "1.2.3.4"),
+            labels={"node-role.kubernetes.io/control-plane": ""},
+        ),
+    ]
 
     ips = get_node_ips(client)
 
@@ -122,7 +188,7 @@ def test_get_kubernetes_data_returns_kubernetes_data():
     mock_service.metadata.name = "myapp-service"
     mock_service.spec.ports = [MagicMock(targetPort=8080, protocol="TCP")]
     client.get.return_value = mock_service
-    client.list.return_value = [_make_node(("ExternalIP", "1.2.3.4"))]
+    client.list.return_value = [_make_node(("InternalIP", "10.0.0.1"))]
 
     result = get_kubernetes_data(client, "myapp")
 
@@ -130,7 +196,7 @@ def test_get_kubernetes_data_returns_kubernetes_data():
     assert result.service_name == "myapp-service"
     assert result.service_target_port == 8080
     assert result.service_protocol == "TCP"
-    assert result.node_ips == ["1.2.3.4"]
+    assert result.node_ips == ["10.0.0.1"]
 
 
 def _make_api_error(code: int) -> ApiError:

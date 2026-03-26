@@ -25,7 +25,7 @@ class KubernetesData:
     :func:`get_kubernetes_data`.
 
     Attributes:
-        node_ips: InternalIP addresses of all cluster nodes.
+        node_ips: Addresses of worker nodes in the cluster.
         service_name: The name of the NodePort service that was queried.
         service_target_port: The targetPort from the NodePort service.
         service_protocol: The transport protocol from the NodePort service.
@@ -38,17 +38,28 @@ class KubernetesData:
 
 
 def get_node_ips(client: Client) -> list[str]:
-    """Fetch the ExternalIP addresses of all nodes in the cluster.
+    """Fetch the InternalIP addresses of worker nodes in the cluster.
+
+    Worker nodes are identified by the absence of the
+    ``node-role.kubernetes.io/control-plane`` and
+    ``node-role.kubernetes.io/master`` labels.
 
     Args:
         client: A lightkube Client instance.
 
     Returns:
-        A list of ExternalIP addresses from all cluster nodes.
+        A list of InternalIP addresses from worker nodes only.
     """
     nodes = client.list(Node)
-    addresses_lists = [node.status.addresses for node in nodes if node.status]
-    return [address for address_lists in addresses_lists for address in address_lists]
+    return [
+        address.address
+        for node in nodes
+        if node.status
+        and node.metadata
+        and "node-role.kubernetes.io/worker" in set(node.metadata.labels or {})
+        for address in node.status.addresses
+        if address.type == "InternalIP"
+    ]
 
 
 def create_nodeport_service(

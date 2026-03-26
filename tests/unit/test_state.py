@@ -730,7 +730,7 @@ def test_state_from_charm_with_kubernetes_backend():
     kubernetes_data = KubernetesData(
         node_ips=["10.0.0.1", "10.0.0.2"],
         service_name="my-service",
-        service_target_port=8080,
+        service_node_port=8080,
         service_protocol="TCP",
     )
 
@@ -758,7 +758,7 @@ def test_state_from_charm_kubernetes_backend_default_protocol():
     kubernetes_data = KubernetesData(
         node_ips=["10.0.0.1"],
         service_name="api-service",
-        service_target_port=9000,
+        service_node_port=9000,
         service_protocol="TCP",
     )
 
@@ -783,7 +783,7 @@ def test_state_from_charm_kubernetes_overrides_backend_addresses_and_ports():
     kubernetes_data = KubernetesData(
         node_ips=["10.0.0.1", "10.0.0.2"],
         service_name="my-service",
-        service_target_port=8080,
+        service_node_port=8080,
         service_protocol="TCP",
     )
 
@@ -810,7 +810,7 @@ def test_state_from_charm_service_name():
     kubernetes_data = KubernetesData(
         node_ips=["10.0.0.1"],
         service_name="my-k8s-service",
-        service_target_port=8080,
+        service_node_port=8080,
         service_protocol="TCP",
     )
 
@@ -836,7 +836,7 @@ def test_state_from_charm_kubernetes_backend_protocol_from_config():
     kubernetes_data = KubernetesData(
         node_ips=["10.0.0.1"],
         service_name="my-service",
-        service_target_port=8080,
+        service_node_port=8080,
         service_protocol="TCP",
     )
 
@@ -876,7 +876,7 @@ def test_state_from_charm_invalid_kubernetes_service_port():
     kubernetes_data = KubernetesData(
         node_ips=["10.0.0.1"],
         service_name="my-service",
-        service_target_port=99999,
+        service_node_port=99999,
         service_protocol="TCP",
     )
 

@@ -208,7 +208,7 @@ def test_get_kubernetes_data_returns_kubernetes_data():
     client = MagicMock()
     mock_service = MagicMock()
     mock_service.metadata.name = "myapp-service"
-    mock_service.spec.ports = [MagicMock(targetPort=8080, protocol="TCP")]
+    mock_service.spec.ports = [MagicMock(nodePort=8080, protocol="TCP")]
     client.get.return_value = mock_service
     client.list.return_value = [_make_node(("InternalIP", "10.0.0.1"))]
 
@@ -216,7 +216,7 @@ def test_get_kubernetes_data_returns_kubernetes_data():
 
     assert isinstance(result, KubernetesData)
     assert result.service_name == "myapp-service"
-    assert result.service_target_port == 8080
+    assert result.service_node_port == 8080
     assert result.service_protocol == "TCP"
     assert result.node_ips == ["10.0.0.1"]
 

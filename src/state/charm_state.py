@@ -390,7 +390,7 @@ class State:
             kubernetes_backend_state = (
                 KubernetesBackendState(
                     backend_addresses=kubernetes_data.node_ips,
-                    backend_ports=[kubernetes_data.service_target_port],
+                    backend_ports=[kubernetes_data.service_node_port],
                     backend_protocol=kubernetes_data.service_protocol,
                 )
                 if kubernetes_data is not None

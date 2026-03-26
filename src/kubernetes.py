@@ -27,13 +27,13 @@ class KubernetesData:
     Attributes:
         node_ips: Addresses of worker nodes in the cluster.
         service_name: The name of the NodePort service that was queried.
-        service_target_port: The targetPort from the NodePort service.
+        service_node_port: The nodePort from the NodePort service.
         service_protocol: The transport protocol from the NodePort service.
     """
 
     node_ips: list[str]
     service_name: str
-    service_target_port: int
+    service_node_port: int
     service_protocol: Protocol
 
 
@@ -193,6 +193,6 @@ def get_kubernetes_data(client: Client, app_name: str) -> KubernetesData:
     return KubernetesData(
         node_ips=node_ips,
         service_name=service.metadata.name,
-        service_target_port=cast(int, port.targetPort),
+        service_node_port=cast(int, port.nodePort),
         service_protocol=cast(Protocol, port.protocol),
     )

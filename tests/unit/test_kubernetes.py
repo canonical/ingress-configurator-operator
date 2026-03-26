@@ -141,6 +141,28 @@ def test_get_node_ips_returns_empty_when_all_nodes_are_control_plane():
     assert ips == []
 
 
+def test_get_node_ips_includes_node_with_both_worker_and_control_plane_labels():
+    """
+    arrange: mock a client returning a node labelled as both worker and control-plane
+    act: call get_node_ips
+    assert: the node's InternalIP is returned because the worker label is present
+    """
+    client = MagicMock()
+    client.list.return_value = [
+        _make_node(
+            ("InternalIP", "10.0.0.1"),
+            labels={
+                "node-role.kubernetes.io/worker": "",
+                "node-role.kubernetes.io/control-plane": "",
+            },
+        ),
+    ]
+
+    ips = get_node_ips(client)
+
+    assert ips == ["10.0.0.1"]
+
+
 def test_create_nodeport_service():
     """
     arrange: mock a lightkube client

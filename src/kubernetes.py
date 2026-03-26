@@ -37,12 +37,14 @@ class KubernetesData:
     service_protocol: Protocol
 
 
+_WORKER_LABEL = "node-role.kubernetes.io/worker"
+
+
 def get_node_ips(client: Client) -> list[str]:
     """Fetch the InternalIP addresses of worker nodes in the cluster.
 
-    Worker nodes are identified by the absence of the
-    ``node-role.kubernetes.io/control-plane`` and
-    ``node-role.kubernetes.io/master`` labels.
+    Worker nodes are identified by the presence of the
+    ``node-role.kubernetes.io/worker`` label.
 
     Args:
         client: A lightkube Client instance.
@@ -56,7 +58,7 @@ def get_node_ips(client: Client) -> list[str]:
         for node in nodes
         if node.status
         and node.metadata
-        and "node-role.kubernetes.io/worker" in set(node.metadata.labels or {})
+        and _WORKER_LABEL in set(node.metadata.labels or {})
         for address in node.status.addresses
         if address.type == "InternalIP"
     ]

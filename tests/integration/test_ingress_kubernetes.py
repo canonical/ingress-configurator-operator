@@ -111,22 +111,25 @@ def _assert_nodeport_service_exists(juju: jubilant.Juju, app_name: str) -> None:
 
 
 def _get_k8s_node_external_ips() -> list[str]:
-    """Fetch ExternalIP addresses of all K8s nodes via lightkube.
+    """Fetch InternalIP addresses of worker K8s nodes via lightkube.
 
     Uses the ambient ``KUBECONFIG`` (or in-cluster config) to create a
     lightkube :class:`~lightkube.Client` and lists all :class:`Node` resources,
     mirroring the logic in :func:`kubernetes.get_node_ips`.
 
     Returns:
-        A list of ExternalIP address strings for every node in the cluster.
+        A list of InternalIP address strings for every worker node in the cluster.
     """
     client = Client()
     return [
         address.address
         for node in client.list(Node)
-        if node.status and node.status.addresses
+        if node.status
+        and node.status.addresses
+        and node.metadata
+        and "node-role.kubernetes.io/worker" in set(node.metadata.labels or {})
         for address in node.status.addresses
-        if address.type == "ExternalIP"
+        if address.type == "InternalIP"
     ]
 
 

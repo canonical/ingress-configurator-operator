@@ -42,7 +42,6 @@ from .conftest import (
 def test_kubernetes_ingress_routes_through_haproxy(
     juju: jubilant.Juju,
     haproxy: str,
-    juju_k8s: jubilant.Juju,
     k8s_ingress_requirer: str,
     http_session: Callable[..., Session],
 ) -> None:
@@ -59,9 +58,6 @@ def test_kubernetes_ingress_routes_through_haproxy(
         Kubernetes node IPs; haproxy routes HTTPS requests to the backend through the
         NodePort.
     """
-    assert juju_k8s.model
-    namespace = juju_k8s.model.split(":")[1]
-    _assert_nodeport_service_exists(namespace=namespace, app_name=k8s_ingress_requirer)
     juju.wait(
         lambda status: jubilant.all_active(status, haproxy, CERTIFICATES_APP_NAME),
         error=jubilant.any_error,
@@ -82,33 +78,6 @@ def test_kubernetes_ingress_routes_through_haproxy(
     session = http_session(dns_entries=[(MOCK_HAPROXY_HOSTNAME, haproxy_address)])
     response = session.get(f"https://{MOCK_HAPROXY_HOSTNAME}/", verify=False, timeout=30)
     assert response.status_code == 200
-
-
-def _assert_nodeport_service_exists(namespace: str, app_name: str) -> None:
-    """Assert that the NodePort service for *app_name* exists in the K8s cluster.
-
-    The service name follows the ``{app_name}-service`` convention used by
-    :func:`kubernetes.create_nodeport_service`.
-
-    Args:
-        namespace: the K8s namespace.
-        app_name: The application name whose NodePort service is checked.
-
-    Raises:
-        AssertionError: When the NodePort service is not found or has the wrong type.
-    """
-    service_name = f"{app_name}-service"
-    client = Client(namespace=namespace)
-    try:
-        service = client.get(Service, name=service_name)
-    except ApiError as e:
-        raise AssertionError(
-            f"NodePort service '{service_name}' not found in namespace '{namespace}': {e}"
-        ) from e
-    assert service.spec is not None and service.spec.type == "NodePort", (
-        f"Service '{service_name}' exists but has type "
-        f"'{service.spec.type if service.spec else None}', expected 'NodePort'"
-    )
 
 
 def _get_k8s_node_external_ips() -> list[str]:

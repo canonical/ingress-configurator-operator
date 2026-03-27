@@ -66,8 +66,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
         self.framework.observe(
             self.on[HAPROXY_ROUTE_TCP_RELATION].relation_departed, self._reconcile
         )
-        self.framework.observe(self._ingress.on.data_provided, self._reconcile)
-        self.framework.observe(self._ingress.on.data_removed, self._reconcile)
+        self.framework.observe(self.on[INGRESS_RELATION].relation_broken, self._reconcile)
+        self.framework.observe(self.on[INGRESS_RELATION].relation_departed, self._reconcile)
         self.framework.observe(self.on[INGRESS_RELATION].relation_changed, self._reconcile)
         self.framework.observe(self.on.update_status, self._on_update_status)
 
@@ -99,7 +99,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         """Refresh haproxy-route requirer data."""
         try:
             if self._haproxy_route.relation is not None:
-                logger.debug("Executing reconcile loop for haproxy route relation.")
+                logger.debug("Executing reconcile loop:105 for haproxy route relation.")
                 ingress_relation = self.model.get_relation(self._ingress.relation_name)
                 ingress_relation_data = (
                     self._ingress.get_data(ingress_relation) if ingress_relation else None

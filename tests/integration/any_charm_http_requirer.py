@@ -27,7 +27,7 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
         super().__init__(*args, **kwargs)
         self.framework.observe(self.on.install, self._start_server)
 
-    def _start_server(self):
+    def _start_server(self, _: ops.InstallEvent):
         """Start apache2 webserver."""
         update = ["apt-get", "update", "--error-on=any"]
         subprocess.run(update, capture_output=True, check=True)  # nosec

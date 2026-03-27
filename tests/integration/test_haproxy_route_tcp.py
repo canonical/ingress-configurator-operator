@@ -17,9 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.mark.abort_on_fail
-def test_haproxy_route_tcp(
-    application_with_tcp_server: str, haproxy: str, juju: jubilant.Juju
-):
+def test_haproxy_route_tcp(application_with_tcp_server: str, haproxy: str, juju: jubilant.Juju):
     """Deploy the charm with anycharm ingress per unit requirer that installs apache2.
 
     Assert that the requirer endpoints are available.

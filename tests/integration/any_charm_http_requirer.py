@@ -25,6 +25,7 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
             kwargs: kwargs.
         """
         super().__init__(*args, **kwargs)
+        self.unit.status = ops.BlockedStatus("Waiting for ingress relation")
         self.framework.observe(self.on.install, self._start_server)
 
     def _start_server(self, _: ops.InstallEvent):

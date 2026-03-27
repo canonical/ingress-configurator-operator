@@ -26,6 +26,7 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
         """
         super().__init__(*args, **kwargs)
         self.ingress = IngressPerAppRequirer(self, port=80)
+        self.unit.status = ops.BlockedStatus("Waiting for ingress relation")
         self.framework.observe(self.on.install, self._start_server)
         self.framework.observe(self.on.ingress_relation_changed, self._on_ingress_relation_changed)
 
@@ -41,7 +42,6 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
             "apache2",
         ]
         subprocess.run(install, capture_output=True, check=True)  # nosec
-        self.unit.status = ops.BlockedStatus("Waiting for ingress relation")
 
     def _on_ingress_relation_changed(self, _: ops.RelationChangedEvent):
         """Relation changed handler."""

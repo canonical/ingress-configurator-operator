@@ -37,9 +37,6 @@ class KubernetesData:
     service_protocol: Protocol
 
 
-_WORKER_LABEL = "node-role.kubernetes.io/worker"
-
-
 def get_node_ips(client: Client) -> list[str]:
     """Fetch the InternalIP addresses of worker nodes in the cluster.
 
@@ -56,7 +53,7 @@ def get_node_ips(client: Client) -> list[str]:
     return [
         address.address
         for node in nodes
-        if node.status and node.metadata and _WORKER_LABEL in set(node.metadata.labels or {})
+        if node.status
         for address in node.status.addresses
         if address and address.type == "InternalIP"
     ]

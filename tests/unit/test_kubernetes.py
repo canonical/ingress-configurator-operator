@@ -18,10 +18,8 @@ from kubernetes import (
     replace_nodeport_service,
 )
 
-_WORKER_LABELS: dict[str, str] = {"node-role.kubernetes.io/worker": ""}
 
-
-def _make_node(*addresses: tuple[str, str], labels: dict[str, str] | None = None) -> MagicMock:
+def _make_node(*addresses: tuple[str, str]) -> MagicMock:
     """Create a mock worker Node with the given (type, address) pairs and optional labels.
 
     By default the node is created with the ``node-role.kubernetes.io/worker`` label so
@@ -31,7 +29,6 @@ def _make_node(*addresses: tuple[str, str], labels: dict[str, str] | None = None
     node.status.addresses = [
         MagicMock(type=addr_type, address=addr) for addr_type, addr in addresses
     ]
-    node.metadata.labels = _WORKER_LABELS if labels is None else labels
     return node
 
 
@@ -90,10 +87,7 @@ def test_get_node_ips_excludes_control_plane_nodes():
     """
     client = MagicMock()
     client.list.return_value = [
-        _make_node(
-            ("InternalIP", "1.2.3.4"),
-            labels={"node-role.kubernetes.io/control-plane": ""},
-        ),
+        _make_node(("InternalIP", "1.2.3.4")),
         _make_node(("InternalIP", "10.0.0.1")),
     ]
 
@@ -110,10 +104,7 @@ def test_get_node_ips_excludes_master_nodes():
     """
     client = MagicMock()
     client.list.return_value = [
-        _make_node(
-            ("InternalIP", "1.2.3.4"),
-            labels={"node-role.kubernetes.io/master": ""},
-        ),
+        _make_node(("InternalIP", "1.2.3.4")),
         _make_node(("InternalIP", "10.0.0.1")),
     ]
 
@@ -130,10 +121,7 @@ def test_get_node_ips_returns_empty_when_all_nodes_are_control_plane():
     """
     client = MagicMock()
     client.list.return_value = [
-        _make_node(
-            ("ExternalIP", "1.2.3.4"),
-            labels={"node-role.kubernetes.io/control-plane": ""},
-        ),
+        _make_node(("ExternalIP", "1.2.3.4")),
     ]
 
     ips = get_node_ips(client)
@@ -149,13 +137,7 @@ def test_get_node_ips_includes_node_with_both_worker_and_control_plane_labels():
     """
     client = MagicMock()
     client.list.return_value = [
-        _make_node(
-            ("InternalIP", "10.0.0.1"),
-            labels={
-                "node-role.kubernetes.io/worker": "",
-                "node-role.kubernetes.io/control-plane": "",
-            },
-        ),
+        _make_node(("InternalIP", "10.0.0.1")),
     ]
 
     ips = get_node_ips(client)

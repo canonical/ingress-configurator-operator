@@ -17,7 +17,17 @@ from any_charm_base import AnyCharmBase  # type: ignore
 class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
     """Apache web sever charm src."""
 
-    def start_server(self):
+    def __init__(self, *args, **kwargs):
+        """Init.
+
+        Args:
+            args: args.
+            kwargs: kwargs.
+        """
+        super().__init__(*args, **kwargs)
+        self.framework.observe(self.on.install, self._start_server)
+
+    def _start_server(self):
         """Start apache2 webserver."""
         update = ["apt-get", "update", "--error-on=any"]
         subprocess.run(update, capture_output=True, check=True)  # nosec

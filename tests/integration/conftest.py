@@ -297,47 +297,26 @@ def application_with_tcp_server_fixture(application: str, juju: jubilant.Juju):
     yield application
 
 
-@pytest.fixture(scope="module", name="k8s_application")
-def k8s_application_fixture(
-    charm: str,
-    juju_k8s: jubilant.Juju,
-    lxd_controller: str,
-    lxd_model: str,
+@pytest.fixture(scope="module", name="k8s_ingress_requirer")
+def k8s_ingress_requirer_fixture(
+    charm: str, juju_k8s: jubilant.Juju, k8s_application: str, lxd_controller: str, lxd_model: str
 ) -> Generator[str, None, None]:
-    """Deploy the ingress-configurator on the K8s model and integrate with haproxy cross-model.
+    """Deploy any-charm as an ingress requirer on the K8s model.
 
     Args:
-        charm: Path to the packed charm file.
+        <charm: Path to the packed charm file.
         juju_k8s: jubilant.Juju instance for the K8s model.
+        k8s_application: The ingress-configurator application name.
         lxd_controller: the LXD controller name.
         lxd_model: the LXD model name.
 
     Yields:
-        The ingress-configurator application name.
+        The ingress requirer application name.
     """
     metadata = yaml.safe_load(pathlib.Path("./charmcraft.yaml").read_text(encoding="UTF-8"))
     app_name = metadata["name"]
 
     juju_k8s.deploy(charm=charm, app=app_name, trust=True)
-    juju_k8s.integrate(
-        f"{app_name}:haproxy-route", f"{lxd_controller}:admin/{lxd_model}.{HAPROXY_APP_NAME}"
-    )
-    yield app_name
-
-
-@pytest.fixture(scope="module", name="k8s_ingress_requirer")
-def k8s_ingress_requirer_fixture(
-    juju_k8s: jubilant.Juju, k8s_application: str
-) -> Generator[str, None, None]:
-    """Deploy any-charm as an ingress requirer on the K8s model.
-
-    Args:
-        juju_k8s: jubilant.Juju instance for the K8s model.
-        k8s_application: The ingress-configurator application name.
-
-    Yields:
-        The ingress requirer application name.
-    """
     juju_k8s.deploy(
         charm="any-charm",
         channel="beta",
@@ -354,6 +333,9 @@ def k8s_ingress_requirer_fixture(
             "python-packages": "pydantic",
         },
     )
+    juju_k8s.integrate(
+        f"{app_name}:haproxy-route", f"{lxd_controller}:admin/{lxd_model}.{HAPROXY_APP_NAME}"
+    )
     juju_k8s.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{k8s_application}:ingress")
-    juju_k8s.wait(lambda status: jubilant.all_active(status, INGRESS_REQUIRER_APP_NAME))
+    juju_k8s.wait(lambda status: jubilant.all_active(status, app_name, INGRESS_REQUIRER_APP_NAME))
     yield INGRESS_REQUIRER_APP_NAME

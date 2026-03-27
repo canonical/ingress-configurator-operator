@@ -20,11 +20,7 @@ from kubernetes import (
 
 
 def _make_node(*addresses: tuple[str, str]) -> MagicMock:
-    """Create a mock worker Node with the given (type, address) pairs and optional labels.
-
-    By default the node is created with the ``node-role.kubernetes.io/worker`` label so
-    that it is treated as a worker node by :func:`get_node_ips`.
-    """
+    """Create a mock Node with the given (type, address) pairs."""
     node = MagicMock()
     node.status.addresses = [
         MagicMock(type=addr_type, address=addr) for addr_type, addr in addresses
@@ -81,9 +77,9 @@ def test_get_node_ips_empty_cluster():
 
 def test_get_node_ips_excludes_control_plane_nodes():
     """
-    arrange: mock a client returning one control-plane node (no worker label) and one worker node
+    arrange: mock a client returning two nodes each with an InternalIP
     act: call get_node_ips
-    assert: only the worker node's address is returned
+    assert: InternalIP addresses from all nodes are returned
     """
     client = MagicMock()
     client.list.return_value = [
@@ -93,14 +89,14 @@ def test_get_node_ips_excludes_control_plane_nodes():
 
     ips = get_node_ips(client)
 
-    assert ips == ["10.0.0.1"]
+    assert ips == ["1.2.3.4", "10.0.0.1"]
 
 
 def test_get_node_ips_excludes_master_nodes():
     """
-    arrange: mock a client returning one master-labelled node (no worker label) and one worker node
+    arrange: mock a client returning two nodes each with an InternalIP
     act: call get_node_ips
-    assert: only the worker node's address is returned
+    assert: InternalIP addresses from all nodes are returned
     """
     client = MagicMock()
     client.list.return_value = [
@@ -110,7 +106,7 @@ def test_get_node_ips_excludes_master_nodes():
 
     ips = get_node_ips(client)
 
-    assert ips == ["10.0.0.1"]
+    assert ips == ["1.2.3.4", "10.0.0.1"]
 
 
 def test_get_node_ips_returns_empty_when_all_nodes_are_control_plane():

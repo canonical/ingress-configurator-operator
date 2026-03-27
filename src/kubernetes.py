@@ -53,7 +53,7 @@ def get_node_ips(client: Client) -> list[str]:
     return [
         address.address
         for node in nodes
-        if node.status
+        if node.status and node.status.addresses
         for address in node.status.addresses
         if address and address.type == "InternalIP"
     ]

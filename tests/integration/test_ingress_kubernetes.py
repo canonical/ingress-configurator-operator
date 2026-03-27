@@ -26,8 +26,8 @@ from typing import Callable
 
 import jubilant
 import pytest
-from lightkube import ApiError, Client
-from lightkube.resources.core_v1 import Node, Service
+from lightkube import Client
+from lightkube.resources.core_v1 import Node
 from requests import Session
 
 from .conftest import (

@@ -175,7 +175,7 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     juju.integrate(f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates")
     juju.offer(HAPROXY_APP_NAME, endpoint="haproxy-route")
     juju.wait(
-        lambda status: jubilant.all_active(status, HAPROXY_APP_NAME, CERTIFICATES_APP_NAME),
+        lambda status: jubilant.all_agents_idle(status, HAPROXY_APP_NAME, CERTIFICATES_APP_NAME),
     )
     yield HAPROXY_APP_NAME
 

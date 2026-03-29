@@ -12,7 +12,7 @@ run "basic_deploy" {
     model_uuid = run.setup_tests.model_uuid
     channel    = "latest/edge"
     # renovate: depName="ingress-configurator"
-    revision = 64
+    revision = 65
   }
 
   assert {

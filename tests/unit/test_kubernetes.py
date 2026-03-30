@@ -8,7 +8,6 @@ from unittest.mock import MagicMock
 from lightkube import ApiError
 
 from kubernetes import (
-    delete_nodeport_service,
     delete_nodeport_services_owned_by,
     ensure_nodeport_service,
     get_kubernetes_data,
@@ -139,21 +138,6 @@ def test_get_kubernetes_data_returns_kubernetes_data():
 def _make_api_error(code: int) -> ApiError:
     """Create an ApiError with the given HTTP status code."""
     return ApiError(status={"code": code, "message": str(code), "status": "Failure"})
-
-
-def test_delete_nodeport_service_calls_client_delete():
-    """
-    arrange: mock a lightkube client
-    act: call delete_nodeport_service with app_name "myapp"
-    assert: client.delete is called with the service name "myapp-service"
-    """
-    from lightkube.resources.core_v1 import Service
-
-    client = MagicMock()
-
-    delete_nodeport_service(client, "myapp")
-
-    client.delete.assert_called_once_with(Service, name="myapp-service")
 
 
 def test_ensure_nodeport_service_reraises_api_error():

@@ -6,12 +6,12 @@
 import logging
 from typing import Literal, cast
 
-from lightkube import Client
+from lightkube import ApiError, Client
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Node, Service
 
-from state.charm_state import NodePortState
+from state.charm_state import InvalidStateError, NodePortState
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +62,14 @@ def ensure_nodeport_service(
             ports=[ServicePort(port=port, protocol=protocol)],
         ),
     )
-    return client.apply(service)
+    try:
+        return client.apply(service)
+    except ApiError as e:
+        if e.status.code == 403:
+            raise InvalidStateError(
+                "This charm needs --trust to run on k8s substrates"
+            ) from e
+        raise
 
 
 def get_nodeport_service(client: Client, app_name: str) -> Service:

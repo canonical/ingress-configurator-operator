@@ -68,7 +68,7 @@ def test_kubernetes_ingress_routes_through_haproxy(
     )
     haproxy_address = str(get_unit_addresses(juju, haproxy)[0])
 
-    node_ips = _get_k8s_node_external_ips()
+    node_ips = _get_k8s_node_internal_ips()
 
     assert set(node_ips) == set(haproxy_backend_ips), (
         f"Haproxy backend IPs {sorted(haproxy_backend_ips)!r} "
@@ -80,7 +80,7 @@ def test_kubernetes_ingress_routes_through_haproxy(
     assert response.status_code == 200
 
 
-def _get_k8s_node_external_ips() -> list[str]:
+def _get_k8s_node_internal_ips() -> list[str]:
     """Fetch InternalIP addresses of worker K8s nodes via lightkube.
 
     Uses the ambient ``KUBECONFIG`` (or in-cluster config) to create a

@@ -14,7 +14,7 @@ from kubernetes import (
     get_nodes_ips,
     get_nodeport_service,
 )
-from state.charm_state import NodePortState
+from state.charm_state import InvalidStateError, NodePortState
 
 
 def _make_node(*addresses: tuple[str, str]) -> MagicMock:
@@ -163,4 +163,19 @@ def test_ensure_nodeport_service_reraises_api_error():
     client.apply.side_effect = _make_api_error(500)
 
     with pytest.raises(ApiError):
+        ensure_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")
+
+
+def test_ensure_nodeport_service_raises_invalid_state_error_on_403():
+    """
+    arrange: mock a client that raises ApiError 403 on apply
+    act: call ensure_nodeport_service
+    assert: InvalidStateError is raised with the trust message
+    """
+    import pytest
+
+    client = MagicMock()
+    client.apply.side_effect = _make_api_error(403)
+
+    with pytest.raises(InvalidStateError, match="--trust"):
         ensure_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")

@@ -10,7 +10,8 @@ Each revision is versioned by the date of the revision.
 
 ### Added
 
-- Added support for NodePort routing for Kubernetes substrates  when an ingress in integrated, overriding the old routing behavior.
+- Added support for NodePort routing for Kubernetes substrates  when an ingress in integrated,
+overriding the old routing behavior where the ingress data was used for sending traffic upstream.
 
 ## 2026-01-22
 

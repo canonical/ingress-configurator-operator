@@ -15,7 +15,7 @@ from charms.traefik_k8s.v2.ingress import (
 from ops import CharmBase
 
 from kubernetes import KubernetesData
-from state.charm_state import InvalidStateError, KubernetesBackendState, State
+from state.charm_state import InvalidStateError, NodePortState, State
 
 
 def test_adapter_state_from_charm():
@@ -736,7 +736,7 @@ def test_state_from_charm_with_kubernetes_backend():
 
     charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
 
-    assert isinstance(charm_state.kubernetes_backend_state, KubernetesBackendState)
+    assert isinstance(charm_state.kubernetes_backend_state, NodePortState)
     assert charm_state.kubernetes_backend_state.backend_ports == [8080]
     assert [str(a) for a in charm_state.kubernetes_backend_state.backend_addresses] == [
         "10.0.0.1",

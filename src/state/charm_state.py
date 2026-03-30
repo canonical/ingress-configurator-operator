@@ -46,7 +46,7 @@ class BackendState:
 
 
 @dataclass(frozen=True)
-class KubernetesBackendState:
+class NodePortState:
     """Charm state subset that contains Kubernetes-specific backend configuration.
 
     Attributes:
@@ -232,7 +232,7 @@ class State:
     header_rewrite_expressions: list[tuple[str, str]] = Field(default=[])
     allow_http: bool = Field(default=False)
     external_grpc_port: int | None = Field(default=None, gt=0, le=65535)
-    _kubernetes_backend_state: KubernetesBackendState | None = None
+    _kubernetes_backend_state: NodePortState | None = None
 
     @property
     def backend_addresses(self) -> list[IPvAnyAddress]:
@@ -250,7 +250,7 @@ class State:
         return self._backend_state.backend_protocol
 
     @property
-    def kubernetes_backend_state(self) -> "KubernetesBackendState | None":
+    def kubernetes_backend_state(self) -> "NodePortState | None":
         """Kubernetes-specific backend configuration."""
         return self._kubernetes_backend_state
 
@@ -388,7 +388,7 @@ class State:
             )
             allow_http = cast(bool, charm.config.get("allow-http", False))
             kubernetes_backend_state = (
-                KubernetesBackendState(
+                NodePortState(
                     backend_addresses=kubernetes_data.node_ips,
                     backend_ports=[kubernetes_data.service_node_port],
                     backend_protocol=kubernetes_data.service_protocol,
@@ -398,7 +398,7 @@ class State:
             )
             service = f"{charm.model.name}-{charm.app.name}"
             if kubernetes_data:
-                k8s_state = cast(KubernetesBackendState, kubernetes_backend_state)
+                k8s_state = cast(NodePortState, kubernetes_backend_state)
                 backend_addresses = k8s_state.backend_addresses
                 backend_ports = k8s_state.backend_ports
                 service = kubernetes_data.service_name

@@ -8,13 +8,11 @@ from unittest.mock import MagicMock
 from lightkube import ApiError
 
 from kubernetes import (
-    create_nodeport_service,
-    delete_nodeport_service,
     ensure_nodeport_service,
+    delete_nodeport_service,
     get_kubernetes_data,
     get_nodes_ips,
     get_nodeport_service,
-    replace_nodeport_service,
 )
 from state.charm_state import NodePortState
 
@@ -28,7 +26,7 @@ def _make_node(*addresses: tuple[str, str]) -> MagicMock:
     return node
 
 
-def test_get_nodes_ips_returns_internal_ips_from_worker_nodes():
+def test_get_nodes_ips_returns_internal_ips():
     """
     arrange: mock a client returning two worker nodes each with an InternalIP and other address types
     act: call get_nodes_ips
@@ -75,83 +73,17 @@ def test_get_nodes_ips_empty_cluster():
     assert ips == []
 
 
-def test_get_nodes_ips_excludes_control_plane_nodes():
-    """
-    arrange: mock a client returning two nodes each with an InternalIP
-    act: call get_nodes_ips
-    assert: InternalIP addresses from all nodes are returned
-    """
-    client = MagicMock()
-    client.list.return_value = [
-        _make_node(("InternalIP", "1.2.3.4")),
-        _make_node(("InternalIP", "10.0.0.1")),
-    ]
-
-    ips = get_nodes_ips(client)
-
-    assert ips == ["1.2.3.4", "10.0.0.1"]
-
-
-def test_get_nodes_ips_excludes_master_nodes():
-    """
-    arrange: mock a client returning two nodes each with an InternalIP
-    act: call get_nodes_ips
-    assert: InternalIP addresses from all nodes are returned
-    """
-    client = MagicMock()
-    client.list.return_value = [
-        _make_node(("InternalIP", "1.2.3.4")),
-        _make_node(("InternalIP", "10.0.0.1")),
-    ]
-
-    ips = get_nodes_ips(client)
-
-    assert ips == ["1.2.3.4", "10.0.0.1"]
-
-
-def test_get_nodes_ips_returns_empty_when_all_nodes_are_control_plane():
-    """
-    arrange: mock a client returning only a control-plane node (no worker label)
-    act: call get_nodes_ips
-    assert: an empty list is returned
-    """
-    client = MagicMock()
-    client.list.return_value = [
-        _make_node(("ExternalIP", "1.2.3.4")),
-    ]
-
-    ips = get_nodes_ips(client)
-
-    assert ips == []
-
-
-def test_get_nodes_ips_includes_node_with_both_worker_and_control_plane_labels():
-    """
-    arrange: mock a client returning a node labelled as both worker and control-plane
-    act: call get_nodes_ips
-    assert: the node's InternalIP is returned because the worker label is present
-    """
-    client = MagicMock()
-    client.list.return_value = [
-        _make_node(("InternalIP", "10.0.0.1")),
-    ]
-
-    ips = get_nodes_ips(client)
-
-    assert ips == ["10.0.0.1"]
-
-
-def test_create_nodeport_service():
+def test_ensure_nodeport_service():
     """
     arrange: mock a lightkube client
-    act: call create_nodeport_service with port 9090, protocol UDP, and app_name "myapp"
-    assert: the created service has the correct name, type, selector, port and protocol
+    act: call ensure_nodeport_service with port 9090, protocol UDP, and app_name "myapp"
+    assert: the applied service has the correct name, type, selector, port and protocol
     """
     client = MagicMock()
 
-    create_nodeport_service(client, port=9090, protocol="UDP", app_name="myapp")
+    ensure_nodeport_service(client, port=9090, protocol="UDP", app_name="myapp")
 
-    service = client.create.call_args[0][0]
+    service = client.apply.call_args[0][0]
     assert service.metadata.name == "myapp-service"
     assert service.spec.type == "NodePort"
     assert service.spec.selector == {"app": "myapp"}
@@ -204,30 +136,6 @@ def _make_api_error(code: int) -> ApiError:
     return ApiError(status={"code": code, "message": str(code), "status": "Failure"})
 
 
-# replace_nodeport_service
-
-
-def test_replace_nodeport_service():
-    """
-    arrange: mock a lightkube client
-    act: call replace_nodeport_service with port 9090, protocol UDP, and app_name "myapp"
-    assert: the replaced service has the correct name, type, selector, port and protocol
-    """
-    client = MagicMock()
-
-    replace_nodeport_service(client, port=9090, protocol="UDP", app_name="myapp")
-
-    service = client.replace.call_args[0][0]
-    assert service.metadata.name == "myapp-service"
-    assert service.spec.type == "NodePort"
-    assert service.spec.selector == {"app": "myapp"}
-    assert service.spec.ports[0].port == 9090
-    assert service.spec.ports[0].protocol == "UDP"
-
-
-# delete_nodeport_service
-
-
 def test_delete_nodeport_service_calls_client_delete():
     """
     arrange: mock a lightkube client
@@ -243,90 +151,16 @@ def test_delete_nodeport_service_calls_client_delete():
     client.delete.assert_called_once_with(Service, name="myapp-service")
 
 
-# ensure_nodeport_service
-
-
-def test_ensure_nodeport_service_creates_when_not_found():
+def test_ensure_nodeport_service_reraises_api_error():
     """
-    arrange: mock a client that raises ApiError 404 on get
-    act: call ensure_nodeport_service
-    assert: create_nodeport_service is called with the correct arguments
-    """
-    client = MagicMock()
-    client.get.side_effect = _make_api_error(404)
-
-    ensure_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")
-
-    assert client.create.called
-    service = client.create.call_args[0][0]
-    assert service.metadata.name == "myapp-service"
-    assert service.spec.ports[0].port == 8080
-    assert service.spec.ports[0].protocol == "TCP"
-
-
-def test_ensure_nodeport_service_does_nothing_when_port_and_protocol_match():
-    """
-    arrange: mock a client returning a service whose port and protocol already match
-    act: call ensure_nodeport_service
-    assert: neither create nor replace is called
-    """
-    client = MagicMock()
-    existing = MagicMock()
-    existing.spec.ports = [MagicMock(port=8080, protocol="TCP")]
-    client.get.return_value = existing
-
-    ensure_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")
-
-    client.create.assert_not_called()
-    client.replace.assert_not_called()
-
-
-def test_ensure_nodeport_service_replaces_when_port_differs():
-    """
-    arrange: mock a client returning a service with a different port
-    act: call ensure_nodeport_service with the new port
-    assert: replace_nodeport_service is called with the new port
-    """
-    client = MagicMock()
-    existing = MagicMock()
-    existing.spec.ports = [MagicMock(port=9090, protocol="TCP")]
-    client.get.return_value = existing
-
-    ensure_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")
-
-    assert client.replace.called
-    service = client.replace.call_args[0][0]
-    assert service.spec.ports[0].port == 8080
-
-
-def test_ensure_nodeport_service_replaces_when_protocol_differs():
-    """
-    arrange: mock a client returning a service with a different protocol
-    act: call ensure_nodeport_service with the new protocol
-    assert: replace_nodeport_service is called with the new protocol
-    """
-    client = MagicMock()
-    existing = MagicMock()
-    existing.spec.ports = [MagicMock(port=8080, protocol="UDP")]
-    client.get.return_value = existing
-
-    ensure_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")
-
-    assert client.replace.called
-    service = client.replace.call_args[0][0]
-    assert service.spec.ports[0].protocol == "TCP"
-
-
-def test_ensure_nodeport_service_reraises_non_404_api_error():
-    """
-    arrange: mock a client that raises ApiError 500 on get
+    arrange: mock a client that raises an ApiError on apply
     act: call ensure_nodeport_service
     assert: the ApiError is re-raised
     """
     import pytest
 
     client = MagicMock()
-    client.get.side_effect = _make_api_error(500)
+    client.apply.side_effect = _make_api_error(500)
 
     with pytest.raises(ApiError):
         ensure_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")

@@ -6,7 +6,7 @@
 import logging
 from typing import Literal, cast
 
-from lightkube import ApiError, Client
+from lightkube import Client
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Node, Service
@@ -37,10 +37,10 @@ def get_nodes_ips(client: Client) -> list[str]:
     ]
 
 
-def create_nodeport_service(
+def ensure_nodeport_service(
     client: Client, port: int, protocol: Protocol, app_name: str
 ) -> Service:
-    """Create a NodePort service for the given app.
+    """Create or update the NodePort service for the given app via server-side apply.
 
     The service name is derived by suffixing the app name with "-service".
 
@@ -52,7 +52,7 @@ def create_nodeport_service(
             the service name.
 
     Returns:
-        The created Kubernetes Service resource.
+        The applied Kubernetes Service resource.
     """
     service = Service(
         metadata=ObjectMeta(name=f"{app_name}-service"),
@@ -62,36 +62,7 @@ def create_nodeport_service(
             ports=[ServicePort(port=port, protocol=protocol)],
         ),
     )
-    return client.create(service)
-
-
-def replace_nodeport_service(
-    client: Client, port: int, protocol: Protocol, app_name: str
-) -> Service:
-    """Replace the NodePort service for the given app with updated port and protocol.
-
-    The service name is derived by suffixing the app name with "-service", matching
-    the naming convention used by :func:`create_nodeport_service`.
-
-    Args:
-        client: A lightkube Client instance.
-        port: The new port number to expose.
-        protocol: The new network protocol ("TCP", "UDP", or "SCTP").
-        app_name: The app name used as the selector label and as the base for
-            the service name.
-
-    Returns:
-        The replaced Kubernetes Service resource.
-    """
-    service = Service(
-        metadata=ObjectMeta(name=f"{app_name}-service"),
-        spec=ServiceSpec(
-            type="NodePort",
-            selector={"app": app_name},
-            ports=[ServicePort(port=port, protocol=protocol)],
-        ),
-    )
-    return client.replace(service)
+    return client.apply(service)
 
 
 def get_nodeport_service(client: Client, app_name: str) -> Service:
@@ -120,32 +91,6 @@ def delete_nodeport_service(client: Client, app_name: str) -> None:
         app_name: The app name; the service is deleted as "{app_name}-service".
     """
     client.delete(Service, name=f"{app_name}-service")
-
-
-def ensure_nodeport_service(client: Client, port: int, protocol: Protocol, app_name: str) -> None:
-    """Create or update the NodePort service so its port and protocol match the given values.
-
-    If the service does not exist it is created. If it exists but its port or
-    protocol differ from the supplied values it is replaced.
-
-    Args:
-        client: A lightkube Client instance.
-        port: The desired port number.
-        protocol: The desired network protocol ("TCP", "UDP", or "SCTP").
-        app_name: The app name; the service is managed as "{app_name}-service".
-    """
-    try:
-        service = get_nodeport_service(client, app_name)
-        if service.spec is None or service.spec.ports is None:
-            raise ValueError(f"NodePort service for {app_name!r} has no spec or ports")
-        existing_port = service.spec.ports[0]
-        if existing_port.port != port or existing_port.protocol != protocol:
-            replace_nodeport_service(client, port, protocol, app_name)
-    except ApiError as e:
-        if e.status.code == 404:
-            create_nodeport_service(client, port, protocol, app_name)
-        else:
-            raise
 
 
 def get_kubernetes_data(client: Client, app_name: str) -> NodePortState:

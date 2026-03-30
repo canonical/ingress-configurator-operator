@@ -302,7 +302,7 @@ def k8s_ingress_requirer_fixture(
     """Deploy any-charm as an ingress requirer on the K8s model.
 
     Args:
-        <charm: Path to the packed charm file.
+        charm: Path to the packed charm file.
         juju_k8s: jubilant.Juju instance for the K8s model.
         lxd_controller: the LXD controller name.
         lxd_model: the LXD model name.

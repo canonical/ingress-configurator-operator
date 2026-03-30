@@ -19,7 +19,6 @@ from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
 from helpers import get_invalid_config_fields, value_has_valid_characters
-from kubernetes import KubernetesData
 
 logger = logging.getLogger()
 CHARM_CONFIG_DELIMITER = ","
@@ -50,13 +49,15 @@ class NodePortState:
     """Charm state subset that contains Kubernetes-specific backend configuration.
 
     Attributes:
-        service_name: The name of the Kubernetes service.
-        service_port: The port exposed by the Kubernetes service.
-        service_protocol: The protocol for the Kubernetes service backend.
+        backend_addresses: Addresses of worker nodes in the cluster.
+        backend_port: The nodePort from the NodePort service.
+        backend_protocol: The transport protocol from the NodePort service.
+        service_name: The name of the NodePort service.
     """
 
     backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
     backend_port: Annotated[int, Field(gt=0, le=65535)]
+    service_name: str
     backend_protocol: Literal["TCP", "UDP", "SCTP"] = "TCP"
 
 
@@ -289,7 +290,7 @@ class State:
         cls,
         charm: ops.CharmBase,
         ingress_data: IngressRequirerData | None,
-        kubernetes_data: KubernetesData | None = None,
+        kubernetes_data: NodePortState | None = None,
     ) -> Self:
         """Create an State class from a charm instance.
 
@@ -387,20 +388,10 @@ class State:
                 else []
             )
             allow_http = cast(bool, charm.config.get("allow-http", False))
-            kubernetes_backend_state = (
-                NodePortState(
-                    backend_addresses=kubernetes_data.node_ips,
-                    backend_port=kubernetes_data.service_node_port,
-                    backend_protocol=kubernetes_data.service_protocol,
-                )
-                if kubernetes_data is not None
-                else None
-            )
             service = f"{charm.model.name}-{charm.app.name}"
             if kubernetes_data:
-                k8s_state = cast(NodePortState, kubernetes_backend_state)
-                backend_addresses = k8s_state.backend_addresses
-                backend_port = k8s_state.backend_port
+                backend_addresses = kubernetes_data.backend_addresses
+                backend_port = kubernetes_data.backend_port
                 service = kubernetes_data.service_name
             return cls(
                 _backend_state=BackendState(backend_addresses, backend_port, backend_protocol),
@@ -417,7 +408,7 @@ class State:
                 header_rewrite_expressions=header_rewrite_expressions,
                 allow_http=allow_http,
                 external_grpc_port=external_grpc_port,
-                _kubernetes_backend_state=kubernetes_backend_state,
+                _kubernetes_backend_state=kubernetes_data,
             )
         except ValidationError as exc:
             logger.error(str(exc))

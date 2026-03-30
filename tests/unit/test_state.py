@@ -14,7 +14,8 @@ from charms.traefik_k8s.v2.ingress import (
 )
 from ops import CharmBase
 
-from kubernetes import KubernetesData
+from pydantic import ValidationError
+
 from state.charm_state import InvalidStateError, NodePortState, State
 
 
@@ -716,20 +717,20 @@ def test_state_from_charm_invalid_external_grpc_port_invalid_and_allow_http():
 
 def test_state_from_charm_with_kubernetes_backend():
     """
-    arrange: mock a charm and provide a KubernetesData value object
+    arrange: mock a charm and provide a NodePortState value object
     act: instantiate a State
-    assert: kubernetes_backend_state is populated with the values from KubernetesData
+    assert: kubernetes_backend_state is populated with the values from NodePortState
     """
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1",
         "backend-ports": "80",
     }
-    kubernetes_data = KubernetesData(
-        node_ips=["10.0.0.1", "10.0.0.2"],
+    kubernetes_data = NodePortState(
+        backend_addresses=["10.0.0.1", "10.0.0.2"],
         service_name="my-service",
-        service_node_port=8080,
-        service_protocol="TCP",
+        backend_port=8080,
+        backend_protocol="TCP",
     )
 
     charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
@@ -744,7 +745,7 @@ def test_state_from_charm_with_kubernetes_backend():
 
 def test_state_from_charm_kubernetes_backend_default_protocol():
     """
-    arrange: mock a charm and provide a KubernetesData value object
+    arrange: mock a charm and provide a NodePortState value object
     act: instantiate a State
     assert: kubernetes_backend_state.backend_protocol defaults to "TCP"
     """
@@ -753,11 +754,11 @@ def test_state_from_charm_kubernetes_backend_default_protocol():
         "backend-addresses": "127.0.0.1",
         "backend-ports": "80",
     }
-    kubernetes_data = KubernetesData(
-        node_ips=["10.0.0.1"],
+    kubernetes_data = NodePortState(
+        backend_addresses=["10.0.0.1"],
         service_name="api-service",
-        service_node_port=9000,
-        service_protocol="TCP",
+        backend_port=9000,
+        backend_protocol="TCP",
     )
 
     charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
@@ -768,7 +769,7 @@ def test_state_from_charm_kubernetes_backend_default_protocol():
 
 def test_state_from_charm_kubernetes_overrides_backend_addresses_and_ports():
     """
-    arrange: mock a charm with config addresses/ports and provide KubernetesData with node IPs
+    arrange: mock a charm with config addresses/ports and provide NodePortState with node IPs
         and a service port
     act: instantiate a State
     assert: backend_addresses and backend_port are taken from kubernetes, not charm config
@@ -778,11 +779,11 @@ def test_state_from_charm_kubernetes_overrides_backend_addresses_and_ports():
         "backend-addresses": "127.0.0.1",
         "backend-ports": "80",
     }
-    kubernetes_data = KubernetesData(
-        node_ips=["10.0.0.1", "10.0.0.2"],
+    kubernetes_data = NodePortState(
+        backend_addresses=["10.0.0.1", "10.0.0.2"],
         service_name="my-service",
-        service_node_port=8080,
-        service_protocol="TCP",
+        backend_port=8080,
+        backend_protocol="TCP",
     )
 
     charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
@@ -793,7 +794,7 @@ def test_state_from_charm_kubernetes_overrides_backend_addresses_and_ports():
 
 def test_state_from_charm_service_name():
     """
-    arrange: mock a charm with and without KubernetesData
+    arrange: mock a charm with and without NodePortState
     act: instantiate a State in both cases
     assert: service is kubernetes_data.service_name when kubernetes_data is provided,
         and "{model}-{app}" otherwise
@@ -805,11 +806,11 @@ def test_state_from_charm_service_name():
         "backend-addresses": "127.0.0.1",
         "backend-ports": "80",
     }
-    kubernetes_data = KubernetesData(
-        node_ips=["10.0.0.1"],
+    kubernetes_data = NodePortState(
+        backend_addresses=["10.0.0.1"],
         service_name="my-k8s-service",
-        service_node_port=8080,
-        service_protocol="TCP",
+        backend_port=8080,
+        backend_protocol="TCP",
     )
 
     with_kubernetes = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
@@ -821,7 +822,7 @@ def test_state_from_charm_service_name():
 
 def test_state_from_charm_kubernetes_backend_protocol_from_config():
     """
-    arrange: mock a charm with backend-protocol "https" and provide KubernetesData
+    arrange: mock a charm with backend-protocol "https" and provide NodePortState
     act: instantiate a State
     assert: backend_protocol on State reflects charm config, not the kubernetes transport protocol
     """
@@ -831,11 +832,11 @@ def test_state_from_charm_kubernetes_backend_protocol_from_config():
         "backend-ports": "80",
         "backend-protocol": "https",
     }
-    kubernetes_data = KubernetesData(
-        node_ips=["10.0.0.1"],
+    kubernetes_data = NodePortState(
+        backend_addresses=["10.0.0.1"],
         service_name="my-service",
-        service_node_port=8080,
-        service_protocol="TCP",
+        backend_port=8080,
+        backend_protocol="TCP",
     )
 
     charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
@@ -862,21 +863,14 @@ def test_state_from_charm_without_kubernetes_backend():
 
 def test_state_from_charm_invalid_kubernetes_service_port():
     """
-    arrange: mock a charm and provide a KubernetesData with an out-of-range targetPort
-    act: instantiate a State
-    assert: InvalidStateError is raised
+    arrange: mock a charm and provide a NodePortState with an out-of-range targetPort
+    act: instantiate a NodePortState
+    assert: ValidationError is raised
     """
-    charm = Mock(CharmBase)
-    charm.config = {
-        "backend-addresses": "127.0.0.1",
-        "backend-ports": "80",
-    }
-    kubernetes_data = KubernetesData(
-        node_ips=["10.0.0.1"],
-        service_name="my-service",
-        service_node_port=99999,
-        service_protocol="TCP",
-    )
-
-    with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None, kubernetes_data=kubernetes_data)
+    with pytest.raises(ValidationError):
+        NodePortState(
+            backend_addresses=["10.0.0.1"],
+            service_name="my-service",
+            backend_port=99999,
+            backend_protocol="TCP",
+        )

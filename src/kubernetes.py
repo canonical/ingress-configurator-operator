@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 Protocol = Literal["TCP", "UDP", "SCTP"]
 
 
-def get_node_ips(client: Client) -> list[str]:
+def get_nodes_ips(client: Client) -> list[str]:
     """Fetch the InternalIP addresses of nodes in the cluster.
 
     Args:
@@ -158,7 +158,7 @@ def get_kubernetes_data(client: Client, app_name: str) -> NodePortState:
     Returns:
         A NodePortState instance populated with node IPs and service details.
     """
-    node_ips = get_node_ips(client)
+    node_ips = get_nodes_ips(client)
     service = get_nodeport_service(client, app_name)
     if service.spec is None or service.spec.ports is None:
         raise ValueError(f"NodePort service for {app_name!r} has no spec or ports")

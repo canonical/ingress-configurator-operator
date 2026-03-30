@@ -7,10 +7,7 @@ from unittest.mock import MagicMock
 
 from lightkube import ApiError
 
-from kubernetes import
-from state.charm_state import NodePortState  # noqa: F401
-# Remove the line below after verifying
- (
+from kubernetes import (
     create_nodeport_service,
     delete_nodeport_service,
     ensure_nodeport_service,
@@ -19,6 +16,7 @@ from state.charm_state import NodePortState  # noqa: F401
     get_nodeport_service,
     replace_nodeport_service,
 )
+from state.charm_state import NodePortState
 
 
 def _make_node(*addresses: tuple[str, str]) -> MagicMock:
@@ -196,9 +194,9 @@ def test_get_kubernetes_data_returns_kubernetes_data():
 
     assert isinstance(result, NodePortState)
     assert result.service_name == "myapp-service"
-    assert result.service_node_port == 8080
-    assert result.service_protocol == "TCP"
-    assert result.node_ips == ["10.0.0.1"]
+    assert result.backend_port == 8080
+    assert result.backend_protocol == "TCP"
+    assert [str(ip) for ip in result.backend_addresses] == ["10.0.0.1"]
 
 
 def _make_api_error(code: int) -> ApiError:

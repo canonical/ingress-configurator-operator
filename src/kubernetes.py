@@ -115,7 +115,7 @@ def delete_nodeport_service(client: Client, app_name: str) -> None:
     """Delete the NodePort service for the given app.
 
     The service name is derived by suffixing app_name with "-service", matching
-    the naming convention used by :func:`create_nodeport_service`.
+    the naming convention used by :func:`ensure_nodeport_service`.
 
     Args:
         client: A lightkube Client instance.

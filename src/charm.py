@@ -105,6 +105,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                     self._ingress.get_data(ingress_relation) if ingress_relation else None
                 )
                 logger.debug(ingress_relation_data)
+                kubernetes_data = None
                 if self.is_kubernetes() and ingress_relation_data is not None:
                     ensure_nodeport_service(
                         self.lightkube_client,
@@ -112,11 +113,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                         "TCP",
                         ingress_relation_data.app.name,
                     )
-                kubernetes_data = (
-                    get_kubernetes_data(self.lightkube_client, ingress_relation_data.app.name)
-                    if self.is_kubernetes() and ingress_relation_data is not None
-                    else None
-                )
+                    kubernetes_data = get_kubernetes_data(self.lightkube_client, ingress_relation_data.app.name)
                 logger.debug(kubernetes_data)
                 charm_state = State.from_charm(self, ingress_relation_data, kubernetes_data)
                 logger.debug(charm_state)

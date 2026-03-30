@@ -92,13 +92,18 @@ def juju_fixture(lxd_controller: str, lxd_model: str):
 @pytest.fixture(scope="module", name="juju_k8s")
 def juju_k8s_fixture(juju: jubilant.Juju, k8s_controller: str, k8s_model: str):
     """Pytest fixture that wraps :meth:`jubilant.with_model`."""
-    juju.cli(
-        "add-cloud",
-        "--controller",
-        k8s_controller,
-        "k8s",
-        include_model=False,
-    )
+    try:
+        juju.cli(
+            "add-cloud",
+            "--controller",
+            k8s_controller,
+            "k8s",
+            include_model=False,
+        )
+    except jubilant.CLIError as exc:
+        # Ignore the error only if the cloud already exists; re-raise for all other failures.
+        if "already exists" not in str(exc):
+            raise
     try:
         juju.add_model(k8s_model, "k8s")
     except jubilant.CLIError as exc:

@@ -36,12 +36,12 @@ class BackendState:
 
     Attributes:
         backend_addresses: Configured list of backend ip addresses.
-        backend_ports: Configured list of backend ports.
+        backend_port: Configured backend port.
         backend_protocol: The configured protocol for the backend.
     """
 
     backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
-    backend_ports: Annotated[list[Annotated[int, Field(gt=0, le=65535)]], Len(min_length=1)]
+    backend_port: Annotated[int, Field(gt=0, le=65535)]
     backend_protocol: Literal["http", "https"]
 
 
@@ -56,7 +56,7 @@ class NodePortState:
     """
 
     backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
-    backend_ports: Annotated[list[Annotated[int, Field(gt=0, le=65535)]], Len(min_length=1)]
+    backend_port: Annotated[int, Field(gt=0, le=65535)]
     backend_protocol: Literal["TCP", "UDP", "SCTP"] = "TCP"
 
 
@@ -194,7 +194,7 @@ class State:
 
     Attributes:
         backend_addresses: Configured list of backend ip addresses.
-        backend_ports: Configured list of backend ports.
+        backend_port: Configured backend port.
         backend_protocol: The configured protocol for the backend.
         health_check: Health check configuration.
         retry: Retry configuration.
@@ -240,9 +240,9 @@ class State:
         return self._backend_state.backend_addresses
 
     @property
-    def backend_ports(self) -> list[int]:
-        """List of backend ports."""
-        return self._backend_state.backend_ports
+    def backend_port(self) -> int:
+        """Backend port."""
+        return self._backend_state.backend_port
 
     @property
     def backend_protocol(self) -> Literal["http", "https"]:
@@ -314,10 +314,10 @@ class State:
                 if charm.config.get("backend-addresses")
                 else []
             )
-            config_backend_ports = (
-                [int(port) for port in cast(str, charm.config.get("backend-ports")).split(",")]
+            config_backend_port = (
+                int(cast(str, charm.config.get("backend-ports")))
                 if charm.config.get("backend-ports")
-                else []
+                else None
             )
             # The value will be validated by the BackendState constructor
             backend_protocol = cast(
@@ -325,7 +325,7 @@ class State:
                 (charm.config.get("backend-protocol") or "http"),
             )
             external_grpc_port = cast(int | None, charm.config.get("external-grpc-port"))
-            ingress_backend_ports = [ingress_data.app.port] if ingress_data else []
+            ingress_backend_port = ingress_data.app.port if ingress_data else None
             ingress_backend_addresses = (
                 [cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units]
                 if ingress_data
@@ -344,13 +344,13 @@ class State:
             )
             http_server_close = cast(bool, charm.config.get("http-server-close", False))
 
-            config_backend = bool(config_backend_addresses or config_backend_ports)
-            ingress_backend = bool(ingress_backend_addresses or ingress_backend_ports)
+            config_backend = bool(config_backend_addresses or config_backend_port)
+            ingress_backend = bool(ingress_backend_addresses or ingress_backend_port)
             # Only backend configuration from a single origin is supported
             if config_backend == ingress_backend:
                 raise InvalidStateError("No valid mode detected.")
             backend_addresses = config_backend_addresses or ingress_backend_addresses
-            backend_ports = config_backend_ports or ingress_backend_ports
+            backend_port = config_backend_port or ingress_backend_port
 
             load_balancing_algorithm = LoadBalancingAlgorithm(
                 cast(
@@ -390,7 +390,7 @@ class State:
             kubernetes_backend_state = (
                 NodePortState(
                     backend_addresses=kubernetes_data.node_ips,
-                    backend_ports=[kubernetes_data.service_node_port],
+                    backend_port=kubernetes_data.service_node_port,
                     backend_protocol=kubernetes_data.service_protocol,
                 )
                 if kubernetes_data is not None
@@ -400,10 +400,10 @@ class State:
             if kubernetes_data:
                 k8s_state = cast(NodePortState, kubernetes_backend_state)
                 backend_addresses = k8s_state.backend_addresses
-                backend_ports = k8s_state.backend_ports
+                backend_port = k8s_state.backend_port
                 service = kubernetes_data.service_name
             return cls(
-                _backend_state=BackendState(backend_addresses, backend_ports, backend_protocol),
+                _backend_state=BackendState(backend_addresses, backend_port, backend_protocol),
                 paths=paths,
                 health_check=HealthCheck.from_charm(charm),
                 retry=Retry.from_charm(charm),

@@ -51,7 +51,7 @@ def test_adapter_state_from_charm():
     assert [str(address) for address in charm_state.backend_addresses] == [
         ingress_relation_data.units[0].ip
     ]
-    assert charm_state.backend_ports == [ingress_relation_data.app.port]
+    assert charm_state.backend_port == ingress_relation_data.app.port
     assert charm_state.backend_protocol == "http"
     assert charm_state.health_check.interval == charm.config.get("health-check-interval")
     assert charm_state.health_check.rise == charm.config.get("health-check-rise")
@@ -79,7 +79,7 @@ def test_integrator_state_from_charm():
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
-        "backend-ports": "8080,8081",
+        "backend-ports": "8080",
         "retry-count": 1,
         "retry-redispatch": True,
         "http-server-close": True,
@@ -88,9 +88,7 @@ def test_integrator_state_from_charm():
     assert [str(address) for address in charm_state.backend_addresses] == charm.config.get(
         "backend-addresses"
     ).split(",")
-    assert [str(port) for port in charm_state.backend_ports] == charm.config.get(
-        "backend-ports"
-    ).split(",")
+    assert charm_state.backend_port == int(charm.config.get("backend-ports"))
     assert charm_state.backend_protocol == "http"
     assert charm_state.retry.count == charm.config.get("retry-count")
     assert charm_state.retry.redispatch == charm.config.get("retry-redispatch")
@@ -134,7 +132,7 @@ def test_state_from_charm_invalid_paths():
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
-        "backend-ports": "8080,8081",
+        "backend-ports": "8080",
         "paths": "invalid path",
     }
     with pytest.raises(InvalidStateError):
@@ -177,7 +175,7 @@ def test_state_from_charm_invalid_check_path():
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
-        "backend-ports": "8080,8081",
+        "backend-ports": "8080",
         "health-check-path": "invalid$path",
     }
     with pytest.raises(InvalidStateError):
@@ -193,7 +191,7 @@ def test_state_from_charm_invalid_check_port():
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
-        "backend-ports": "8080,8081",
+        "backend-ports": "8080",
         "health-check-port": 99999,
     }
     with pytest.raises(InvalidStateError):
@@ -209,7 +207,7 @@ def test_state_from_charm_invalid_check_interval():
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
-        "backend-ports": "8080,8081",
+        "backend-ports": "8080",
         "health-check-interval": 0,
     }
     with pytest.raises(InvalidStateError):
@@ -225,7 +223,7 @@ def test_state_from_charm_invalid_check_rise():
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
-        "backend-ports": "8080,8081",
+        "backend-ports": "8080",
         "health-check-rise": 0,
     }
     with pytest.raises(InvalidStateError):
@@ -241,7 +239,7 @@ def test_state_from_charm_invalid_check_fall():
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
-        "backend-ports": "8080,8081",
+        "backend-ports": "8080",
         "health-check-fall": 0,
     }
     with pytest.raises(InvalidStateError):
@@ -257,7 +255,7 @@ def test_state_from_charm_invalid_missing_check_interval():
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
-        "backend-ports": "8080,8081",
+        "backend-ports": "8080",
         "health-check-rise": 3,
         "health-check-fall": 4,
     }
@@ -274,7 +272,7 @@ def test_state_from_charm_invalid_missing_check_rise():
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
-        "backend-ports": "8080,8081",
+        "backend-ports": "8080",
         "health-check-interval": 20,
         "health-check-fall": 4,
     }
@@ -291,7 +289,7 @@ def test_state_from_charm_invalid_missing_check_fall():
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
-        "backend-ports": "8080,8081",
+        "backend-ports": "8080",
         "health-check-interval": 20,
         "health-check-rise": 3,
     }
@@ -308,7 +306,7 @@ def test_state_from_charm_invalid_retry_count():
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
-        "backend-ports": "8080,8081",
+        "backend-ports": "8080",
         "retry-count": 0,
     }
     with pytest.raises(InvalidStateError):
@@ -372,7 +370,7 @@ def test_state_from_charm_invalid_hostname():
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
-        "backend-ports": "8080,8081",
+        "backend-ports": "8080",
         "hostname": "invalid$hostname",
     }
     with pytest.raises(InvalidStateError):
@@ -388,7 +386,7 @@ def test_state_from_charm_invalid_additional_hostnames():
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
-        "backend-ports": "8080,8081",
+        "backend-ports": "8080",
         "hostname": "valid.example.com",
         "additional-hostnames": "invalid$\\",
     }
@@ -416,7 +414,7 @@ def test_state_from_charm_valid_hostname_with_wildcard(hostname):
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
-        "backend-ports": "8080,8081",
+        "backend-ports": "8080",
         "hostname": hostname,
     }
     charm_state = State.from_charm(charm, None)
@@ -444,7 +442,7 @@ def test_state_from_charm_invalid_hostname_wildcard(invalid_hostname):
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
-        "backend-ports": "8080,8081",
+        "backend-ports": "8080",
         "hostname": invalid_hostname,
     }
     with pytest.raises(InvalidStateError):
@@ -469,7 +467,7 @@ def test_state_from_charm_valid_additional_hostnames_with_wildcard(additional_ho
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
-        "backend-ports": "8080,8081",
+        "backend-ports": "8080",
         "additional-hostnames": additional_hostnames,
     }
     charm_state = State.from_charm(charm, None)
@@ -494,7 +492,7 @@ def test_state_from_charm_invalid_additional_hostnames_wildcard(invalid_addition
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1,127.0.0.2",
-        "backend-ports": "8080,8081",
+        "backend-ports": "8080",
         "additional-hostnames": invalid_additional_hostnames,
     }
     with pytest.raises(InvalidStateError):
@@ -737,7 +735,7 @@ def test_state_from_charm_with_kubernetes_backend():
     charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
 
     assert isinstance(charm_state.kubernetes_backend_state, NodePortState)
-    assert charm_state.kubernetes_backend_state.backend_ports == [8080]
+    assert charm_state.kubernetes_backend_state.backend_port == 8080
     assert [str(a) for a in charm_state.kubernetes_backend_state.backend_addresses] == [
         "10.0.0.1",
         "10.0.0.2",
@@ -773,7 +771,7 @@ def test_state_from_charm_kubernetes_overrides_backend_addresses_and_ports():
     arrange: mock a charm with config addresses/ports and provide KubernetesData with node IPs
         and a service port
     act: instantiate a State
-    assert: backend_addresses and backend_ports are taken from kubernetes, not charm config
+    assert: backend_addresses and backend_port are taken from kubernetes, not charm config
     """
     charm = Mock(CharmBase)
     charm.config = {
@@ -790,7 +788,7 @@ def test_state_from_charm_kubernetes_overrides_backend_addresses_and_ports():
     charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
 
     assert [str(a) for a in charm_state.backend_addresses] == ["10.0.0.1", "10.0.0.2"]
-    assert charm_state.backend_ports == [8080]
+    assert charm_state.backend_port == 8080
 
 
 def test_state_from_charm_service_name():

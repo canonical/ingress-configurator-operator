@@ -8,11 +8,12 @@ from unittest.mock import MagicMock
 from lightkube import ApiError
 
 from kubernetes import (
-    ensure_nodeport_service,
     delete_nodeport_service,
+    delete_nodeport_services_owned_by,
+    ensure_nodeport_service,
     get_kubernetes_data,
-    get_nodes_ips,
     get_nodeport_service,
+    get_nodes_ips,
 )
 from state.charm_state import InvalidStateError, NodePortState
 
@@ -76,15 +77,19 @@ def test_get_nodes_ips_empty_cluster():
 def test_ensure_nodeport_service():
     """
     arrange: mock a lightkube client
-    act: call ensure_nodeport_service with port 9090, protocol UDP, and app_name "myapp"
-    assert: the applied service has the correct name, type, selector, port and protocol
+    act: call ensure_nodeport_service with port 9090, protocol UDP, app_name "myapp", and
+        charm_name "my-charm"
+    assert: the applied service has the correct name, type, selector, port, protocol and annotation
     """
     client = MagicMock()
 
-    ensure_nodeport_service(client, port=9090, protocol="UDP", app_name="myapp")
+    ensure_nodeport_service(
+        client, port=9090, protocol="UDP", app_name="myapp", charm_name="my-charm"
+    )
 
     service = client.apply.call_args[0][0]
     assert service.metadata.name == "myapp-service"
+    assert service.metadata.annotations == {"owning-charm": "my-charm"}
     assert service.spec.type == "NodePort"
     assert service.spec.selector == {"app": "myapp"}
     assert service.spec.ports[0].port == 9090
@@ -163,7 +168,9 @@ def test_ensure_nodeport_service_reraises_api_error():
     client.apply.side_effect = _make_api_error(500)
 
     with pytest.raises(ApiError):
-        ensure_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")
+        ensure_nodeport_service(
+            client, port=8080, protocol="TCP", app_name="myapp", charm_name="my-charm"
+        )
 
 
 def test_ensure_nodeport_service_raises_invalid_state_error_on_403():
@@ -178,4 +185,68 @@ def test_ensure_nodeport_service_raises_invalid_state_error_on_403():
     client.apply.side_effect = _make_api_error(403)
 
     with pytest.raises(InvalidStateError, match="--trust"):
-        ensure_nodeport_service(client, port=8080, protocol="TCP", app_name="myapp")
+        ensure_nodeport_service(
+            client, port=8080, protocol="TCP", app_name="myapp", charm_name="my-charm"
+        )
+
+
+def _make_service(name: str, annotations: dict | None) -> MagicMock:
+    """Create a mock Service with the given name and annotations."""
+    service = MagicMock()
+    service.metadata.name = name
+    service.metadata.annotations = annotations
+    return service
+
+
+def test_delete_nodeport_services_owned_by_deletes_matching_services():
+    """
+    arrange: mock a client listing two services, one owned by the charm and one not
+    act: call delete_nodeport_services_owned_by
+    assert: only the service with the matching owning-charm annotation is deleted
+    """
+    from lightkube.resources.core_v1 import Service
+
+    client = MagicMock()
+    client.list.return_value = [
+        _make_service("app-a-service", {"owning-charm": "my-charm"}),
+        _make_service("app-b-service", {"owning-charm": "other-charm"}),
+    ]
+
+    delete_nodeport_services_owned_by(client, "my-charm")
+
+    client.delete.assert_called_once_with(Service, name="app-a-service")
+
+
+def test_delete_nodeport_services_owned_by_skips_services_without_annotation():
+    """
+    arrange: mock a client listing a service with no annotations
+    act: call delete_nodeport_services_owned_by
+    assert: no services are deleted
+    """
+    client = MagicMock()
+    client.list.return_value = [_make_service("app-a-service", None)]
+
+    delete_nodeport_services_owned_by(client, "my-charm")
+
+    client.delete.assert_not_called()
+
+
+def test_delete_nodeport_services_owned_by_deletes_multiple_owned_services():
+    """
+    arrange: mock a client listing two services both owned by the charm
+    act: call delete_nodeport_services_owned_by
+    assert: both services are deleted
+    """
+    from lightkube.resources.core_v1 import Service
+
+    client = MagicMock()
+    client.list.return_value = [
+        _make_service("app-a-service", {"owning-charm": "my-charm"}),
+        _make_service("app-b-service", {"owning-charm": "my-charm"}),
+    ]
+
+    delete_nodeport_services_owned_by(client, "my-charm")
+
+    assert client.delete.call_count == 2
+    client.delete.assert_any_call(Service, name="app-a-service")
+    client.delete.assert_any_call(Service, name="app-b-service")

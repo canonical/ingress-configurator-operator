@@ -13,7 +13,6 @@ from charms.traefik_k8s.v2.ingress import (
     IngressRequirerUnitData,
 )
 from ops import CharmBase
-
 from pydantic import ValidationError
 
 from state.charm_state import InvalidStateError, NodePortState, State

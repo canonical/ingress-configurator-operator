@@ -351,7 +351,7 @@ class State:
             if config_backend == ingress_backend:
                 raise InvalidStateError("No valid mode detected.")
             backend_addresses = config_backend_addresses or ingress_backend_addresses
-            backend_port = config_backend_port or ingress_backend_port
+            backend_port = cast(int, config_backend_port or ingress_backend_port)
 
             load_balancing_algorithm = LoadBalancingAlgorithm(
                 cast(

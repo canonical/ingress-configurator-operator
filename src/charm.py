@@ -18,6 +18,7 @@ from charms.traefik_k8s.v2.ingress import IngressPerAppProvider
 from lightkube import Client
 
 from kubernetes import (
+    delete_nodeport_services_owned_by,
     ensure_nodeport_service,
     get_kubernetes_data,
 )
@@ -110,8 +111,13 @@ class IngressConfiguratorCharm(ops.CharmBase):
                         ingress_relation_data.app.port,
                         "TCP",
                         ingress_relation_data.app.name,
+                        self.app.name,
                     )
-                    kubernetes_data = get_kubernetes_data(self.lightkube_client, ingress_relation_data.app.name)
+                    kubernetes_data = get_kubernetes_data(
+                        self.lightkube_client, ingress_relation_data.app.name
+                    )
+                elif self.is_kubernetes() and ingress_relation_data is None:
+                    delete_nodeport_services_owned_by(self.lightkube_client, self.app.name)
                 charm_state = State.from_charm(self, ingress_relation_data, kubernetes_data)
                 # Assign consistent_hashing to a local variable due to line length limit
                 consistent_hashing = charm_state.load_balancing_configuration.consistent_hashing

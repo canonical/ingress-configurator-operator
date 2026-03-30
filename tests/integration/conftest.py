@@ -101,8 +101,9 @@ def juju_k8s_fixture(juju: jubilant.Juju, k8s_controller: str, k8s_model: str):
     )
     try:
         juju.add_model(k8s_model, "k8s")
-    except jubilant.CLIError:
-        if not "already exists":
+    except jubilant.CLIError as exc:
+        # Ignore the error only if the model already exists; re-raise for all other failures.
+        if "already exists" not in str(exc):
             raise
     new_juju = jubilant.Juju(model=f"{k8s_controller}:{k8s_model}")
     new_juju.wait_timeout = JUJU_WAIT_TIMEOUT

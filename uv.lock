@@ -328,7 +328,7 @@ integration = [
     { name = "allure-pytest-collection-report", git = "https://github.com/canonical/data-platform-workflows?subdirectory=python%2Fpytest_plugins%2Fallure_pytest_collection_report&rev=v24.0.0" },
     { name = "jubilant" },
     { name = "pytest" },
-    { name = "pytest-jubilant" },
+    { name = "pytest-jubilant", specifier = "<2" },
     { name = "requests" },
 ]
 lint = [
@@ -658,15 +658,15 @@ wheels = [
 
 [[package]]
 name = "pytest-jubilant"
-version = "0.7.1"
+version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jubilant" },
     { name = "pytest" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/21/20/a35203e1ba501c0eeb826917b023e3c8d06ee965741ac8245155e7628f84/pytest_jubilant-0.7.1.tar.gz", hash = "sha256:0a69a352d9da01b2e02331ef392baee1127f58f0529cf5ae9660a2bcf7f62b09", size = 11734, upload-time = "2025-07-07T13:31:32.521Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/8a/31/2726f3a38c94036434e5744fd727e517495814692aa79f5200444dd5d18a/pytest_jubilant-1.3.0.tar.gz", hash = "sha256:93e05233172e33a76f96e162fd9aeb5161f453abd7de521183631857bb77a8ea", size = 12752, upload-time = "2026-03-13T02:04:14.435Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2e/d9/4544a16eb660da6d467f2565ca5be2c520df8a2d0611f8d657ddb92498a4/pytest_jubilant-0.7.1-py3-none-any.whl", hash = "sha256:1d89321ed6728fa412c5bd6112856e42c7f5e5905587657bd53b2158f7488bfd", size = 11811, upload-time = "2025-07-07T13:31:31.151Z" },
+    { url = "https://files.pythonhosted.org/packages/cf/85/07093962c95599bc27ee35734951466fcb367f2ce24f8a9cac6f297a789a/pytest_jubilant-1.3.0-py3-none-any.whl", hash = "sha256:520c04f5a4a5d1d9e3729424d4f8bd6b01153c0284fb3e2fda8fe90fae79cc4a", size = 11831, upload-time = "2026-03-13T02:04:13.131Z" },
 ]
 
 [[package]]

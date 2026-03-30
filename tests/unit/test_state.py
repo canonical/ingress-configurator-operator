@@ -51,7 +51,7 @@ def test_adapter_state_from_charm():
     assert [str(address) for address in charm_state.backend_addresses] == [
         ingress_relation_data.units[0].ip
     ]
-    assert charm_state.backend_port == ingress_relation_data.app.port
+    assert charm_state.backend_ports == [ingress_relation_data.app.port]
     assert charm_state.backend_protocol == "http"
     assert charm_state.health_check.interval == charm.config.get("health-check-interval")
     assert charm_state.health_check.rise == charm.config.get("health-check-rise")
@@ -88,7 +88,7 @@ def test_integrator_state_from_charm():
     assert [str(address) for address in charm_state.backend_addresses] == charm.config.get(
         "backend-addresses"
     ).split(",")
-    assert charm_state.backend_port == int(charm.config.get("backend-ports"))
+    assert charm_state.backend_ports == [int(charm.config.get("backend-ports"))]
     assert charm_state.backend_protocol == "http"
     assert charm_state.retry.count == charm.config.get("retry-count")
     assert charm_state.retry.redispatch == charm.config.get("retry-redispatch")
@@ -788,7 +788,7 @@ def test_state_from_charm_kubernetes_overrides_backend_addresses_and_ports():
     charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
 
     assert [str(a) for a in charm_state.backend_addresses] == ["10.0.0.1", "10.0.0.2"]
-    assert charm_state.backend_port == 8080
+    assert charm_state.backend_ports == [8080]
 
 
 def test_state_from_charm_service_name():

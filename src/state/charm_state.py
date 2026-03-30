@@ -35,12 +35,12 @@ class BackendState:
 
     Attributes:
         backend_addresses: Configured list of backend ip addresses.
-        backend_port: Configured backend port.
+        backend_ports: Configured list of backend ports.
         backend_protocol: The configured protocol for the backend.
     """
 
     backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
-    backend_port: Annotated[int, Field(gt=0, le=65535)]
+    backend_ports: Annotated[list[Annotated[int, Field(gt=0, le=65535)]], Len(min_length=1)]
     backend_protocol: Literal["http", "https"]
 
 
@@ -195,7 +195,7 @@ class State:
 
     Attributes:
         backend_addresses: Configured list of backend ip addresses.
-        backend_port: Configured backend port.
+        backend_ports: Configured list of backend ports.
         backend_protocol: The configured protocol for the backend.
         health_check: Health check configuration.
         retry: Retry configuration.
@@ -241,9 +241,9 @@ class State:
         return self._backend_state.backend_addresses
 
     @property
-    def backend_port(self) -> int:
-        """Backend port."""
-        return self._backend_state.backend_port
+    def backend_ports(self) -> list[int]:
+        """List of backend ports."""
+        return self._backend_state.backend_ports
 
     @property
     def backend_protocol(self) -> Literal["http", "https"]:
@@ -315,10 +315,10 @@ class State:
                 if charm.config.get("backend-addresses")
                 else []
             )
-            config_backend_port = (
-                int(cast(str, charm.config.get("backend-ports")))
+            config_backend_ports = (
+                [int(port) for port in cast(str, charm.config.get("backend-ports")).split(",")]
                 if charm.config.get("backend-ports")
-                else None
+                else []
             )
             # The value will be validated by the BackendState constructor
             backend_protocol = cast(
@@ -326,7 +326,7 @@ class State:
                 (charm.config.get("backend-protocol") or "http"),
             )
             external_grpc_port = cast(int | None, charm.config.get("external-grpc-port"))
-            ingress_backend_port = ingress_data.app.port if ingress_data else None
+            ingress_backend_ports = [ingress_data.app.port] if ingress_data else []
             ingress_backend_addresses = (
                 [cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units]
                 if ingress_data
@@ -345,13 +345,13 @@ class State:
             )
             http_server_close = cast(bool, charm.config.get("http-server-close", False))
 
-            config_backend = bool(config_backend_addresses or config_backend_port)
-            ingress_backend = bool(ingress_backend_addresses or ingress_backend_port)
+            config_backend = bool(config_backend_addresses or config_backend_ports)
+            ingress_backend = bool(ingress_backend_addresses or ingress_backend_ports)
             # Only backend configuration from a single origin is supported
             if config_backend == ingress_backend:
                 raise InvalidStateError("No valid mode detected.")
             backend_addresses = config_backend_addresses or ingress_backend_addresses
-            backend_port = cast(int, config_backend_port or ingress_backend_port)
+            backend_ports = config_backend_ports or ingress_backend_ports
 
             load_balancing_algorithm = LoadBalancingAlgorithm(
                 cast(
@@ -391,10 +391,10 @@ class State:
             service = f"{charm.model.name}-{charm.app.name}"
             if kubernetes_data:
                 backend_addresses = kubernetes_data.backend_addresses
-                backend_port = kubernetes_data.backend_port
+                backend_ports = [kubernetes_data.backend_port]
                 service = kubernetes_data.service_name
             return cls(
-                _backend_state=BackendState(backend_addresses, backend_port, backend_protocol),
+                _backend_state=BackendState(backend_addresses, backend_ports, backend_protocol),
                 paths=paths,
                 health_check=HealthCheck.from_charm(charm),
                 retry=Retry.from_charm(charm),

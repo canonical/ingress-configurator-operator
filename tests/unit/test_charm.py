@@ -21,7 +21,7 @@ def test_config_changed_invalid_state(monkeypatch: pytest.MonkeyPatch, context):
     """
     monkeypatch.setattr(State, "from_charm", MagicMock(side_effect=InvalidStateError))
     charm_state = ops.testing.State(
-        config={"backend-addresses": "10.0.0.1,invalid", "backend-ports": "8080,8081"},
+        config={"backend-addresses": "10.0.0.1,invalid", "backend-ports": "8080"},
         relations=[ops.testing.Relation("haproxy-route")],
         leader=True,
     )
@@ -38,7 +38,7 @@ def test_config_changed_integrator(context):
     assert: status is active.
     """
     charm_state = ops.testing.State(
-        config={"backend-addresses": "10.0.0.1,10.0.0.2", "backend-ports": "8080,8081"},
+        config={"backend-addresses": "10.0.0.1,10.0.0.2", "backend-ports": "8080"},
         relations=[ops.testing.Relation("haproxy-route")],
         leader=True,
     )

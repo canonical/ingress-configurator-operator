@@ -7,13 +7,15 @@ from unittest.mock import MagicMock
 
 from lightkube import ApiError
 
-from kubernetes import (
-    KubernetesData,
+from kubernetes import
+from state.charm_state import NodePortState  # noqa: F401
+# Remove the line below after verifying
+ (
     create_nodeport_service,
     delete_nodeport_service,
     ensure_nodeport_service,
     get_kubernetes_data,
-    get_node_ips,
+    get_nodes_ips,
     get_nodeport_service,
     replace_nodeport_service,
 )
@@ -28,10 +30,10 @@ def _make_node(*addresses: tuple[str, str]) -> MagicMock:
     return node
 
 
-def test_get_node_ips_returns_internal_ips_from_worker_nodes():
+def test_get_nodes_ips_returns_internal_ips_from_worker_nodes():
     """
     arrange: mock a client returning two worker nodes each with an InternalIP and other address types
-    act: call get_node_ips
+    act: call get_nodes_ips
     assert: only the InternalIP addresses are returned
     """
     client = MagicMock()
@@ -40,15 +42,15 @@ def test_get_node_ips_returns_internal_ips_from_worker_nodes():
         _make_node(("InternalIP", "10.0.0.2"), ("ExternalIP", "5.6.7.8")),
     ]
 
-    ips = get_node_ips(client)
+    ips = get_nodes_ips(client)
 
     assert ips == ["10.0.0.1", "10.0.0.2"]
 
 
-def test_get_node_ips_skips_non_internal_ip_addresses():
+def test_get_nodes_ips_skips_non_internal_ip_addresses():
     """
     arrange: mock a client returning a worker node with only ExternalIP and Hostname addresses
-    act: call get_node_ips
+    act: call get_nodes_ips
     assert: an empty list is returned
     """
     client = MagicMock()
@@ -56,29 +58,29 @@ def test_get_node_ips_skips_non_internal_ip_addresses():
         _make_node(("ExternalIP", "1.2.3.4"), ("Hostname", "node1")),
     ]
 
-    ips = get_node_ips(client)
+    ips = get_nodes_ips(client)
 
     assert ips == []
 
 
-def test_get_node_ips_empty_cluster():
+def test_get_nodes_ips_empty_cluster():
     """
     arrange: mock a client returning no nodes
-    act: call get_node_ips
+    act: call get_nodes_ips
     assert: an empty list is returned
     """
     client = MagicMock()
     client.list.return_value = []
 
-    ips = get_node_ips(client)
+    ips = get_nodes_ips(client)
 
     assert ips == []
 
 
-def test_get_node_ips_excludes_control_plane_nodes():
+def test_get_nodes_ips_excludes_control_plane_nodes():
     """
     arrange: mock a client returning two nodes each with an InternalIP
-    act: call get_node_ips
+    act: call get_nodes_ips
     assert: InternalIP addresses from all nodes are returned
     """
     client = MagicMock()
@@ -87,15 +89,15 @@ def test_get_node_ips_excludes_control_plane_nodes():
         _make_node(("InternalIP", "10.0.0.1")),
     ]
 
-    ips = get_node_ips(client)
+    ips = get_nodes_ips(client)
 
     assert ips == ["1.2.3.4", "10.0.0.1"]
 
 
-def test_get_node_ips_excludes_master_nodes():
+def test_get_nodes_ips_excludes_master_nodes():
     """
     arrange: mock a client returning two nodes each with an InternalIP
-    act: call get_node_ips
+    act: call get_nodes_ips
     assert: InternalIP addresses from all nodes are returned
     """
     client = MagicMock()
@@ -104,15 +106,15 @@ def test_get_node_ips_excludes_master_nodes():
         _make_node(("InternalIP", "10.0.0.1")),
     ]
 
-    ips = get_node_ips(client)
+    ips = get_nodes_ips(client)
 
     assert ips == ["1.2.3.4", "10.0.0.1"]
 
 
-def test_get_node_ips_returns_empty_when_all_nodes_are_control_plane():
+def test_get_nodes_ips_returns_empty_when_all_nodes_are_control_plane():
     """
     arrange: mock a client returning only a control-plane node (no worker label)
-    act: call get_node_ips
+    act: call get_nodes_ips
     assert: an empty list is returned
     """
     client = MagicMock()
@@ -120,15 +122,15 @@ def test_get_node_ips_returns_empty_when_all_nodes_are_control_plane():
         _make_node(("ExternalIP", "1.2.3.4")),
     ]
 
-    ips = get_node_ips(client)
+    ips = get_nodes_ips(client)
 
     assert ips == []
 
 
-def test_get_node_ips_includes_node_with_both_worker_and_control_plane_labels():
+def test_get_nodes_ips_includes_node_with_both_worker_and_control_plane_labels():
     """
     arrange: mock a client returning a node labelled as both worker and control-plane
-    act: call get_node_ips
+    act: call get_nodes_ips
     assert: the node's InternalIP is returned because the worker label is present
     """
     client = MagicMock()
@@ -136,7 +138,7 @@ def test_get_node_ips_includes_node_with_both_worker_and_control_plane_labels():
         _make_node(("InternalIP", "10.0.0.1")),
     ]
 
-    ips = get_node_ips(client)
+    ips = get_nodes_ips(client)
 
     assert ips == ["10.0.0.1"]
 
@@ -181,7 +183,7 @@ def test_get_kubernetes_data_returns_kubernetes_data():
     """
     arrange: mock a lightkube client returning a service object with one node
     act: call get_kubernetes_data
-    assert: a KubernetesData instance is returned with the service and node details
+    assert: a NodePortState instance is returned with the service and node details
     """
     client = MagicMock()
     mock_service = MagicMock()
@@ -192,7 +194,7 @@ def test_get_kubernetes_data_returns_kubernetes_data():
 
     result = get_kubernetes_data(client, "myapp")
 
-    assert isinstance(result, KubernetesData)
+    assert isinstance(result, NodePortState)
     assert result.service_name == "myapp-service"
     assert result.service_node_port == 8080
     assert result.service_protocol == "TCP"

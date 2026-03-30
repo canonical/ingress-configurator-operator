@@ -85,7 +85,7 @@ def _get_k8s_node_external_ips() -> list[str]:
 
     Uses the ambient ``KUBECONFIG`` (or in-cluster config) to create a
     lightkube :class:`~lightkube.Client` and lists all :class:`Node` resources,
-    mirroring the logic in :func:`kubernetes.get_node_ips`.
+    mirroring the logic in :func:`kubernetes.get_nodes_ips`.
 
     Returns:
         A list of InternalIP address strings for every worker node in the cluster.

@@ -19,16 +19,13 @@ Protocol = Literal["TCP", "UDP", "SCTP"]
 
 
 def get_node_ips(client: Client) -> list[str]:
-    """Fetch the InternalIP addresses of worker nodes in the cluster.
-
-    Worker nodes are identified by the presence of the
-    ``node-role.kubernetes.io/worker`` label.
+    """Fetch the InternalIP addresses of nodes in the cluster.
 
     Args:
         client: A lightkube Client instance.
 
     Returns:
-        A list of InternalIP addresses from worker nodes only.
+        A list of InternalIP addresses from all nodes.
     """
     nodes = client.list(Node)
     return [

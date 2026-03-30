@@ -63,10 +63,10 @@ def lxd_model_fixture() -> str:
 
 @pytest.fixture(scope="session", name="k8s_controller")
 def k8s_controller_fixture() -> str:
-    """Return the name of the machine controller.
+    """Return the name of the Kubernetes controller.
 
     Returns:
-        The machine controller name.
+        The Kubernetes controller name.
     """
     return "localhost"
 

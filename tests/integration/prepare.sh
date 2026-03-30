@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-# lxd should be install and init by a previous step in integration test action.
+# LXD should be installed and initialized by a previous step in the integration test action.
 echo "bootstrapping lxd juju controller"
 if juju show-controller localhost >/dev/null 2>&1; then
     echo "juju controller 'localhost' already exists, skipping bootstrap"

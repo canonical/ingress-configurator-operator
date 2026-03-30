@@ -110,14 +110,6 @@ def juju_k8s_fixture(juju: jubilant.Juju, k8s_controller: str, k8s_model: str):
     yield new_juju
 
 
-@pytest.fixture(scope="module", name="juju")
-def k8s_juju_fixture(lxd_controller: str, lxd_model: str):
-    """Pytest fixture that wraps :meth:`jubilant.with_model`."""
-    juju = jubilant.Juju(model=f"{lxd_controller}:{lxd_model}")
-    juju.wait_timeout = JUJU_WAIT_TIMEOUT
-    yield juju
-
-
 @pytest.fixture(scope="module", name="application")
 def application_fixture(
     pytestconfig: pytest.Config,

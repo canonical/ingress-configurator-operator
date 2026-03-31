@@ -59,7 +59,7 @@ def test_kubernetes_ingress_routes_through_haproxy(
         NodePort.
     """
     juju.wait(
-        lambda status: jubilant.all_active(status, haproxy, CERTIFICATES_APP_NAME),
+        lambda status: jubilant.all_agents_idle(status, haproxy, CERTIFICATES_APP_NAME),
         error=jubilant.any_error,
     )
     haproxy_backend_ips = _get_haproxy_backend_server_ips(

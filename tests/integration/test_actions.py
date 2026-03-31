@@ -28,7 +28,7 @@ def test_action_get_proxied_endpoints_nominal(
     juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
 
     juju.wait(
-        lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
+        lambda status: jubilant.all_agents_idle(status, haproxy, application, ingress_requirer),
         error=jubilant.any_error,
     )
     unit = next(iter(juju.status().apps[application].units))
@@ -44,7 +44,7 @@ def test_action_get_proxied_endpoints_nominal(
         {"hostname": hostname},
     )
     juju.wait(
-        lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
+        lambda status: jubilant.all_agents_idle(status, haproxy, application, ingress_requirer),
         error=jubilant.any_error,
     )
     task = juju.run(unit, "get-proxied-endpoints")
@@ -60,7 +60,7 @@ def test_action_get_proxied_endpoints_nominal(
         {"additional-hostnames": ",".join(additional_hostnames)},
     )
     juju.wait(
-        lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
+        lambda status: jubilant.all_agents_idle(status, haproxy, application, ingress_requirer),
         error=jubilant.any_error,
     )
     task = juju.run(unit, "get-proxied-endpoints")

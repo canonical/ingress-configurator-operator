@@ -71,7 +71,7 @@ def test_config_hostnames_and_paths(
         },
     )
     juju.wait(
-        lambda status: jubilant.all_active(status, haproxy, application, any_charm_backend),
+        lambda status: jubilant.all_agents_idle(status, haproxy, application, any_charm_backend),
         error=jubilant.any_error,
     )
 

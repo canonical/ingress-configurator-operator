@@ -101,9 +101,11 @@ class IngressConfiguratorCharm(ops.CharmBase):
         try:
             if self._haproxy_route.relation is not None:
                 ingress_relation = self.model.get_relation(self._ingress.relation_name)
-                ingress_relation_data = (
-                    self._ingress.get_data(ingress_relation) if ingress_relation else None
-                )
+                ingress_relation_data = None
+                if self._ingress.is_ready(ingress_relation):
+                    ingress_relation_data = (
+                        self._ingress.get_data(ingress_relation) if ingress_relation else None
+                    )
                 kubernetes_data = None
                 if self.is_kubernetes() and ingress_relation_data is not None:
                     ensure_nodeport_service(

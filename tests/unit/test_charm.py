@@ -31,6 +31,27 @@ def test_config_changed_invalid_state(monkeypatch: pytest.MonkeyPatch, context):
     assert out.unit_status == ops.testing.BlockedStatus()
 
 
+def test_config_changed_ingress_relation_not_ready(context):
+    """
+    arrange: prepare state with haproxy-route and an ingress relation whose requirer
+        hasn't populated the databag yet (empty remote app data).
+    act: trigger a config-changed event.
+    assert: the hook succeeds (no exception) and the unit is blocked, not stuck in
+        error state.
+    """
+    charm_state = ops.testing.State(
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation("ingress"),
+        ],
+        leader=True,
+    )
+
+    out = context.run(context.on.config_changed(), charm_state)
+
+    assert out.unit_status == ops.testing.BlockedStatus("No valid mode detected.")
+
+
 def test_config_changed_integrator(context):
     """
     arrange: prepare some valid state for an integrator.

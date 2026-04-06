@@ -100,9 +100,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
         """Refresh haproxy-route requirer data."""
         try:
             if self._haproxy_route.relation is not None:
-                ingress_relation = self.model.get_relation(self._ingress.relation_name)
                 ingress_relation_data = None
-                if self._ingress.is_ready(ingress_relation):
+                ingress_relation = self.model.get_relation(self._ingress.relation_name)
+                if self._ingress.is_ready():
                     ingress_relation_data = (
                         self._ingress.get_data(ingress_relation) if ingress_relation else None
                     )

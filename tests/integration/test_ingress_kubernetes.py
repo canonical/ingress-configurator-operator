@@ -40,10 +40,10 @@ from .conftest import (
 
 @pytest.mark.abort_on_fail
 def test_kubernetes_ingress_routes_through_haproxy(
-    juju: jubilant.Juju,
     haproxy: str,
     k8s_ingress_requirer: str,
     http_session: Callable[..., Session],
+    juju: jubilant.Juju,
 ) -> None:
     """Deploy ingress-configurator and AnyCharm on K8s, integrate with machine haproxy.
 

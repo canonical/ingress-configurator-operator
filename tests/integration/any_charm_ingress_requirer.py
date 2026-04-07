@@ -41,4 +41,4 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
             "apache2",
         ]
         subprocess.run(install, capture_output=True, check=True)  # nosec
-        self.unit.status = ops.ActiveStatus("Server Ready")    
+        self.unit.status = ops.ActiveStatus("Server Ready")

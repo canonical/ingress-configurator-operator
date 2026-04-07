@@ -11,12 +11,3 @@ def pytest_addoption(parser):
         parser: Pytest parser.
     """
     parser.addoption("--charm-file", action="store")
-
-
-def pytest_configure(config):
-    """Adds config options.
-
-    Args:
-        config: Pytest configuration object.
-    """
-    config.addinivalue_line("markers", "abort_on_fail")

@@ -52,7 +52,7 @@ integration = [
   "allure-pytest-collection-report @ git+https://github.com/canonical/data-platform-workflows@v24.0.0#subdirectory=python/pytest_plugins/allure_pytest_collection_report",
   "jubilant",
   "pytest",
-  "pytest-jubilant<2",
+  "pytest-jubilant>=2,<3",
   "requests",
 ]
 

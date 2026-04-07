@@ -6,35 +6,39 @@
 import json
 
 import jubilant
+import pytest
 
-from .conftest import MOCK_HAPROXY_HOSTNAME
+from .conftest import (
+    APP_NAME,
+    HAPROXY_APP_NAME,
+    INGRESS_REQUIRER_APP_NAME,
+    MOCK_HAPROXY_HOSTNAME,
+    deploy_ingress_requirer,
+    deploy_with_haproxy,
+)
 
 
-def test_action_get_proxied_endpoints_nominal(
-    juju: jubilant.Juju,
-    application: str,
-    haproxy: str,
-    ingress_requirer: str,
-):
-    """Test the charm actions in integrator mode.
+@pytest.mark.juju_setup
+def test_deploy_with_haproxy(juju: jubilant.Juju, charm: str):
+    deploy_with_haproxy(juju, charm)
 
-    Args:
-        juju: Jubilant juju fixture
-        application: Name of the ingress-configurator application.
-        haproxy: Name of the haproxy application.
-        ingress_requirer: Any charm running an apache webserver.
-    """
+
+@pytest.mark.juju_setup
+def test_deploy_ingress_requirer(juju: jubilant.Juju):
+    deploy_ingress_requirer(juju)
+
+
+def test_action_get_proxied_endpoints_nominal(juju: jubilant.Juju):
+    """Test the charm actions in integrator mode."""
     juju.config(
-        haproxy,
+        HAPROXY_APP_NAME,
         {"external-hostname": f"{MOCK_HAPROXY_HOSTNAME}"},
     )
-    juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
+    juju.integrate(f"{HAPROXY_APP_NAME}:haproxy-route", f"{APP_NAME}:haproxy-route")
 
-    juju.wait(
-        lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
-        error=jubilant.any_error,
-    )
-    unit = next(iter(juju.status().apps[application].units))
+    apps = (HAPROXY_APP_NAME, APP_NAME, INGRESS_REQUIRER_APP_NAME)
+    juju.wait(lambda status: jubilant.all_active(status, *apps), error=jubilant.any_error)
+    unit = next(iter(juju.status().apps[APP_NAME].units))
 
     # Test with no configured hostname on ingress configurator
     task = juju.run(unit, "get-proxied-endpoints")
@@ -43,26 +47,17 @@ def test_action_get_proxied_endpoints_nominal(
     # Test with configured hostname on ingress
     hostname = "test.ingress.hostname"
     juju.config(
-        application,
+        APP_NAME,
         {"hostname": hostname},
     )
-    juju.wait(
-        lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
-        error=jubilant.any_error,
-    )
+    juju.wait(lambda status: jubilant.all_active(status, *apps), error=jubilant.any_error)
     task = juju.run(unit, "get-proxied-endpoints")
     assert task.results == {"endpoints": f'["https://{hostname}/"]'}, task.results
 
     # Test with configured additional_hostnames on ingress
     additional_hostnames = ["test1.ingress.addition_hostname", "test2.ingress.addition_hostname"]
-    juju.config(
-        application,
-        {"additional-hostnames": ",".join(additional_hostnames)},
-    )
-    juju.wait(
-        lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
-        error=jubilant.any_error,
-    )
+    juju.config(APP_NAME, {"additional-hostnames": ",".join(additional_hostnames)})
+    juju.wait(lambda status: jubilant.all_active(status, *apps), error=jubilant.any_error)
     task = juju.run(unit, "get-proxied-endpoints")
 
     endpoints = set(json.loads(task.results["endpoints"]))

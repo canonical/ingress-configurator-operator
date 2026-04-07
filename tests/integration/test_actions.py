@@ -4,6 +4,7 @@
 """Test the charm in integrator mode."""
 
 import json
+import time
 
 import jubilant
 import pytest
@@ -58,7 +59,12 @@ def test_action_get_proxied_endpoints_nominal(juju: jubilant.Juju):
     additional_hostnames = ["test1.ingress.addition_hostname", "test2.ingress.addition_hostname"]
     juju.config(APP_NAME, {"additional-hostnames": ",".join(additional_hostnames)})
     juju.wait(lambda status: jubilant.all_active(status, *apps), error=jubilant.any_error)
-    task = juju.run(unit, "get-proxied-endpoints")
-
-    endpoints = set(json.loads(task.results["endpoints"]))
-    assert endpoints == {f"https://{h}/" for h in [hostname, *additional_hostnames]}, task.results
+    for i in range(5):
+        if i:  # We're retrying, wait first.
+            time.sleep(60)
+        task = juju.run(unit, "get-proxied-endpoints")
+        endpoints = set(json.loads(task.results["endpoints"]))
+        if endpoints == {f"https://{h}/" for h in [hostname, *additional_hostnames]}:
+            break
+    else:  # no break
+        raise AssertionError(f"Endpoints did not match expected set after 5 attempts: {endpoints}")

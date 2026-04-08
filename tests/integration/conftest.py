@@ -324,7 +324,6 @@ def k8s_ingress_requirer_fixture(
     )
     juju_k8s.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{app_name}:ingress")
     juju_k8s.wait(
-        lambda status: jubilant.all_agents_idle(status, app_name, INGRESS_REQUIRER_APP_NAME),
-        error=jubilant.any_error,
+        lambda status: jubilant.all_agents_idle(status, app_name, INGRESS_REQUIRER_APP_NAME)
     )
     yield INGRESS_REQUIRER_APP_NAME

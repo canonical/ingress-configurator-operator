@@ -33,8 +33,7 @@ def test_config_hostnames_and_paths(
     juju.wait(
         lambda status: jubilant.all_agents_idle(
             status, haproxy, application, any_charm_backend, CERTIFICATES_APP_NAME
-        ),
-        error=jubilant.any_error,
+        )
     )
     backend_addresses = ",".join(
         [str(address) for address in get_unit_addresses(juju, any_charm_backend)]

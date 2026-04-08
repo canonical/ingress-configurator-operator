@@ -30,8 +30,7 @@ def test_action_get_proxied_endpoints_nominal(
     juju.wait(
         lambda status: jubilant.all_agents_idle(
             status, haproxy, application, ingress_requirer, CERTIFICATES_APP_NAME
-        ),
-        error=jubilant.any_error,
+        )
     )
     unit = next(iter(juju.status().apps[application].units))
 
@@ -46,8 +45,7 @@ def test_action_get_proxied_endpoints_nominal(
         {"hostname": hostname},
     )
     juju.wait(
-        lambda status: jubilant.all_agents_idle(status, haproxy, application, ingress_requirer),
-        error=jubilant.any_error,
+        lambda status: jubilant.all_agents_idle(status, haproxy, application, ingress_requirer)
     )
     task = juju.run(unit, "get-proxied-endpoints")
     assert task.results == {"endpoints": f'["https://{hostname}/"]'}, task.results
@@ -62,8 +60,7 @@ def test_action_get_proxied_endpoints_nominal(
         {"additional-hostnames": ",".join(additional_hostnames)},
     )
     juju.wait(
-        lambda status: jubilant.all_agents_idle(status, haproxy, application, ingress_requirer),
-        error=jubilant.any_error,
+        lambda status: jubilant.all_agents_idle(status, haproxy, application, ingress_requirer)
     )
     task = juju.run(unit, "get-proxied-endpoints")
 

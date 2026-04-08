@@ -67,9 +67,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
         self.framework.observe(
             self.on[HAPROXY_ROUTE_TCP_RELATION].relation_departed, self._reconcile
         )
-        self.framework.observe(self.on[INGRESS_RELATION].relation_broken, self._reconcile)
-        self.framework.observe(self.on[INGRESS_RELATION].relation_departed, self._reconcile)
-        self.framework.observe(self.on[INGRESS_RELATION].relation_changed, self._reconcile)
+        self.framework.observe(self._ingress.on.data_provided, self._reconcile)
+        self.framework.observe(self._ingress.on.data_removed, self._reconcile)
         self.framework.observe(self.on.update_status, self._on_update_status)
 
         # Action handlers

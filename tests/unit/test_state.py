@@ -860,6 +860,31 @@ def test_state_from_charm_without_kubernetes_backend():
     assert charm_state.kubernetes_backend_state is None
 
 
+def test_state_from_charm_kubernetes_without_config_backend():
+    """
+    arrange: mock a charm with no backend config and provide kubernetes_data
+    act: instantiate a State
+    assert: State is created successfully using kubernetes_data for backend addresses and port,
+        without raising InvalidStateError despite no config or ingress backend being set
+    """
+    charm = Mock(CharmBase)
+    charm.model.name = "test-model"
+    charm.app.name = "test-app"
+    charm.config = {}
+    kubernetes_data = NodePortState(
+        backend_addresses=["10.0.0.1", "10.0.0.2"],
+        service_name="my-k8s-service",
+        backend_port=30080,
+        backend_protocol="TCP",
+    )
+
+    charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
+
+    assert [str(a) for a in charm_state.backend_addresses] == ["10.0.0.1", "10.0.0.2"]
+    assert charm_state.backend_ports == [30080]
+    assert charm_state.service == "my-k8s-service"
+
+
 def test_state_from_charm_invalid_kubernetes_service_port():
     """
     arrange: mock a charm and provide a NodePortState with an out-of-range targetPort

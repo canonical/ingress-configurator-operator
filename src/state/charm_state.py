@@ -347,8 +347,10 @@ class State:
 
             config_backend = bool(config_backend_addresses or config_backend_ports)
             ingress_backend = bool(ingress_backend_addresses or ingress_backend_ports)
-            # Only backend configuration from a single origin is supported
-            if config_backend == ingress_backend:
+            # Only backend configuration from a single origin is supported.
+            # Skip this check when kubernetes_data is provided, since K8s mode
+            # supplies its own backend addresses and port at line 392.
+            if not kubernetes_data and config_backend == ingress_backend:
                 raise InvalidStateError("No valid mode detected.")
             backend_addresses = config_backend_addresses or ingress_backend_addresses
             backend_ports = config_backend_ports or ingress_backend_ports

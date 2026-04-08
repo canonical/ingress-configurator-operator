@@ -26,6 +26,10 @@ def test_haproxy_route_tcp(application_with_tcp_server: str, haproxy: str, juju:
         f"{haproxy}:haproxy-route-tcp",
         application_with_tcp_server,
     )
+    juju.wait(
+        lambda status: jubilant.all_agents_idle(status, haproxy, application_with_tcp_server),
+        error=jubilant.any_error,
+    )
     application_ip_address = get_unit_addresses(juju, application_with_tcp_server)[0]
     juju.config(
         application_with_tcp_server,
@@ -39,7 +43,7 @@ def test_haproxy_route_tcp(application_with_tcp_server: str, haproxy: str, juju:
     )
 
     juju.wait(
-        lambda status: jubilant.all_agents_idle(status, haproxy, application_with_tcp_server),
+        lambda status: jubilant.all_active(status, haproxy, application_with_tcp_server),
         error=jubilant.any_error,
     )
     haproxy_ip_address = get_unit_addresses(juju, haproxy)[0]

@@ -7,7 +7,7 @@ import json
 
 import jubilant
 
-from .conftest import MOCK_HAPROXY_HOSTNAME
+from .conftest import CERTIFICATES_APP_NAME, MOCK_HAPROXY_HOSTNAME
 
 
 def test_action_get_proxied_endpoints_nominal(
@@ -28,7 +28,9 @@ def test_action_get_proxied_endpoints_nominal(
     juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
 
     juju.wait(
-        lambda status: jubilant.all_agents_idle(status, haproxy, application, ingress_requirer),
+        lambda status: jubilant.all_agents_idle(
+            status, haproxy, application, ingress_requirer, CERTIFICATES_APP_NAME
+        ),
         error=jubilant.any_error,
     )
     unit = next(iter(juju.status().apps[application].units))

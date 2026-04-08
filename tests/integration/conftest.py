@@ -172,9 +172,6 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     )
     juju.integrate(f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates")
     juju.offer(HAPROXY_APP_NAME, endpoint="haproxy-route")
-    juju.wait(
-        lambda status: jubilant.all_agents_idle(status, HAPROXY_APP_NAME, CERTIFICATES_APP_NAME),
-    )
     yield HAPROXY_APP_NAME
 
 
@@ -200,9 +197,6 @@ def any_charm_backend_fixture(
             ),
         },
         num_units=2,
-    )
-    juju.wait(
-        lambda status: jubilant.all_active(status, ANY_CHARM_APP_NAME, CERTIFICATES_APP_NAME)
     )
     yield ANY_CHARM_APP_NAME
 
@@ -251,11 +245,6 @@ def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, a
         },
     )
     juju.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{application}:ingress")
-    juju.wait(
-        lambda status: jubilant.all_active(
-            status, INGRESS_REQUIRER_APP_NAME, "self-signed-certificates"
-        )
-    )
     yield INGRESS_REQUIRER_APP_NAME
 
 

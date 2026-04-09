@@ -34,6 +34,7 @@ from .conftest import (
     CERTIFICATES_APP_NAME,
     HAPROXY_APP_NAME,
     MOCK_HAPROXY_HOSTNAME,
+    JUJU_WAIT_TIMEOUT,
     get_unit_addresses,
 )
 
@@ -43,7 +44,8 @@ def test_kubernetes_ingress_routes_through_haproxy(
     haproxy: str,
     k8s_ingress_requirer: str,
     http_session: Callable[..., Session],
-    juju: jubilant.Juju,
+    lxd_controller: str,
+    lxd_model: str,
 ) -> None:
     """Deploy ingress-configurator and AnyCharm on K8s, integrate with machine haproxy.
 
@@ -58,6 +60,8 @@ def test_kubernetes_ingress_routes_through_haproxy(
         Kubernetes node IPs; haproxy routes HTTPS requests to the backend through the
         NodePort.
     """
+    juju = jubilant.Juju(model=f"{lxd_controller}:{lxd_model}")
+    juju.wait_timeout = JUJU_WAIT_TIMEOUT
     juju.wait(
         lambda status: jubilant.all_active(status, haproxy, CERTIFICATES_APP_NAME),
         error=jubilant.any_error,

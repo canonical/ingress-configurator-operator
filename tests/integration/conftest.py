@@ -105,7 +105,7 @@ def juju_k8s_fixture(juju: jubilant.Juju, k8s_controller: str, k8s_model: str):
         if "already exists" not in str(exc):
             raise
     try:
-        juju.cli("add-model", "--no-switch", k8s_model, "k8s", include_model=False)
+        juju.add_model(k8s_model, "k8s")
     except jubilant.CLIError as exc:
         # Ignore the error only if the model already exists; re-raise for all other failures.
         if "already exists" not in str(exc):

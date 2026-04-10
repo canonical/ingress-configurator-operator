@@ -93,7 +93,7 @@ def test_ensure_nodeport_service():
     assert service.spec.type == "NodePort"
     assert service.spec.selector == {"app": "myapp"}
     assert service.spec.ports[0].port == 9090
-    assert service.spec.ports[0].protocol == "UDP"
+    assert service.spec.ports[0].protocol is None
 
 
 def test_get_nodeport_service():

@@ -65,8 +65,7 @@ def ensure_nodeport_service(
         spec=ServiceSpec(
             type="NodePort",
             selector={"app": app_name},
-            port=port,
-            protocol=protocol,
+            ports=[ServicePort(port=port, protocol=protocol)],
         ),
     )
     try:

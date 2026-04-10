@@ -3,9 +3,9 @@
 
 """Unit tests for the kubernetes module."""
 
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
+import pytest
 from lightkube import ApiError
 
 from kubernetes import (
@@ -83,20 +83,17 @@ def test_ensure_nodeport_service():
     """
     client = MagicMock()
 
-    with patch("kubernetes.ServiceSpec") as mock_spec_cls:
-        ensure_nodeport_service(
-            client, port=9090, protocol="UDP", app_name="myapp", charm_name="my-charm"
-        )
+    ensure_nodeport_service(
+        client, port=9090, protocol="UDP", app_name="myapp", charm_name="my-charm"
+    )
 
     service = client.apply.call_args[0][0]
     assert service.metadata.name == "myapp-service"
     assert service.metadata.annotations == {"owning-charm": "my-charm"}
-    mock_spec_cls.assert_called_once_with(
-        type="NodePort",
-        selector={"app": "myapp"},
-        port=9090,
-        protocol="UDP",
-    )
+    assert service.spec.type == "NodePort"
+    assert service.spec.selector == {"app": "myapp"}
+    assert service.spec.ports[0].port == 9090
+    assert service.spec.ports[0].protocol == "UDP"
 
 
 def test_get_nodeport_service():
@@ -153,11 +150,10 @@ def test_ensure_nodeport_service_reraises_api_error():
     client = MagicMock()
     client.apply.side_effect = _make_api_error(500)
 
-    with patch("kubernetes.ServiceSpec"):
-        with pytest.raises(ApiError):
-            ensure_nodeport_service(
-                client, port=8080, protocol="TCP", app_name="myapp", charm_name="my-charm"
-            )
+    with pytest.raises(ApiError):
+        ensure_nodeport_service(
+            client, port=8080, protocol="TCP", app_name="myapp", charm_name="my-charm"
+        )
 
 
 def test_ensure_nodeport_service_raises_invalid_state_error_on_403():
@@ -169,11 +165,10 @@ def test_ensure_nodeport_service_raises_invalid_state_error_on_403():
     client = MagicMock()
     client.apply.side_effect = _make_api_error(403)
 
-    with patch("kubernetes.ServiceSpec"):
-        with pytest.raises(InvalidStateError, match="--trust"):
-            ensure_nodeport_service(
-                client, port=8080, protocol="TCP", app_name="myapp", charm_name="my-charm"
-            )
+    with pytest.raises(InvalidStateError, match="--trust"):
+        ensure_nodeport_service(
+            client, port=8080, protocol="TCP", app_name="myapp", charm_name="my-charm"
+        )
 
 
 def _make_service(name: str, annotations: dict | None) -> MagicMock:

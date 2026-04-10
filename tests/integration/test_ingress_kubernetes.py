@@ -33,8 +33,8 @@ from requests import Session
 from .conftest import (
     CERTIFICATES_APP_NAME,
     HAPROXY_APP_NAME,
-    MOCK_HAPROXY_HOSTNAME,
     JUJU_WAIT_TIMEOUT,
+    MOCK_HAPROXY_HOSTNAME,
     get_unit_addresses,
 )
 

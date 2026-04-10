@@ -4,7 +4,7 @@
 """Kubernetes helper methods for interacting with the cluster via lightkube."""
 
 import logging
-from typing import Literal, cast
+from typing import cast
 
 from lightkube import ApiError, Client
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
@@ -14,8 +14,6 @@ from lightkube.resources.core_v1 import Node, Service
 from state.charm_state import InvalidStateError, NodePortState
 
 logger = logging.getLogger(__name__)
-
-Protocol = Literal["TCP", "UDP", "SCTP"]
 
 
 def get_nodes_ips(client: Client) -> list[str]:
@@ -37,9 +35,7 @@ def get_nodes_ips(client: Client) -> list[str]:
     ]
 
 
-def ensure_nodeport_service(
-    client: Client, port: int, protocol: Protocol, app_name: str, charm_name: str
-) -> Service:
+def ensure_nodeport_service(client: Client, port: int, app_name: str, charm_name: str) -> Service:
     """Create or update the NodePort service for the given app via server-side apply.
 
     The service name is derived by suffixing the app name with "-service".
@@ -132,5 +128,4 @@ def get_kubernetes_data(client: Client, app_name: str) -> NodePortState:
         backend_addresses=node_ips,
         service_name=service.metadata.name,
         backend_port=cast(int, port.nodePort),
-        backend_protocol=cast(Protocol, port.protocol),
     )

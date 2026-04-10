@@ -51,14 +51,12 @@ class NodePortState:
     Attributes:
         backend_addresses: Addresses of worker nodes in the cluster.
         backend_port: The nodePort from the NodePort service.
-        backend_protocol: The transport protocol from the NodePort service.
         service_name: The name of the NodePort service.
     """
 
     backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
     backend_port: Annotated[int, Field(gt=0, le=65535)]
     service_name: str
-    backend_protocol: Literal["TCP", "UDP", "SCTP"] = "TCP"
 
 
 @dataclass(frozen=True)

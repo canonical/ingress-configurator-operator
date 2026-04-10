@@ -83,9 +83,7 @@ def test_ensure_nodeport_service():
     """
     client = MagicMock()
 
-    ensure_nodeport_service(
-        client, port=9090, protocol="UDP", app_name="myapp", charm_name="my-charm"
-    )
+    ensure_nodeport_service(client, port=9090, app_name="myapp", charm_name="my-charm")
 
     service = client.apply.call_args[0][0]
     assert service.metadata.name == "myapp-service"
@@ -93,7 +91,6 @@ def test_ensure_nodeport_service():
     assert service.spec.type == "NodePort"
     assert service.spec.selector == {"app": "myapp"}
     assert service.spec.ports[0].port == 9090
-    assert service.spec.ports[0].protocol is None
 
 
 def test_get_nodeport_service():
@@ -123,7 +120,7 @@ def test_get_kubernetes_data_returns_kubernetes_data():
     client = MagicMock()
     mock_service = MagicMock()
     mock_service.metadata.name = "myapp-service"
-    mock_service.spec.ports = [MagicMock(nodePort=8080, protocol="TCP")]
+    mock_service.spec.ports = [MagicMock(nodePort=8080)]
     client.get.return_value = mock_service
     client.list.return_value = [_make_node(("InternalIP", "10.0.0.1"))]
 
@@ -132,7 +129,6 @@ def test_get_kubernetes_data_returns_kubernetes_data():
     assert isinstance(result, NodePortState)
     assert result.service_name == "myapp-service"
     assert result.backend_port == 8080
-    assert result.backend_protocol == "TCP"
     assert [str(ip) for ip in result.backend_addresses] == ["10.0.0.1"]
 
 
@@ -151,9 +147,7 @@ def test_ensure_nodeport_service_reraises_api_error():
     client.apply.side_effect = _make_api_error(500)
 
     with pytest.raises(ApiError):
-        ensure_nodeport_service(
-            client, port=8080, protocol="TCP", app_name="myapp", charm_name="my-charm"
-        )
+        ensure_nodeport_service(client, port=8080, app_name="myapp", charm_name="my-charm")
 
 
 def test_ensure_nodeport_service_raises_invalid_state_error_on_403():
@@ -166,9 +160,7 @@ def test_ensure_nodeport_service_raises_invalid_state_error_on_403():
     client.apply.side_effect = _make_api_error(403)
 
     with pytest.raises(InvalidStateError, match="--trust"):
-        ensure_nodeport_service(
-            client, port=8080, protocol="TCP", app_name="myapp", charm_name="my-charm"
-        )
+        ensure_nodeport_service(client, port=8080, app_name="myapp", charm_name="my-charm")
 
 
 def _make_service(name: str, annotations: dict | None) -> MagicMock:

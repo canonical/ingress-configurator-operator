@@ -729,7 +729,6 @@ def test_state_from_charm_with_kubernetes_backend():
         backend_addresses=["10.0.0.1", "10.0.0.2"],
         service_name="my-service",
         backend_port=8080,
-        backend_protocol="TCP",
     )
 
     charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
@@ -740,30 +739,6 @@ def test_state_from_charm_with_kubernetes_backend():
         "10.0.0.1",
         "10.0.0.2",
     ]
-
-
-def test_state_from_charm_kubernetes_backend_default_protocol():
-    """
-    arrange: mock a charm and provide a NodePortState value object
-    act: instantiate a State
-    assert: kubernetes_backend_state.backend_protocol defaults to "TCP"
-    """
-    charm = Mock(CharmBase)
-    charm.config = {
-        "backend-addresses": "127.0.0.1",
-        "backend-ports": "80",
-    }
-    kubernetes_data = NodePortState(
-        backend_addresses=["10.0.0.1"],
-        service_name="api-service",
-        backend_port=9000,
-        backend_protocol="TCP",
-    )
-
-    charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
-
-    assert charm_state.kubernetes_backend_state is not None
-    assert charm_state.kubernetes_backend_state.backend_protocol == "TCP"
 
 
 def test_state_from_charm_kubernetes_overrides_backend_addresses_and_ports():
@@ -782,7 +757,6 @@ def test_state_from_charm_kubernetes_overrides_backend_addresses_and_ports():
         backend_addresses=["10.0.0.1", "10.0.0.2"],
         service_name="my-service",
         backend_port=8080,
-        backend_protocol="TCP",
     )
 
     charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
@@ -809,7 +783,6 @@ def test_state_from_charm_service_name():
         backend_addresses=["10.0.0.1"],
         service_name="my-k8s-service",
         backend_port=8080,
-        backend_protocol="TCP",
     )
 
     with_kubernetes = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
@@ -835,7 +808,6 @@ def test_state_from_charm_kubernetes_backend_protocol_from_config():
         backend_addresses=["10.0.0.1"],
         service_name="my-service",
         backend_port=8080,
-        backend_protocol="TCP",
     )
 
     charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
@@ -875,7 +847,6 @@ def test_state_from_charm_kubernetes_without_config_backend():
         backend_addresses=["10.0.0.1", "10.0.0.2"],
         service_name="my-k8s-service",
         backend_port=30080,
-        backend_protocol="TCP",
     )
 
     charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
@@ -896,5 +867,4 @@ def test_state_from_charm_invalid_kubernetes_service_port():
             backend_addresses=["10.0.0.1"],
             service_name="my-service",
             backend_port=99999,
-            backend_protocol="TCP",
         )

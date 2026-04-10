@@ -111,7 +111,6 @@ class IngressConfiguratorCharm(ops.CharmBase):
                     ensure_nodeport_service(
                         self.lightkube_client,
                         ingress_relation_data.app.port,
-                        "TCP",
                         ingress_relation_data.app.name,
                         self.app.name,
                     )

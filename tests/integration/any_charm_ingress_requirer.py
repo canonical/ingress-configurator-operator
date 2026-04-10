@@ -42,7 +42,7 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
         ]
         subprocess.run(install, capture_output=True, check=True)  # nosec
         start = ["apache2ctl", "start"]
-        # Apache will start on VM substracted via systemd
+        # Apache will start on VM subtracted via systemd
         if self.model._backend._juju_context.machine_id is None:
             subprocess.run(start, capture_output=True, check=True)  # nosec
         self.unit.status = ops.ActiveStatus("Server Ready")

@@ -3,7 +3,8 @@
 
 """Unit tests for the kubernetes module."""
 
-from unittest.mock import MagicMock
+import pytest
+from unittest.mock import MagicMock, patch
 
 from lightkube import ApiError
 
@@ -78,21 +79,24 @@ def test_ensure_nodeport_service():
     arrange: mock a lightkube client
     act: call ensure_nodeport_service with port 9090, protocol UDP, app_name "myapp", and
         charm_name "my-charm"
-    assert: the applied service has the correct name, type, selector, port, protocol and annotation
+    assert: the applied service has the correct name, annotation, type, selector, port and protocol
     """
     client = MagicMock()
 
-    ensure_nodeport_service(
-        client, port=9090, protocol="UDP", app_name="myapp", charm_name="my-charm"
-    )
+    with patch("kubernetes.ServiceSpec") as mock_spec_cls:
+        ensure_nodeport_service(
+            client, port=9090, protocol="UDP", app_name="myapp", charm_name="my-charm"
+        )
 
     service = client.apply.call_args[0][0]
     assert service.metadata.name == "myapp-service"
     assert service.metadata.annotations == {"owning-charm": "my-charm"}
-    assert service.spec.type == "NodePort"
-    assert service.spec.selector == {"app": "myapp"}
-    assert service.spec.ports[0].port == 9090
-    assert service.spec.ports[0].protocol == "UDP"
+    mock_spec_cls.assert_called_once_with(
+        type="NodePort",
+        selector={"app": "myapp"},
+        port=9090,
+        protocol="UDP",
+    )
 
 
 def test_get_nodeport_service():
@@ -146,15 +150,14 @@ def test_ensure_nodeport_service_reraises_api_error():
     act: call ensure_nodeport_service
     assert: the ApiError is re-raised
     """
-    import pytest
-
     client = MagicMock()
     client.apply.side_effect = _make_api_error(500)
 
-    with pytest.raises(ApiError):
-        ensure_nodeport_service(
-            client, port=8080, protocol="TCP", app_name="myapp", charm_name="my-charm"
-        )
+    with patch("kubernetes.ServiceSpec"):
+        with pytest.raises(ApiError):
+            ensure_nodeport_service(
+                client, port=8080, protocol="TCP", app_name="myapp", charm_name="my-charm"
+            )
 
 
 def test_ensure_nodeport_service_raises_invalid_state_error_on_403():
@@ -163,15 +166,14 @@ def test_ensure_nodeport_service_raises_invalid_state_error_on_403():
     act: call ensure_nodeport_service
     assert: InvalidStateError is raised with the trust message
     """
-    import pytest
-
     client = MagicMock()
     client.apply.side_effect = _make_api_error(403)
 
-    with pytest.raises(InvalidStateError, match="--trust"):
-        ensure_nodeport_service(
-            client, port=8080, protocol="TCP", app_name="myapp", charm_name="my-charm"
-        )
+    with patch("kubernetes.ServiceSpec"):
+        with pytest.raises(InvalidStateError, match="--trust"):
+            ensure_nodeport_service(
+                client, port=8080, protocol="TCP", app_name="myapp", charm_name="my-charm"
+            )
 
 
 def _make_service(name: str, annotations: dict | None) -> MagicMock:

@@ -82,6 +82,7 @@ def test_kubernetes_ingress_routes_through_haproxy(
     session = http_session(dns_entries=[(MOCK_HAPROXY_HOSTNAME, haproxy_address)])
     response = session.get(f"https://{MOCK_HAPROXY_HOSTNAME}/", verify=False, timeout=30)
     assert response.status_code == 200
+    assert "Apache2 Default Page" in response.text
 
 
 def _get_k8s_node_internal_ips() -> list[str]:

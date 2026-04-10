@@ -13,8 +13,6 @@ from .conftest import CERTIFICATES_APP_NAME, MOCK_HAPROXY_HOSTNAME, get_unit_add
 
 def test_adapter_end_to_end_routing(
     juju: jubilant.Juju,
-    lxd_controller: str,
-    lxd_model: str,
     application: str,
     haproxy: str,
     ingress_requirer: str,
@@ -46,8 +44,6 @@ def test_adapter_end_to_end_routing(
 
 def test_adapter_http(
     juju: jubilant.Juju,
-    lxd_controller: str,
-    lxd_model: str,
     application: str,
     haproxy: str,
     ingress_requirer: str,

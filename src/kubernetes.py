@@ -7,7 +7,7 @@ import logging
 from typing import Literal, cast
 
 from lightkube import ApiError, Client
-from lightkube.models.core_v1 import ServicePort, ServiceSpec
+from lightkube.models.core_v1 import ServiceSpec, Service
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Node, Service
 

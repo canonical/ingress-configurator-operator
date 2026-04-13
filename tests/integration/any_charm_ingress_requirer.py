@@ -42,7 +42,6 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
         ]
         subprocess.run(install, capture_output=True, check=True)  # nosec
         start = ["apache2ctl", "start"]
-        # Apache will start on VM substrates via systemd
-        if self.model._backend._juju_context.machine_id is None:
-            subprocess.run(start, capture_output=True, check=True)  # nosec
+        # Apache will start on VM substrates via systemd but not on k8s
+        subprocess.run(start, capture_output=True, check=True)  # nosec
         self.unit.status = ops.ActiveStatus("Server Ready")

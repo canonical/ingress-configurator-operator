@@ -9,7 +9,7 @@ import jubilant
 import pytest
 from requests import Session
 
-from .conftest import MOCK_HAPROXY_HOSTNAME, get_unit_addresses
+from .conftest import CERTIFICATES_APP_NAME, MOCK_HAPROXY_HOSTNAME, get_unit_addresses
 
 
 @pytest.mark.abort_on_fail
@@ -30,6 +30,11 @@ def test_config_hostnames_and_paths(
         http_session: Modified requests session fixture for making HTTP requests.
     """
     juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
+    juju.wait(
+        lambda status: jubilant.all_agents_idle(
+            status, haproxy, application, any_charm_backend, CERTIFICATES_APP_NAME
+        )
+    )
     backend_addresses = ",".join(
         [str(address) for address in get_unit_addresses(juju, any_charm_backend)]
     )
@@ -42,7 +47,9 @@ def test_config_hostnames_and_paths(
         },
     )
     juju.wait(
-        lambda status: jubilant.all_active(status, haproxy, application, any_charm_backend),
+        lambda status: jubilant.all_active(
+            status, haproxy, application, any_charm_backend, CERTIFICATES_APP_NAME
+        ),
         error=jubilant.any_error,
     )
 

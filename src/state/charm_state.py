@@ -45,6 +45,21 @@ class BackendState:
 
 
 @dataclass(frozen=True)
+class NodePortState:
+    """Charm state subset that contains Kubernetes-specific backend configuration.
+
+    Attributes:
+        backend_addresses: Addresses of worker nodes in the cluster.
+        backend_port: The nodePort from the NodePort service.
+        service_name: The name of the NodePort service.
+    """
+
+    backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
+    backend_port: Annotated[int, Field(gt=0, le=65535)]
+    service_name: str
+
+
+@dataclass(frozen=True)
 class HealthCheck:
     """Charm state that contains the health check configuration.
 
@@ -193,6 +208,7 @@ class State:
         header_rewrite_expressions: List of header rewrite expressions.
         allow_http: Whether to allow HTTP traffic to the service.
         external_grpc_port: Optional gRPC external port.
+        kubernetes_backend_state: Optional Kubernetes-specific backend configuration.
     """
 
     _backend_state: BackendState
@@ -215,6 +231,7 @@ class State:
     header_rewrite_expressions: list[tuple[str, str]] = Field(default=[])
     allow_http: bool = Field(default=False)
     external_grpc_port: int | None = Field(default=None, gt=0, le=65535)
+    _kubernetes_backend_state: NodePortState | None = None
 
     @property
     def backend_addresses(self) -> list[IPvAnyAddress]:
@@ -230,6 +247,11 @@ class State:
     def backend_protocol(self) -> Literal["http", "https"]:
         """The backend protocol."""
         return self._backend_state.backend_protocol
+
+    @property
+    def kubernetes_backend_state(self) -> "NodePortState | None":
+        """Kubernetes-specific backend configuration."""
+        return self._kubernetes_backend_state
 
     @model_validator(mode="after")
     def validate_external_grpc_port_requires_https(self) -> Self:
@@ -262,12 +284,19 @@ class State:
         return self
 
     @classmethod
-    def from_charm(cls, charm: ops.CharmBase, ingress_data: IngressRequirerData | None) -> Self:
+    def from_charm(
+        cls,
+        charm: ops.CharmBase,
+        ingress_data: IngressRequirerData | None,
+        kubernetes_data: NodePortState | None = None,
+    ) -> Self:
         """Create an State class from a charm instance.
 
         Args:
             charm: the ingress-configurator charm.
             ingress_data: the ingress requirer relation data.
+            kubernetes_data: optional Kubernetes API data used to populate the
+                Kubernetes backend state.
 
         Raises:
             InvalidStateError: when the integrator mode config is invalid.
@@ -316,8 +345,10 @@ class State:
 
             config_backend = bool(config_backend_addresses or config_backend_ports)
             ingress_backend = bool(ingress_backend_addresses or ingress_backend_ports)
-            # Only backend configuration from a single origin is supported
-            if config_backend == ingress_backend:
+            # Only backend configuration from a single origin is supported.
+            # Skip this check when kubernetes_data is provided, since K8s mode
+            # supplies its own backend addresses and port at line 392.
+            if not kubernetes_data and config_backend == ingress_backend:
                 raise InvalidStateError("No valid mode detected.")
             backend_addresses = config_backend_addresses or ingress_backend_addresses
             backend_ports = config_backend_ports or ingress_backend_ports
@@ -357,13 +388,18 @@ class State:
                 else []
             )
             allow_http = cast(bool, charm.config.get("allow-http", False))
+            service = f"{charm.model.name}-{charm.app.name}"
+            if kubernetes_data:
+                backend_addresses = kubernetes_data.backend_addresses
+                backend_ports = [kubernetes_data.backend_port]
+                service = kubernetes_data.service_name
             return cls(
                 _backend_state=BackendState(backend_addresses, backend_ports, backend_protocol),
                 paths=paths,
                 health_check=HealthCheck.from_charm(charm),
                 retry=Retry.from_charm(charm),
                 timeout=Timeout.from_charm(charm),
-                service=f"{charm.model.name}-{charm.app.name}",
+                service=service,
                 hostname=hostname,
                 additional_hostnames=additional_hostnames,
                 load_balancing_configuration=load_balancing_configuration,
@@ -372,6 +408,7 @@ class State:
                 header_rewrite_expressions=header_rewrite_expressions,
                 allow_http=allow_http,
                 external_grpc_port=external_grpc_port,
+                _kubernetes_backend_state=kubernetes_data,
             )
         except ValidationError as exc:
             logger.error(str(exc))

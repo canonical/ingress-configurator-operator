@@ -26,11 +26,11 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
         """
         super().__init__(*args, **kwargs)
         self.ingress = IngressPerAppRequirer(self, port=80)
-        self.unit.status = ops.BlockedStatus("Waiting for ingress relation")
-        self.framework.observe(self.on.ingress_relation_changed, self._on_ingress_relation_changed)
+        self.framework.observe(self.on.install, self._start_server)
 
-    def start_server(self):
+    def _start_server(self, _: ops.InstallEvent):
         """Start apache2 webserver."""
+        self.unit.status = ops.BlockedStatus("Waiting for ingress relation")
         update = ["apt-get", "update", "--error-on=any"]
         subprocess.run(update, capture_output=True, check=True)  # nosec
         install = [
@@ -41,7 +41,7 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
             "apache2",
         ]
         subprocess.run(install, capture_output=True, check=True)  # nosec
-
-    def _on_ingress_relation_changed(self, _: ops.ConfigChangedEvent):
-        """Relation changed handler."""
+        start = ["apache2ctl", "start"]
+        # Apache will start on VM substrates via systemd but not on k8s
+        subprocess.run(start, capture_output=True, check=True)  # nosec
         self.unit.status = ops.ActiveStatus("Server Ready")

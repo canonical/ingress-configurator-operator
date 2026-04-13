@@ -7,14 +7,11 @@ import json
 
 import jubilant
 
-from .conftest import MOCK_HAPROXY_HOSTNAME
+from .conftest import CERTIFICATES_APP_NAME, MOCK_HAPROXY_HOSTNAME
 
 
 def test_action_get_proxied_endpoints_nominal(
-    juju: jubilant.Juju,
-    application: str,
-    haproxy: str,
-    ingress_requirer: str,
+    juju: jubilant.Juju, application: str, haproxy: str, ingress_requirer: str
 ):
     """Test the charm actions in integrator mode.
 
@@ -31,8 +28,9 @@ def test_action_get_proxied_endpoints_nominal(
     juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
 
     juju.wait(
-        lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
-        error=jubilant.any_error,
+        lambda status: jubilant.all_agents_idle(
+            status, haproxy, application, ingress_requirer, CERTIFICATES_APP_NAME
+        )
     )
     unit = next(iter(juju.status().apps[application].units))
 
@@ -47,21 +45,22 @@ def test_action_get_proxied_endpoints_nominal(
         {"hostname": hostname},
     )
     juju.wait(
-        lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
-        error=jubilant.any_error,
+        lambda status: jubilant.all_agents_idle(status, haproxy, application, ingress_requirer)
     )
     task = juju.run(unit, "get-proxied-endpoints")
     assert task.results == {"endpoints": f'["https://{hostname}/"]'}, task.results
 
     # Test with configured additional_hostnames on ingress
-    additional_hostnames = ["test1.ingress.addition_hostname", "test2.ingress.addition_hostname"]
+    additional_hostnames = [
+        "test1.ingress.addition_hostname",
+        "test2.ingress.addition_hostname",
+    ]
     juju.config(
         application,
         {"additional-hostnames": ",".join(additional_hostnames)},
     )
     juju.wait(
-        lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
-        error=jubilant.any_error,
+        lambda status: jubilant.all_agents_idle(status, haproxy, application, ingress_requirer)
     )
     task = juju.run(unit, "get-proxied-endpoints")
 

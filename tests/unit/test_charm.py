@@ -21,7 +21,7 @@ def test_config_changed_invalid_state(monkeypatch: pytest.MonkeyPatch, context):
     """
     monkeypatch.setattr(State, "from_charm", MagicMock(side_effect=InvalidStateError))
     charm_state = ops.testing.State(
-        config={"backend-addresses": "10.0.0.1,invalid", "backend-ports": "8080,8081"},
+        config={"backend-addresses": "10.0.0.1,invalid", "backend-ports": "8080"},
         relations=[ops.testing.Relation("haproxy-route")],
         leader=True,
     )
@@ -31,6 +31,27 @@ def test_config_changed_invalid_state(monkeypatch: pytest.MonkeyPatch, context):
     assert out.unit_status == ops.testing.BlockedStatus()
 
 
+def test_config_changed_ingress_relation_not_ready(context):
+    """
+    arrange: prepare state with haproxy-route and an ingress relation whose requirer
+        hasn't populated the databag yet (empty remote app data).
+    act: trigger a config-changed event.
+    assert: the hook succeeds (no exception) and the unit is blocked, not stuck in
+        error state.
+    """
+    charm_state = ops.testing.State(
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation("ingress"),
+        ],
+        leader=True,
+    )
+
+    out = context.run(context.on.config_changed(), charm_state)
+
+    assert out.unit_status == ops.testing.BlockedStatus("No valid mode detected.")
+
+
 def test_config_changed_integrator(context):
     """
     arrange: prepare some valid state for an integrator.
@@ -38,7 +59,7 @@ def test_config_changed_integrator(context):
     assert: status is active.
     """
     charm_state = ops.testing.State(
-        config={"backend-addresses": "10.0.0.1,10.0.0.2", "backend-ports": "8080,8081"},
+        config={"backend-addresses": "10.0.0.1,10.0.0.2", "backend-ports": "8080"},
         relations=[ops.testing.Relation("haproxy-route")],
         leader=True,
     )
@@ -183,7 +204,37 @@ class TestGetProxiedEndpointAction:
             assert str(excinfo.value) == "Missing haproxy-route relation."
 
 
-def test_haproxy_route(context: ops.testing.Context):
+def test_is_kubernetes_returns_true_when_no_machine_id():
+    """
+    arrange: create a context without a machine_id (Kubernetes substrate)
+    act: run any event and inspect the charm instance
+    assert: is_kubernetes() returns True
+    """
+    context = ops.testing.Context(charm_type=IngressConfiguratorCharm, machine_id=None)
+    state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": "80"},
+        leader=True,
+    )
+
+    with context(context.on.config_changed(), state) as manager:
+        assert manager.charm.is_kubernetes() is True
+
+
+def test_is_kubernetes_returns_false_when_machine_id_is_set():
+    """
+    arrange: create a context with a machine_id set (machine substrate)
+    act: run any event and inspect the charm instance
+    assert: is_kubernetes() returns False
+    """
+    context = ops.testing.Context(charm_type=IngressConfiguratorCharm, machine_id="1")
+    state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": "80"},
+        leader=True,
+    )
+
+    with context(context.on.config_changed(), state) as manager:
+        assert manager.charm.is_kubernetes() is False
+
     """Valid protocol should be copied from config to haproxy-route-tcp relation."""
     in_ = ops.testing.State(
         config={

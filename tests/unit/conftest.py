@@ -16,4 +16,4 @@ def context_fixture():
 
     Yield: The charm context.
     """
-    yield Context(charm_type=IngressConfiguratorCharm)
+    yield Context(charm_type=IngressConfiguratorCharm, machine_id="0")

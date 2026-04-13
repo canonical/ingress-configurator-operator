@@ -60,7 +60,7 @@ def ensure_nodeport_service(client: Client, port: int, app_name: str, charm_name
         ),
         spec=ServiceSpec(
             type="NodePort",
-            selector={"app": app_name},
+            selector={"app.kubernetes.io/name": app_name},
             ports=[ServicePort(port=port)],
         ),
     )

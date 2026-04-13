@@ -89,7 +89,7 @@ def test_ensure_nodeport_service():
     assert service.metadata.name == "myapp-service"
     assert service.metadata.annotations == {"owning-charm": "my-charm"}
     assert service.spec.type == "NodePort"
-    assert service.spec.selector == {"app": "myapp"}
+    assert service.spec.selector == {"app.kubernetes.io/name": "myapp"}
     assert service.spec.ports[0].port == 9090
 
 

@@ -39,6 +39,7 @@ def test_haproxy_route_tcp(application_with_tcp_server: str, haproxy: str, juju:
             "tcp-tls-terminate": True,
             "tcp-backend-addresses": str(application_ip_address),
         },
+        log=False,
     )
 
     juju.wait(

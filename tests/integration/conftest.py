@@ -135,11 +135,7 @@ def application_fixture(
     if pytestconfig.getoption("--no-setup") and app_name in juju.status().apps:
         yield app_name
         return
-    juju.deploy(
-        charm=charm,
-        app=app_name,
-        base="ubuntu@24.04",
-    )
+    juju.deploy(charm=charm, app=app_name, base="ubuntu@24.04", log=False)
     yield app_name
 
 
@@ -163,12 +159,14 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
         revision=HAPROXY_REVISION,
         config={"external-hostname": MOCK_HAPROXY_HOSTNAME},
         base=HAPROXY_BASE,
+        log=False,
     )
     juju.deploy(
         charm="self-signed-certificates",
         app=CERTIFICATES_APP_NAME,
         channel=CERTIFICATES_CHANNEL,
         revision=CERTIFICATES_REVISION,
+        log=False,
     )
     juju.integrate(f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates")
     juju.offer(HAPROXY_APP_NAME, endpoint="haproxy-route")
@@ -197,6 +195,7 @@ def any_charm_backend_fixture(
             ),
         },
         num_units=2,
+        log=False,
     )
     yield ANY_CHARM_APP_NAME
 
@@ -243,6 +242,7 @@ def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, a
             ),
             "python-packages": "pydantic",
         },
+        log=False,
     )
     juju.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{application}:ingress")
     yield INGRESS_REQUIRER_APP_NAME
@@ -302,7 +302,7 @@ def k8s_ingress_requirer_fixture(
     metadata = yaml.safe_load(pathlib.Path("./charmcraft.yaml").read_text(encoding="UTF-8"))
     app_name = metadata["name"]
 
-    juju_k8s.deploy(charm=charm, app=app_name, trust=True)
+    juju_k8s.deploy(charm=charm, app=app_name, trust=True, log=False)
     juju_k8s.deploy(
         charm="any-charm",
         channel="beta",
@@ -318,6 +318,7 @@ def k8s_ingress_requirer_fixture(
             ),
             "python-packages": "pydantic",
         },
+        log=False,
     )
     juju_k8s.integrate(
         f"{app_name}:haproxy-route", f"{lxd_controller}:admin/{lxd_model}.{HAPROXY_APP_NAME}"

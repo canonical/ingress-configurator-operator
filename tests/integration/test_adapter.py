@@ -67,7 +67,7 @@ def test_adapter_http(
 
     response = session.get(f"http://{MOCK_HAPROXY_HOSTNAME}", verify=False, timeout=30)
     assert response.history[0].status_code == 302
-    juju.config(application, {"allow-http": True})
+    juju.config(application, {"allow-http": True}, log=False)
     juju.wait(
         lambda status: jubilant.all_active(status, haproxy, application),
         error=jubilant.any_error,

@@ -45,6 +45,7 @@ def test_config_hostnames_and_paths(
             "backend-ports": 80,
             "paths": "/api/v1,/api/v2",
         },
+        log=False,
     )
     juju.wait(
         lambda status: jubilant.all_active(
@@ -76,6 +77,7 @@ def test_config_hostnames_and_paths(
             "hostname": f"api.{MOCK_HAPROXY_HOSTNAME}",
             "additional-hostnames": f"api2.{MOCK_HAPROXY_HOSTNAME},api3.{MOCK_HAPROXY_HOSTNAME}",
         },
+        log=False,
     )
     juju.wait(
         lambda status: jubilant.all_active(status, haproxy, application, any_charm_backend),

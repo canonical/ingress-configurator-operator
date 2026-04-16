@@ -124,7 +124,7 @@ def _get_haproxy_backend_server_ips(machine_model: jubilant.Juju, service_name: 
         A list of IP address strings found in the backend section's server lines.
     """
     unit = next(iter(machine_model.status().apps[HAPROXY_APP_NAME].units))
-    task = machine_model.exec("cat /etc/haproxy/haproxy.cfg", unit=unit)
+    task = machine_model.exec("cat /etc/haproxy/haproxy.cfg", unit=unit, log=False)
     config = task.stdout
 
     backend_match = re.search(

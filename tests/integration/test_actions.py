@@ -21,10 +21,7 @@ def test_action_get_proxied_endpoints_nominal(
         haproxy: Name of the haproxy application.
         ingress_requirer: Any charm running an apache webserver.
     """
-    juju.config(
-        haproxy,
-        {"external-hostname": f"{MOCK_HAPROXY_HOSTNAME}"},
-    )
+    juju.config(haproxy, {"external-hostname": f"{MOCK_HAPROXY_HOSTNAME}"}, log=False)
     juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
 
     juju.wait(
@@ -40,10 +37,7 @@ def test_action_get_proxied_endpoints_nominal(
 
     # Test with configured hostname on ingress
     hostname = "test.ingress.hostname"
-    juju.config(
-        application,
-        {"hostname": hostname},
-    )
+    juju.config(application, {"hostname": hostname}, log=False)
     juju.wait(
         lambda status: jubilant.all_agents_idle(status, haproxy, application, ingress_requirer)
     )
@@ -55,10 +49,7 @@ def test_action_get_proxied_endpoints_nominal(
         "test1.ingress.addition_hostname",
         "test2.ingress.addition_hostname",
     ]
-    juju.config(
-        application,
-        {"additional-hostnames": ",".join(additional_hostnames)},
-    )
+    juju.config(application, {"additional-hostnames": ",".join(additional_hostnames)}, log=False)
     juju.wait(
         lambda status: jubilant.all_agents_idle(status, haproxy, application, ingress_requirer)
     )

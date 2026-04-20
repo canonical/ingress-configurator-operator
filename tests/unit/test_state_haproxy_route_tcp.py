@@ -645,3 +645,79 @@ def test_haproxy_route_tcp_requirements_invalid_health_check_type():
     with pytest.raises(InvalidHaproxyRouteTcpRequirementsError) as exc_info:
         HaproxyRouteTcpRequirements.from_charm(charm)
     assert "Invalid health check type" in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "timeout_config,expected_server,expected_connect,expected_queue",
+    [
+        pytest.param(
+            {
+                "tcp-timeout-server": 10,
+                "tcp-timeout-connect": 3,
+                "tcp-timeout-queue": 5,
+            },
+            10,
+            3,
+            5,
+            id="with_timeout",
+        ),
+        pytest.param({}, None, None, None, id="without_timeout"),
+    ],
+)
+def test_haproxy_route_tcp_requirements_timeout_presence(
+    timeout_config, expected_server, expected_connect, expected_queue
+):
+    """
+    arrange: mock a charm with/without timeout configuration
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: timeout values match expected
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "192.168.1.1",
+        "tcp-frontend-port": 443,
+        "tcp-backend-port": 8443,
+        "tcp-tls-terminate": True,
+        "tcp-hostname": None,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
+        "tcp-enforce-tls": True,
+        **timeout_config,
+    }
+
+    requirements = HaproxyRouteTcpRequirements.from_charm(charm)
+
+    assert requirements.timeout.server == expected_server
+    assert requirements.timeout.connect == expected_connect
+    assert requirements.timeout.queue == expected_queue
+
+
+@pytest.mark.parametrize(
+    "invalid_value",
+    [
+        {"tcp-timeout-server": -1, "tcp-timeout-connect": 3, "tcp-timeout-queue": 5},
+        {"tcp-timeout-server": 10, "tcp-timeout-connect": 0, "tcp-timeout-queue": 5},
+        {"tcp-timeout-server": 10, "tcp-timeout-connect": 3, "tcp-timeout-queue": -5},
+    ],
+)
+def test_haproxy_route_tcp_requirements_invalid_timeout_values(invalid_value):
+    """
+    arrange: mock a charm with invalid timeout values
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: InvalidHaproxyRouteTcpRequirementsError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "192.168.1.1",
+        "tcp-frontend-port": 443,
+        "tcp-backend-port": 8443,
+        "tcp-tls-terminate": True,
+        "tcp-hostname": None,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
+        **invalid_value,
+    }
+
+    with pytest.raises(InvalidHaproxyRouteTcpRequirementsError) as exc_info:
+        HaproxyRouteTcpRequirements.from_charm(charm)
+    assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)

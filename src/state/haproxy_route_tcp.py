@@ -33,6 +33,37 @@ class InvalidHaproxyRouteTcpRequirementsError(Exception):
 
 
 @dataclass(frozen=True)
+class TCPTimeout:
+    """TCP backend timeout configuration.
+
+    Attributes:
+        server: Server timeout in seconds.
+        connect: Connect timeout in seconds.
+        queue: Queue timeout in seconds.
+    """
+
+    server: Optional[int] = Field(default=None, gt=0)
+    connect: Optional[int] = Field(default=None, gt=0)
+    queue: Optional[int] = Field(default=None, gt=0)
+
+    @classmethod
+    def from_charm(cls, charm: ops.CharmBase) -> Self:
+        """Create a TCPTimeout from charm config.
+
+        Args:
+            charm: The charm instance.
+
+        Returns:
+            TCPTimeout instance.
+        """
+        return cls(
+            server=cast(Optional[int], charm.config.get("tcp-timeout-server")),
+            connect=cast(Optional[int], charm.config.get("tcp-timeout-connect")),
+            queue=cast(Optional[int], charm.config.get("tcp-timeout-queue")),
+        )
+
+
+@dataclass(frozen=True)
 class TCPHealthCheck:
     """TCP health check configuration.
 
@@ -141,6 +172,7 @@ class HaproxyRouteTcpRequirements:  # pylint: disable=too-many-instance-attribut
     load_balancing_configuration: TCPLoadBalancingConfiguration
     enforce_tls: bool
     health_check: TCPHealthCheck
+    timeout: TCPTimeout
 
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> Self:
@@ -196,6 +228,7 @@ class HaproxyRouteTcpRequirements:  # pylint: disable=too-many-instance-attribut
                 load_balancing_configuration=load_balancing_configuration,
                 enforce_tls=enforce_tls,
                 health_check=TCPHealthCheck.from_charm(charm),
+                timeout=TCPTimeout.from_charm(charm),
             )
         except ValidationError as exc:
             logger.error(

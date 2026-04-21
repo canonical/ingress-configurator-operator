@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Each revision is versioned by the date of the revision.
 
+## 2026-04-20
+
+### Added
+
+- Added config options `tcp-timeout-server`, `tcp-timeout-connect`, and `tcp-timeout-queue`.
+
 ## 2026-03-17
 
 ### Added

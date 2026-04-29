@@ -113,9 +113,12 @@ class IngressConfiguratorCharm(ops.CharmBase):
                         ingress_relation_data.app.port,
                         ingress_relation_data.app.name,
                         self.app.name,
+                        self.model.name,
                     )
                     kubernetes_data = get_kubernetes_data(
-                        self.lightkube_client, ingress_relation_data.app.name
+                        self.lightkube_client,
+                        ingress_relation_data.app.name,
+                        self.model.name,
                     )
                 elif self.is_kubernetes() and ingress_relation_data is None:
                     delete_nodeport_services_owned_by(self.lightkube_client, self.app.name)

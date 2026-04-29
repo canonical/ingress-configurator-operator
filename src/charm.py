@@ -108,9 +108,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                     )
                 kubernetes_data = None
                 if self.is_kubernetes() and ingress_relation_data is not None:
-                    service_name = (
-                        f"{self.model.name}-{ingress_relation_data.app.name}-service"
-                    )
+                    service_name = f"{self.model.name}-{ingress_relation_data.app.name}-service"
                     ensure_nodeport_service(
                         self.lightkube_client,
                         ingress_relation_data.app.port,

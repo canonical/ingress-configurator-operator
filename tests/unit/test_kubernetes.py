@@ -77,31 +77,29 @@ def test_get_nodes_ips_empty_cluster():
 def test_ensure_nodeport_service():
     """
     arrange: mock a lightkube client
-    act: call ensure_nodeport_service with port 9090, app_name "myapp",
-        charm_name "my-charm", and model_name "my-model"
-    assert: the applied service has the correct name including model prefix,
-        annotation, type, selector, port and protocol
+    act: call ensure_nodeport_service with port 9090, service_name "my-model-myapp-service",
+        and charm_name "my-charm"
+    assert: the applied service has the correct name, annotation, type, selector, port
     """
     client = MagicMock()
 
     ensure_nodeport_service(
-        client, port=9090, app_name="myapp", charm_name="my-charm", model_name="my-model"
+        client, port=9090, service_name="my-model-myapp-service", charm_name="my-charm"
     )
 
     service = client.apply.call_args[0][0]
     assert service.metadata.name == "my-model-myapp-service"
     assert service.metadata.annotations == {"owning-charm": "my-charm"}
     assert service.spec.type == "NodePort"
-    assert service.spec.selector == {"app.kubernetes.io/name": "myapp"}
+    assert service.spec.selector == {"app.kubernetes.io/name": "my-model-myapp-service"}
     assert service.spec.ports[0].port == 9090
 
 
 def test_get_nodeport_service():
     """
     arrange: mock a lightkube client returning a service object
-    act: call get_nodeport_service with app_name "myapp" and model_name "my-model"
-    assert: client.get is called with the service name "my-model-myapp-service" and the service
-        is returned
+    act: call get_nodeport_service with service_name "my-model-myapp-service"
+    assert: client.get is called with the correct service name and the service is returned
     """
     from lightkube.resources.core_v1 import Service
 
@@ -109,7 +107,7 @@ def test_get_nodeport_service():
     mock_service = MagicMock()
     client.get.return_value = mock_service
 
-    result = get_nodeport_service(client, "myapp", "my-model")
+    result = get_nodeport_service(client, "my-model-myapp-service")
 
     client.get.assert_called_once_with(Service, name="my-model-myapp-service")
     assert result is mock_service
@@ -118,7 +116,7 @@ def test_get_nodeport_service():
 def test_get_kubernetes_data_returns_kubernetes_data():
     """
     arrange: mock a lightkube client returning a service object with one node
-    act: call get_kubernetes_data with model_name "my-model"
+    act: call get_kubernetes_data with service_name "my-model-myapp-service"
     assert: a NodePortState instance is returned with the service and node details
     """
     client = MagicMock()
@@ -128,7 +126,7 @@ def test_get_kubernetes_data_returns_kubernetes_data():
     client.get.return_value = mock_service
     client.list.return_value = [_make_node(("InternalIP", "10.0.0.1"))]
 
-    result = get_kubernetes_data(client, "myapp", "my-model")
+    result = get_kubernetes_data(client, "my-model-myapp-service")
 
     assert isinstance(result, NodePortState)
     assert result.service_name == "my-model-myapp-service"
@@ -152,7 +150,7 @@ def test_ensure_nodeport_service_reraises_api_error():
 
     with pytest.raises(ApiError):
         ensure_nodeport_service(
-            client, port=8080, app_name="myapp", charm_name="my-charm", model_name="my-model"
+            client, port=8080, service_name="my-model-myapp-service", charm_name="my-charm"
         )
 
 
@@ -167,7 +165,7 @@ def test_ensure_nodeport_service_raises_invalid_state_error_on_403():
 
     with pytest.raises(InvalidStateError, match="--trust"):
         ensure_nodeport_service(
-            client, port=8080, app_name="myapp", charm_name="my-charm", model_name="my-model"
+            client, port=8080, service_name="my-model-myapp-service", charm_name="my-charm"
         )
 
 

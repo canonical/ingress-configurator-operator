@@ -36,35 +36,30 @@ def get_nodes_ips(client: Client) -> list[str]:
 
 
 def ensure_nodeport_service(
-    client: Client, port: int, app_name: str, charm_name: str, model_name: str
+    client: Client, port: int, service_name: str, charm_name: str
 ) -> Service:
     """Create or update the NodePort service for the given app via server-side apply.
 
-    The service name is derived from the model name and app name as
-    "{model_name}-{app_name}-service" to avoid conflicts when multiple
-    ingress-configurator charms with the same name exist in different models.
     An ``owning-charm`` annotation is set to ``charm_name`` so the service can
     be identified for cleanup later.
 
     Args:
         client: A lightkube Client instance.
         port: The port number to expose.
-        app_name: The app name used as the selector label and as the base for
-            the service name.
+        service_name: The name of the Kubernetes service to create.
         charm_name: The name of the owning charm, stored as an annotation.
-        model_name: The model name, used as a prefix for the service name.
 
     Returns:
         The applied Kubernetes Service resource.
     """
     service = Service(
         metadata=ObjectMeta(
-            name=f"{model_name}-{app_name}-service",
+            name=service_name,
             annotations={"owning-charm": charm_name},
         ),
         spec=ServiceSpec(
             type="NodePort",
-            selector={"app.kubernetes.io/name": app_name},
+            selector={"app.kubernetes.io/name": service_name},
             ports=[ServicePort(port=port)],
         ),
     )
@@ -96,39 +91,35 @@ def delete_nodeport_services_owned_by(client: Client, charm_name: str) -> None:
             client.delete(Service, name=service.metadata.name)
 
 
-def get_nodeport_service(client: Client, app_name: str, model_name: str) -> Service:
-    """Fetch the NodePort service for the given app.
-
-    The service name is derived as "{model_name}-{app_name}-service".
+def get_nodeport_service(client: Client, service_name: str) -> Service:
+    """Fetch the NodePort service by name.
 
     Args:
         client: A lightkube Client instance.
-        app_name: The app name used as part of the service name.
-        model_name: The model name, used as a prefix for the service name.
+        service_name: The name of the Kubernetes service to fetch.
 
     Returns:
         The Kubernetes Service resource.
     """
-    return client.get(Service, name=f"{model_name}-{app_name}-service")
+    return client.get(Service, name=service_name)
 
 
-def get_kubernetes_data(client: Client, app_name: str, model_name: str) -> NodePortState:
+def get_kubernetes_data(client: Client, service_name: str) -> NodePortState:
     """Fetch node IPs and NodePort service details and return structured data.
 
     Args:
         client: A lightkube Client instance.
-        app_name: The app name used as part of the service name.
-        model_name: The model name, used as a prefix for the service name.
+        service_name: The name of the Kubernetes service to look up.
 
     Returns:
         A NodePortState instance populated with node IPs and service details.
     """
     node_ips = get_nodes_ips(client)
-    service = get_nodeport_service(client, app_name, model_name)
+    service = get_nodeport_service(client, service_name)
     if service.spec is None or service.spec.ports is None:
-        raise ValueError(f"NodePort service for {app_name!r} has no spec or ports")
+        raise ValueError(f"NodePort service {service_name!r} has no spec or ports")
     if service.metadata is None or service.metadata.name is None:
-        raise ValueError(f"NodePort service for {app_name!r} has no metadata name")
+        raise ValueError(f"NodePort service {service_name!r} has no metadata name")
     port = service.spec.ports[0]
     return NodePortState(
         backend_addresses=node_ips,

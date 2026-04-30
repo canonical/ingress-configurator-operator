@@ -30,10 +30,12 @@ class InvalidStateError(Exception):
 
 
 def valid_domain_with_wildcard_and_port(value: str) -> str:
-    """Validate if value is a valid domain that can include a wildcard.
+    """Validate if value is a valid domain that can include a wildcard and a port component.
 
     The wildcard character (*) can't be at the TLD level, for example *.com is not valid.
     This is supported natively by the library ( e.g domain("com") will raise a ValidationError ).
+
+    The port component must be a valid port (integer between 1 and 65535).
 
     Raises:
         ValueError: When value is not a valid domain.

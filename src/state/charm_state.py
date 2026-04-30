@@ -29,30 +29,6 @@ class InvalidStateError(Exception):
     """Exception raised when the state is invalid."""
 
 
-def valid_domain_with_wildcard_and_port(value: str) -> str:
-    """Validate if value is a valid domain that can include a wildcard and a port component.
-
-    The wildcard character (*) can't be at the TLD level, for example *.com is not valid.
-    This is supported natively by the library ( e.g domain("com") will raise a ValidationError ).
-
-    The port component must be a valid port (integer between 1 and 65535).
-
-    Raises:
-        ValueError: When value is not a valid domain.
-
-    Args:
-        value: The value to validate.
-    """
-    if (fqdn_components := value.split(":")) and len(fqdn_components) == 2:
-        valid_domain_with_wildcard(fqdn_components[0])
-        # ValueError from int() is also wrapped by pydantic.
-        port = int(fqdn_components[1])
-        if not 0 < port <= 65535:
-            raise ValueError(f"Port {port} is not in the valid range (1-65535).")
-        return value
-    return valid_domain_with_wildcard(value)
-
-
 @dataclass(frozen=True)
 class BackendState:
     """Charm state subset that contains the backend configuration.
@@ -241,12 +217,12 @@ class State:
     timeout: Timeout
     service: str = Field(..., min_length=1)
     paths: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(default=[])
-    hostname: Optional[Annotated[str, BeforeValidator(valid_domain_with_wildcard_and_port)]] = (
-        Field(default=None)
+    hostname: Optional[Annotated[str, BeforeValidator(valid_domain_with_wildcard)]] = Field(
+        default=None
     )
-    additional_hostnames: list[
-        Annotated[str, BeforeValidator(valid_domain_with_wildcard_and_port)]
-    ] = Field(default=[])
+    additional_hostnames: list[Annotated[str, BeforeValidator(valid_domain_with_wildcard)]] = (
+        Field(default=[])
+    )
     load_balancing_configuration: LoadBalancingConfiguration = Field(
         default=LoadBalancingConfiguration()
     )

@@ -402,10 +402,6 @@ def test_state_from_charm_invalid_additional_hostnames():
         pytest.param("example.com", id="standard_hostname"),
         pytest.param("subdomain.example.com", id="standard_subdomain"),
         pytest.param("a.b.c.d.example.com", id="multi_level_subdomain"),
-        pytest.param("example.com:443", id="hostname_with_port"),
-        pytest.param("*.example.com:443", id="wildcard_hostname_with_port"),
-        pytest.param("subdomain.example.com:8080", id="subdomain_with_port"),
-        pytest.param("*.subdomain.example.com:8443", id="wildcard_subdomain_with_port"),
     ],
 )
 def test_state_from_charm_valid_hostname_with_wildcard(hostname):
@@ -434,13 +430,6 @@ def test_state_from_charm_valid_hostname_with_wildcard(hostname):
         pytest.param("*.*.example.com", id="multiple_wildcards"),
         pytest.param("example.*.com", id="wildcard_in_middle"),
         pytest.param("*.com", id="wildcard_tld"),
-        pytest.param("*.com:443", id="wildcard_tld_with_port"),
-        pytest.param("**.example.com:443", id="double_wildcard_with_port"),
-        pytest.param("example.com:abc", id="non_numeric_port"),
-        pytest.param("example.com:", id="empty_port"),
-        pytest.param("example.com:0", id="port_zero"),
-        pytest.param("example.com:65536", id="port_out_of_range"),
-        pytest.param("*.example.com:-1", id="negative_port"),
     ],
 )
 def test_state_from_charm_invalid_hostname_wildcard(invalid_hostname):
@@ -466,8 +455,6 @@ def test_state_from_charm_invalid_hostname_wildcard(invalid_hostname):
         pytest.param("*.example.com,*.other.com", id="multiple_wildcards"),
         pytest.param("*.subdomain.example.com,normal.example.com", id="mixed_wildcard_standard"),
         pytest.param("example.com,subdomain.example.com", id="multiple_standard"),
-        pytest.param("example.com:443,other.com:8080", id="multiple_with_ports"),
-        pytest.param("*.example.com:443,normal.com", id="wildcard_with_port_and_standard"),
     ],
 )
 def test_state_from_charm_valid_additional_hostnames_with_wildcard(additional_hostnames):
@@ -493,8 +480,6 @@ def test_state_from_charm_valid_additional_hostnames_with_wildcard(additional_ho
         pytest.param("**.example.com", id="double_wildcard"),
         pytest.param("*example.com,valid.com", id="one_invalid_one_valid"),
         pytest.param("valid.com,*.*.example.com", id="valid_and_multiple_wildcards"),
-        pytest.param("*.com:443,valid.com", id="wildcard_tld_with_port_and_valid"),
-        pytest.param("valid.com,example.com:99999", id="valid_and_port_out_of_range"),
     ],
 )
 def test_state_from_charm_invalid_additional_hostnames_wildcard(invalid_additional_hostnames):

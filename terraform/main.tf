@@ -15,4 +15,5 @@ resource "juju_application" "ingress-configurator" {
   config      = var.config
   constraints = var.constraints
   units       = var.units
+  trust       = var.trust
 }

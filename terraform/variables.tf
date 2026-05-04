@@ -47,3 +47,9 @@ variable "units" {
   type        = number
   default     = 1
 }
+
+variable "trust" {
+  description = "Deploy with --trust (required for Kubernetes)"
+  type        = bool
+  default     = false
+}

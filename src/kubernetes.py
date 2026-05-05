@@ -36,7 +36,7 @@ def get_nodes_ips(client: Client) -> list[str]:
 
 
 def ensure_nodeport_service(
-    client: Client, port: int, service_name: str, charm_name: str
+    client: Client, port: int, service_name: str, remote_app_name: str, charm_name: str
 ) -> Service:
     """Create or update the NodePort service for the given app via server-side apply.
 
@@ -47,6 +47,7 @@ def ensure_nodeport_service(
         client: A lightkube Client instance.
         port: The port number to expose.
         service_name: The name of the Kubernetes service to create.
+        remote_app_name: The name of the remote application to select.
         charm_name: The name of the owning charm, stored as an annotation.
 
     Returns:
@@ -59,7 +60,7 @@ def ensure_nodeport_service(
         ),
         spec=ServiceSpec(
             type="NodePort",
-            selector={"app.kubernetes.io/name": service_name},
+            selector={"app.kubernetes.io/name": remote_app_name},
             ports=[ServicePort(port=port)],
         ),
     )

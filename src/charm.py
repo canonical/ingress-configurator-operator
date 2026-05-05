@@ -113,6 +113,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                         self.lightkube_client,
                         ingress_relation_data.app.port,
                         service_name,
+                        ingress_relation_data.app.name,
                         self.app.name,
                     )
                     kubernetes_data = get_kubernetes_data(

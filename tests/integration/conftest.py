@@ -31,6 +31,7 @@ CERTIFICATES_CHANNEL = "1/stable"
 CERTIFICATES_REVISION = 588
 ANY_CHARM_APP_NAME = "any-charm-backend"
 INGRESS_REQUIRER_APP_NAME = "ingress-requirer"
+APP_NAME = "ingress-configurator"
 
 
 @pytest.fixture(scope="session", name="charm")
@@ -68,7 +69,7 @@ def k8s_controller_fixture() -> str:
     Returns:
         The Kubernetes controller name.
     """
-    return "localhost"
+    return "controller"
 
 
 @pytest.fixture(scope="session", name="k8s_model")
@@ -286,7 +287,11 @@ def application_with_tcp_server_fixture(application: str, juju: jubilant.Juju):
 
 @pytest.fixture(scope="module", name="k8s_ingress_requirer")
 def k8s_ingress_requirer_fixture(
-    charm: str, juju_k8s: jubilant.Juju, lxd_controller: str, lxd_model: str
+    pytestconfig: pytest.Config,
+    charm: str,
+    juju_k8s: jubilant.Juju,
+    lxd_controller: str,
+    lxd_model: str,
 ) -> Generator[str, None, None]:
     """Deploy any-charm as an ingress requirer on the K8s model.
 
@@ -299,31 +304,20 @@ def k8s_ingress_requirer_fixture(
     Yields:
         The ingress requirer application name.
     """
-    metadata = yaml.safe_load(pathlib.Path("./charmcraft.yaml").read_text(encoding="UTF-8"))
-    app_name = metadata["name"]
-
-    juju_k8s.deploy(charm=charm, app=app_name, trust=True)
+    if pytestconfig.getoption("--no-setup") and APP_NAME in juju_k8s.status().apps:
+        yield APP_NAME
+        return
+    juju_k8s.deploy(charm=charm, app=APP_NAME, trust=True)
     juju_k8s.deploy(
-        charm="any-charm",
-        channel="beta",
+        charm="flask-k8s",
+        channel="latest/edge",
         app=INGRESS_REQUIRER_APP_NAME,
-        config={
-            "src-overwrite": json.dumps(
-                {
-                    "any_charm.py": pathlib.Path(HAPROXY_INGRESS_REQUIRER_SRC).read_text(
-                        encoding="utf-8"
-                    ),
-                    "ingress.py": pathlib.Path(INGRESS_LIB_SRC).read_text(encoding="utf-8"),
-                }
-            ),
-            "python-packages": "pydantic",
-        },
     )
     juju_k8s.integrate(
-        f"{app_name}:haproxy-route", f"{lxd_controller}:admin/{lxd_model}.{HAPROXY_APP_NAME}"
+        f"{APP_NAME}:haproxy-route", f"{lxd_controller}:admin/{lxd_model}.{HAPROXY_APP_NAME}"
     )
-    juju_k8s.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{app_name}:ingress")
+    juju_k8s.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{APP_NAME}:ingress")
     juju_k8s.wait(
-        lambda status: jubilant.all_agents_idle(status, app_name, INGRESS_REQUIRER_APP_NAME)
+        lambda status: jubilant.all_agents_idle(status, APP_NAME, INGRESS_REQUIRER_APP_NAME)
     )
     yield INGRESS_REQUIRER_APP_NAME

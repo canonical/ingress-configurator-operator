@@ -84,14 +84,18 @@ def test_ensure_nodeport_service():
     client = MagicMock()
 
     ensure_nodeport_service(
-        client, port=9090, service_name="my-model-myapp-service", charm_name="my-charm"
+        client,
+        port=9090,
+        service_name="my-model-myapp-service",
+        remote_app_name="myapp",
+        charm_name="my-charm",
     )
 
     service = client.apply.call_args[0][0]
     assert service.metadata.name == "my-model-myapp-service"
     assert service.metadata.annotations == {"owning-charm": "my-charm"}
     assert service.spec.type == "NodePort"
-    assert service.spec.selector == {"app.kubernetes.io/name": "my-model-myapp-service"}
+    assert service.spec.selector == {"app.kubernetes.io/name": "myapp"}
     assert service.spec.ports[0].port == 9090
 
 
@@ -150,7 +154,11 @@ def test_ensure_nodeport_service_reraises_api_error():
 
     with pytest.raises(ApiError):
         ensure_nodeport_service(
-            client, port=8080, service_name="my-model-myapp-service", charm_name="my-charm"
+            client,
+            port=8080,
+            service_name="my-model-myapp-service",
+            remote_app_name="myapp",
+            charm_name="my-charm",
         )
 
 
@@ -165,7 +173,11 @@ def test_ensure_nodeport_service_raises_invalid_state_error_on_403():
 
     with pytest.raises(InvalidStateError, match="--trust"):
         ensure_nodeport_service(
-            client, port=8080, service_name="my-model-myapp-service", charm_name="my-charm"
+            client,
+            port=8080,
+            service_name="my-model-myapp-service",
+            remote_app_name="myapp",
+            charm_name="my-charm",
         )
 
 

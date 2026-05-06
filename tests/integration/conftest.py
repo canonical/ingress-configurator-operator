@@ -69,7 +69,7 @@ def k8s_controller_fixture() -> str:
     Returns:
         The Kubernetes controller name.
     """
-    return "controller"
+    return "localhost"
 
 
 @pytest.fixture(scope="session", name="k8s_model")

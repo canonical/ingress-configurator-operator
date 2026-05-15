@@ -51,6 +51,9 @@ def test_haproxy_route_tcp_requirements_from_charm():
     assert requirements.load_balancing_configuration.consistent_hashing is False
     assert requirements.enforce_tls is True
     assert requirements.proxy_protocol is False
+
+
+def test_haproxy_route_tcp_invalid_algorithm():
     """
     arrange: mock a charm with invalid load balancing algorithm
     act: instantiate HaproxyRouteTcpRequirements

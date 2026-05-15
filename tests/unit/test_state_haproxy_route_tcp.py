@@ -50,6 +50,7 @@ def test_haproxy_route_tcp_requirements_from_charm():
     assert requirements.load_balancing_configuration.algorithm == LoadBalancingAlgorithm.ROUNDROBIN
     assert requirements.load_balancing_configuration.consistent_hashing is False
     assert requirements.enforce_tls is True
+    assert requirements.proxy_protocol is False
 
 
 def test_haproxy_route_tcp_invalid_algorithm():
@@ -721,3 +722,27 @@ def test_haproxy_route_tcp_requirements_invalid_timeout_values(invalid_value):
     with pytest.raises(InvalidHaproxyRouteTcpRequirementsError) as exc_info:
         HaproxyRouteTcpRequirements.from_charm(charm)
     assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
+
+
+def test_haproxy_route_tcp_requirements_proxy_protocol_enabled():
+    """
+    arrange: mock a charm with tcp-enable-proxy-protocol set to True
+    act: instantiate HaproxyRouteTcpRequirements
+    assert: proxy_protocol is True
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "192.168.1.10",
+        "tcp-frontend-port": 8443,
+        "tcp-backend-port": 443,
+        "tcp-tls-terminate": True,
+        "tcp-hostname": "example.com",
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
+        "tcp-enforce-tls": True,
+        "tcp-enable-proxy-protocol": True,
+    }
+
+    requirements = HaproxyRouteTcpRequirements.from_charm(charm)
+
+    assert requirements.proxy_protocol is True

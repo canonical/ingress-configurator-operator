@@ -200,7 +200,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         try:
             tcp_requirements = HaproxyRouteTcpRequirements.from_charm(self)
             self._haproxy_route_tcp.provide_haproxy_route_tcp_requirements(
-                hosts=[str(address) for address in tcp_requirements.backend_addresses],
+                hosts=tcp_requirements.backend_addresses,
                 port=tcp_requirements.port,
                 backend_port=tcp_requirements.backend_port,
                 tls_terminate=tcp_requirements.tls_terminate,
@@ -222,6 +222,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 server_timeout=tcp_requirements.timeout.server,
                 connect_timeout=tcp_requirements.timeout.connect,
                 queue_timeout=tcp_requirements.timeout.queue,
+                proxy_protocol=tcp_requirements.proxy_protocol,
             )
         except (InvalidHaproxyRouteTcpRequirementsError, DataValidationError) as exc:
             raise ProvideHaproxyRouteTcpRequirementsError(

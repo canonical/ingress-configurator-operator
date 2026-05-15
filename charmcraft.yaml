@@ -212,6 +212,12 @@ config:
     tcp-timeout-queue:
       type: int
       description: Timeout for requests waiting in queue in seconds.
+    tcp-enable-proxy-protocol:
+      type: boolean
+      default: false
+      description: |
+        Whether to enable PROXY protocol when connecting to backend servers.
+        When enabled, HAProxy will send PROXY protocol headers to the backend servers.
     allow-http:
       type: boolean
       default: false

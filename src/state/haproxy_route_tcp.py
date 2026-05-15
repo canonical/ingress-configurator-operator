@@ -161,6 +161,7 @@ class HaproxyRouteTcpRequirements:  # pylint: disable=too-many-instance-attribut
         load_balancing_configuration: TCP load balancing configuration.
         enforce_tls: Whether to enforce TLS for all TCP traffic.
         health_check: TCP health check configuration.
+        proxy_protocol: Whether to enable PROXY protocol when connecting to backend servers.
     """
 
     backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
@@ -173,6 +174,7 @@ class HaproxyRouteTcpRequirements:  # pylint: disable=too-many-instance-attribut
     enforce_tls: bool
     health_check: TCPHealthCheck
     timeout: TCPTimeout
+    proxy_protocol: bool
 
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> Self:
@@ -229,6 +231,7 @@ class HaproxyRouteTcpRequirements:  # pylint: disable=too-many-instance-attribut
                 enforce_tls=enforce_tls,
                 health_check=TCPHealthCheck.from_charm(charm),
                 timeout=TCPTimeout.from_charm(charm),
+                proxy_protocol=cast(bool, charm.config.get("tcp-enable-proxy-protocol", False)),
             )
         except ValidationError as exc:
             logger.error(

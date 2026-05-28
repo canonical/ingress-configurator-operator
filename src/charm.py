@@ -114,11 +114,11 @@ class IngressConfiguratorCharm(ops.CharmBase):
         haproxy_route_related = self._haproxy_route.relation is not None
         haproxy_route_tcp_related = self._haproxy_route_tcp.relation is not None
         haproxy_related = haproxy_route_related or haproxy_route_tcp_related
-        gateway_route_related = self.model.get_relation(GATEWAY_ROUTE_RELATION) is not None
+        gateway_route_related = self._gateway_route.relation is not None
 
         if haproxy_related and gateway_route_related:
             self.unit.status = ops.BlockedStatus(
-                "Only one route relation type is supported at a time (haproxy-route/haproxy-route-tcp or gateway-route)."
+                "Only one route relation type should exist (haproxy-route/haproxy-route-tcp or gateway-route)."
             )
             return
 
@@ -126,6 +126,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self._reconcile_gateway_route()
         elif haproxy_related:
             self._reconcile_haproxy()
+        else:
+            self.unit.status = ops.BlockedStatus("Route relation required.")
 
     def _reconcile_haproxy(self) -> None:
         """Reconcile haproxy-route and haproxy-route-tcp requirer data."""

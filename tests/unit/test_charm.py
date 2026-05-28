@@ -251,7 +251,9 @@ def test_is_kubernetes_returns_false_when_machine_id_is_set(
     with context_machine(context_machine.on.config_changed(), state) as manager:
         assert manager.charm.is_kubernetes() is False
 
-    # Valid protocol should be copied from config to haproxy-route-tcp relation.
+
+def test_haproxy_route(context_machine: ops.testing.Context["IngressConfiguratorCharm"]):
+    """Valid protocol should be copied from config to haproxy-route-tcp relation."""
     in_ = ops.testing.State(
         config={
             "tcp-backend-addresses": "10.0.0.1",

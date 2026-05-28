@@ -220,6 +220,12 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
     def _reconcile_gateway_route(self) -> None:
         """Reconcile gateway-route: create HTTPRoute resources and update relation data."""
+        if not self.is_kubernetes():
+            self.unit.status = ops.BlockedStatus(
+                "gateway-route relation only supported on Kubernetes."
+            )
+            return
+
         ingress_relation = self.model.get_relation(self._ingress.relation_name)
         # Only support through ingress relation for now, so if it's missing or not ready we can't proceed with gateway-route configuration
         if not ingress_relation:

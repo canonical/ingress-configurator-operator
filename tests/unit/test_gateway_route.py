@@ -333,12 +333,12 @@ def test_gateway_route_https_mode_enforced(
     context_k8s.run(context_k8s.on.config_changed(), state)
 
     assert mock_lightkube.apply.call_count == 2  # type: ignore[attr-defined]
-    calls = mock_lightkube.apply.call_args_list  # type: ignore[attr-defined]
-    http_resource = calls[0][0][0]
-    https_resource = calls[1][0][0]
+    http_call, https_call = mock_lightkube.apply.call_args_list  # type: ignore[attr-defined]
+    http_resource = http_call.args[0]
+    https_resource = https_call.args[0]
 
     # HTTP route: 301 redirect to HTTPS, http-listener
-    assert http_resource.metadata.name.endswith("-http")
+    assert http_resource.metadata.name == "ingress-configurator-testing-app-http"
     assert http_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http"
     http_rule = http_resource.spec["rules"][0]
     assert http_rule["filters"][0]["type"] == "RequestRedirect"
@@ -347,7 +347,7 @@ def test_gateway_route_https_mode_enforced(
     assert "backendRefs" not in http_rule
 
     # HTTPS route: forwards to backend, https-listener
-    assert https_resource.metadata.name.endswith("-https")
+    assert https_resource.metadata.name == "ingress-configurator-testing-app-https"
     assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https"
     https_rule = https_resource.spec["rules"][0]
     assert https_rule["backendRefs"][0]["port"] == 8080
@@ -417,9 +417,10 @@ def test_gateway_route_https_mode_disabled(
     context_k8s.run(context_k8s.on.config_changed(), state)
 
     assert mock_lightkube.apply.call_count == 1  # type: ignore[attr-defined]
-    resource = mock_lightkube.apply.call_args_list[0][0][0]  # type: ignore[attr-defined]
+    (single_call,) = mock_lightkube.apply.call_args_list  # type: ignore[attr-defined]
+    resource = single_call.args[0]
 
-    assert resource.metadata.name.endswith("-http")
+    assert resource.metadata.name == "ingress-configurator-testing-app-http"
     assert resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http"
     rule = resource.spec["rules"][0]
     assert rule["backendRefs"][0]["port"] == 8080
@@ -459,18 +460,18 @@ def test_gateway_route_https_mode_enabled(
     context_k8s.run(context_k8s.on.config_changed(), state)
 
     assert mock_lightkube.apply.call_count == 2  # type: ignore[attr-defined]
-    calls = mock_lightkube.apply.call_args_list  # type: ignore[attr-defined]
-    http_resource = calls[0][0][0]
-    https_resource = calls[1][0][0]
+    http_call, https_call = mock_lightkube.apply.call_args_list  # type: ignore[attr-defined]
+    http_resource = http_call.args[0]
+    https_resource = https_call.args[0]
 
     # Both routes forward to the backend
-    assert http_resource.metadata.name.endswith("-http")
+    assert http_resource.metadata.name == "ingress-configurator-testing-app-http"
     assert http_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http"
     http_rule = http_resource.spec["rules"][0]
     assert http_rule["backendRefs"][0]["port"] == 8080
     assert "filters" not in http_rule
 
-    assert https_resource.metadata.name.endswith("-https")
+    assert https_resource.metadata.name == "ingress-configurator-testing-app-https"
     assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https"
     https_rule = https_resource.spec["rules"][0]
     assert https_rule["backendRefs"][0]["port"] == 8080

@@ -262,11 +262,16 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self.unit.status = ops.BlockedStatus(str(exc))
             return
 
+        hostname = state.hostname
+        if not hostname:
+            self.unit.status = ops.BlockedStatus("hostname is required in gateway-route mode")
+            return
+
         self.unit.status = ops.MaintenanceStatus("Configuring gateway route")
 
         try:
             self._gateway_route.publish_requirer_data(
-                hostname=state.hostname,
+                hostname=hostname,
                 additional_hostnames=list(state.additional_hostnames),
             )
         except GatewayRouteInvalidRelationDataError as exc:

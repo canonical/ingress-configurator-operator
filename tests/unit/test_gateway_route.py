@@ -68,11 +68,13 @@ def test_gateway_route_happy_path(context_k8s: ops.testing.Context["IngressConfi
 
 
 @pytest.mark.usefixtures("mock_lightkube")
-def test_gateway_route_no_hostname(context_k8s: ops.testing.Context["IngressConfiguratorCharm"]):
+def test_gateway_route_no_hostname(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+):
     """
     arrange: gateway-route with no hostname configured.
     act: trigger config-changed.
-    assert: status is Active (hostname is optional), data written without hostname.
+    assert: status is Blocked because hostname is required.
     """
     state = ops.testing.State(
         config={"paths": "/"},
@@ -92,9 +94,39 @@ def test_gateway_route_no_hostname(context_k8s: ops.testing.Context["IngressConf
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert out.unit_status == ops.testing.ActiveStatus("Ready")
-    gateway_rel_app_data: dict[str, str] = out.get_relations("gateway-route")[0].local_app_data
-    assert gateway_rel_app_data.get("hostname") == "null"
+    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
+    assert "hostname is required" in out.unit_status.message
+
+
+@pytest.mark.usefixtures("mock_lightkube")
+def test_gateway_route_additional_hostnames_only(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: gateway-route with no primary hostname but with additional hostnames.
+    act: trigger config-changed.
+    assert: status is Blocked because primary hostname is required.
+    """
+    state = ops.testing.State(
+        config={"additional-hostnames": "app.example.com,api.example.com", "paths": "/"},
+        relations=[
+            ops.testing.Relation(
+                endpoint="ingress",
+                remote_app_data=INGRESS_REMOTE_APP_DATA,
+                remote_units_data=INGRESS_REMOTE_UNITS_DATA,
+            ),
+            ops.testing.Relation(
+                endpoint="gateway-route",
+                remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
+            ),
+        ],
+        leader=True,
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+
+    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
+    assert "hostname is required" in out.unit_status.message
 
 
 @pytest.mark.usefixtures("mock_lightkube")

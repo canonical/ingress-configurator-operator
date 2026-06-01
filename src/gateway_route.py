@@ -6,8 +6,10 @@
 import dataclasses
 import logging
 
-from lightkube import ApiError, Client
+from lightkube import Client
+from lightkube.exceptions import ApiError
 from lightkube.generic_resource import create_namespaced_resource
+from lightkube.models.meta_v1 import ObjectMeta
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +75,7 @@ class HTTPRouteManager:
         self.labels = labels
 
     @staticmethod
-    def _build_spec(config: HTTPRouteConfig) -> dict:
+    def _build_spec(config: HTTPRouteConfig) -> dict[str, object]:
         """Build the HTTPRoute spec dict from a config.
 
         Args:
@@ -82,14 +84,14 @@ class HTTPRouteManager:
         Returns:
             A dict representing the HTTPRoute spec.
         """
-        parent_ref: dict = {
+        parent_ref: dict[str, str] = {
             "name": config.gateway_name,
             "namespace": config.gateway_namespace,
             "sectionName": config.listener_name,
         }
 
         if config.redirect_https:
-            rules = [
+            rules: list[dict[str, object]] = [
                 {
                     "filters": [
                         {
@@ -140,11 +142,11 @@ class HTTPRouteManager:
         """
         spec = self._build_spec(config)
         resource = HTTPRouteResource(
-            metadata={
-                "name": config.name,
-                "namespace": self.namespace,
-                "labels": self.labels,
-            },
+            metadata=ObjectMeta(
+                name=config.name,
+                namespace=self.namespace,
+                labels=self.labels,
+            ),
             spec=spec,
         )
         try:
@@ -170,6 +172,8 @@ class HTTPRouteManager:
                 HTTPRouteResource, namespace=self.namespace, labels=self.labels
             ):
                 name = route.metadata.name  # type: ignore[union-attr]
+                if not name:
+                    raise ValueError("Encountered HTTPRoute resource with no name")
                 if name not in exclude_set:
                     self.client.delete(HTTPRouteResource, name=name, namespace=self.namespace)
                     logger.info("Deleted stale HTTPRoute %s", name)

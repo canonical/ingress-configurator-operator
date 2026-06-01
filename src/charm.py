@@ -221,7 +221,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         """
         self._provide_haproxy_route_tcp_requirements()
 
-    def _reconcile_gateway_route(self) -> None:
+    def _reconcile_gateway_route(self) -> None:  # noqa: C901 (complexity)
         """Reconcile gateway-route: create HTTPRoute resources and update relation data."""
         if not self.is_kubernetes():
             self.unit.status = ops.BlockedStatus(
@@ -247,9 +247,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         # Since we have not yet implemented support in integration mode,
         # we cannot fall back to it when the ports are closed, so we block instead for now.
         if not ingress_data.app.is_port_open:
-            logger.error(
-                "Workload ports are not open according to ingress relation data. "
-            )
+            logger.error("Workload ports are not open according to ingress relation data.")
             self.unit.status = ops.BlockedStatus(
                 "Support for backends with closed ports not yet implemented"
             )
@@ -334,7 +332,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         Args:
             http_route_manager: The HTTPRouteManager to apply and clean up resources.
             gateway_name: Name of the Gateway K8s resource.
-            gateway_namespace: Namespace of the Gateway resource.
+            gateway_model: Name of the model running the Gateway.
             https_mode: One of "disabled", "enabled", "enforced".
             hostnames: List of hostnames for the HTTPRoute.
             paths: List of path prefixes.

@@ -59,7 +59,7 @@ def test_gateway_route_happy_path(context_k8s: ops.testing.Context["IngressConfi
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
     assert out.unit_status == ops.testing.ActiveStatus("Ready")
-    gateway_rel_app_data = out.get_relations("gateway-route")[0].local_app_data
+    gateway_rel_app_data: dict[str, str] = out.get_relations("gateway-route")[0].local_app_data
     assert gateway_rel_app_data["hostname"] == '"example.com"'
     assert "name" not in gateway_rel_app_data
     assert "model" not in gateway_rel_app_data
@@ -93,8 +93,8 @@ def test_gateway_route_no_hostname(context_k8s: ops.testing.Context["IngressConf
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
     assert out.unit_status == ops.testing.ActiveStatus("Ready")
-    gateway_rel = out.get_relations("gateway-route")[0]
-    assert gateway_rel.local_app_data.get("hostname") == "null"
+    gateway_rel_app_data: dict[str, str] = out.get_relations("gateway-route")[0].local_app_data
+    assert gateway_rel_app_data.get("hostname") == "null"
 
 
 @pytest.mark.usefixtures("mock_lightkube")
@@ -276,8 +276,8 @@ def test_gateway_route_https_mode_enforced(
 
     context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert mock_lightkube.apply.call_count == 2
-    calls = mock_lightkube.apply.call_args_list
+    assert mock_lightkube.apply.call_count == 2  # type: ignore[attr-defined]
+    calls = mock_lightkube.apply.call_args_list  # type: ignore[attr-defined]
     http_resource = calls[0][0][0]
     https_resource = calls[1][0][0]
 
@@ -329,8 +329,8 @@ def test_gateway_route_https_mode_disabled(
 
     context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert mock_lightkube.apply.call_count == 1
-    resource = mock_lightkube.apply.call_args_list[0][0][0]
+    assert mock_lightkube.apply.call_count == 1  # type: ignore[attr-defined]
+    resource = mock_lightkube.apply.call_args_list[0][0][0]  # type: ignore[attr-defined]
 
     assert resource.metadata.name.endswith("-http")
     assert resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http"
@@ -371,8 +371,8 @@ def test_gateway_route_https_mode_enabled(
 
     context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert mock_lightkube.apply.call_count == 2
-    calls = mock_lightkube.apply.call_args_list
+    assert mock_lightkube.apply.call_count == 2  # type: ignore[attr-defined]
+    calls = mock_lightkube.apply.call_args_list  # type: ignore[attr-defined]
     http_resource = calls[0][0][0]
     https_resource = calls[1][0][0]
 
@@ -410,6 +410,7 @@ def test_gateway_route_blocked_on_machine_substrate(
         "gateway-route relation only supported on Kubernetes."
     )
 
+
 @pytest.mark.usefixtures("mock_lightkube")
 @pytest.mark.parametrize("ports_open", ["false", "null"])
 def test_ports_open_false_blocks(
@@ -419,7 +420,7 @@ def test_ports_open_false_blocks(
     """
     arrange: workload reports ports_open=False.
     act: trigger config-changed.
-    assert: status is BlockedStatus with a message about Mode 2 not being implemented.
+    assert: status is BlockedStatus with a message about integrator mode not being implemented.
     """
     state = ops.testing.State(
         config={"hostname": "example.com"},

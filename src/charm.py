@@ -232,9 +232,12 @@ class IngressConfiguratorCharm(ops.CharmBase):
         ingress_relation = self.model.get_relation(self._ingress.relation_name)
         # Only support through ingress relation for now, so if it's missing or not ready we can't proceed with gateway-route configuration
         if not ingress_relation:
+            logger.info("gateway-route relation present but ingress relation is missing")
+            self.unit.status = ops.WaitingStatus("Waiting for ingress relation")
             return
 
         if not self._ingress.is_ready():
+            logger.info("gateway-route relation present but ingress relation is not ready")
             self.unit.status = ops.WaitingStatus("Waiting for ingress relation data")
             return
 
@@ -341,60 +344,24 @@ class IngressConfiguratorCharm(ops.CharmBase):
         """
         managed_names = []
         route_base_name = f"{self.app.name}-{backend_service_name}"
-        http_listener = f"{gateway_name}-http"
-        https_listener = f"{gateway_name}-https"
 
-        if https_mode == "disabled":
+        route_specs: list[str] = ["http"]
+        if https_mode in ("enabled", "enforced"):
+            route_specs.append("https")
+
+        for scheme in route_specs:
             config = HTTPRouteConfig(
-                name=f"{route_base_name}-http",
+                name=f"{route_base_name}-{scheme}",
                 gateway_name=gateway_name,
                 gateway_namespace=gateway_model,
-                listener_name=http_listener,
+                listener_name=f"{gateway_name}-{scheme}",
                 hostnames=hostnames,
                 paths=paths,
                 backend_service_name=backend_service_name,
                 backend_service_port=backend_service_port,
+                redirect_https=https_mode == "enforced" and scheme == "http",
             )
             managed_names.append(http_route_manager.apply(config))
-
-        elif https_mode == "enabled":
-            for scheme, listener in (("http", http_listener), ("https", https_listener)):
-                config = HTTPRouteConfig(
-                    name=f"{route_base_name}-{scheme}",
-                    gateway_name=gateway_name,
-                    gateway_namespace=gateway_model,
-                    listener_name=listener,
-                    hostnames=hostnames,
-                    paths=paths,
-                    backend_service_name=backend_service_name,
-                    backend_service_port=backend_service_port,
-                )
-                managed_names.append(http_route_manager.apply(config))
-
-        elif https_mode == "enforced":
-            redirect_config = HTTPRouteConfig(
-                name=f"{route_base_name}-http",
-                gateway_name=gateway_name,
-                gateway_namespace=gateway_model,
-                listener_name=http_listener,
-                hostnames=hostnames,
-                paths=paths,
-                backend_service_name=backend_service_name,
-                backend_service_port=backend_service_port,
-                redirect_https=True,
-            )
-            managed_names.append(http_route_manager.apply(redirect_config))
-            https_config = HTTPRouteConfig(
-                name=f"{route_base_name}-https",
-                gateway_name=gateway_name,
-                gateway_namespace=gateway_model,
-                listener_name=https_listener,
-                hostnames=hostnames,
-                paths=paths,
-                backend_service_name=backend_service_name,
-                backend_service_port=backend_service_port,
-            )
-            managed_names.append(http_route_manager.apply(https_config))
 
         http_route_manager.delete_stale(exclude=managed_names)
 

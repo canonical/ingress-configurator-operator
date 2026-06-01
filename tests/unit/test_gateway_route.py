@@ -245,6 +245,30 @@ def test_gateway_route_waiting_for_provider_data(
     assert out.unit_status == ops.testing.WaitingStatus("Waiting for gateway-route provider data")
 
 
+@pytest.mark.usefixtures("mock_lightkube")
+def test_gateway_route_waiting_for_ingress_relation(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: gateway-route relation present but ingress relation missing.
+    act: trigger config-changed.
+    assert: status is Waiting("Waiting for ingress relation").
+    """
+    state = ops.testing.State(
+        relations=[
+            ops.testing.Relation(
+                endpoint="gateway-route",
+                remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
+            ),
+        ],
+        leader=True,
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.WaitingStatus("Waiting for ingress relation")
+
+
 def test_gateway_route_https_mode_enforced(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"], mock_lightkube: "LightkubeClient"
 ):
@@ -296,6 +320,37 @@ def test_gateway_route_https_mode_enforced(
     https_rule = https_resource.spec["rules"][0]
     assert https_rule["backendRefs"][0]["port"] == 8080
     assert "filters" not in https_rule
+
+
+@pytest.mark.usefixtures("mock_lightkube")
+def test_gateway_route_wildcard_hostname_blocked(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: wildcard hostname in config.
+    act: trigger config-changed.
+    assert: status is Blocked with message about invalid hostname.
+    """
+    state = ops.testing.State(
+        config={"hostname": "*.example.com"},
+        relations=[
+            ops.testing.Relation(
+                endpoint="ingress",
+                remote_app_data=INGRESS_REMOTE_APP_DATA,
+                remote_units_data=INGRESS_REMOTE_UNITS_DATA,
+            ),
+            ops.testing.Relation(
+                endpoint="gateway-route",
+                remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
+            ),
+        ],
+        leader=True,
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+
+    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
+    assert "hostname" in out.unit_status.message
 
 
 def test_gateway_route_https_mode_disabled(

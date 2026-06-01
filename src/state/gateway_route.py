@@ -7,7 +7,7 @@ import logging
 from typing import Annotated, Optional, Self, cast
 
 import ops
-from charms.haproxy.v2.haproxy_route import valid_domain_with_wildcard
+from charms.gateway_api_integrator.v1.gateway_route import valid_fqdn
 from charms.traefik_k8s.v2.ingress import IngressRequirerData
 from pydantic import BeforeValidator, Field, ValidationError
 from pydantic.dataclasses import dataclass
@@ -39,12 +39,8 @@ class GatewayRouteState:
     application_name: str
     model_name: str
     port: int = Field(gt=0, le=65535)
-    hostname: Optional[Annotated[str, BeforeValidator(valid_domain_with_wildcard)]] = Field(
-        default=None
-    )
-    additional_hostnames: list[Annotated[str, BeforeValidator(valid_domain_with_wildcard)]] = (
-        Field(default=[])
-    )
+    hostname: Optional[Annotated[str, BeforeValidator(valid_fqdn)]] = Field(default=None)
+    additional_hostnames: list[Annotated[str, BeforeValidator(valid_fqdn)]] = Field(default=[])
     paths: list[str] = Field(default=["/"])
 
     @classmethod

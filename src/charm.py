@@ -295,7 +295,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self._create_http_routes(
                 http_route_manager=manager,
                 gateway_name=provider_data.gateway_name,
-                gateway_model=provider_data.model_name,
+                gateway_model=provider_data.gateway_model,
                 https_mode=provider_data.https_mode,
                 hostnames=state.hostnames,
                 paths=state.paths,

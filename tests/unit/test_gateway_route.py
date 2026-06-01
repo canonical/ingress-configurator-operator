@@ -24,7 +24,7 @@ INGRESS_REMOTE_UNITS_DATA = {0: {"host": '"test.local"'}}
 
 GATEWAY_ROUTE_PROVIDER_DATA = {
     "gateway_name": '"my-gateway"',
-    "model_name": '"gateway-model"',
+    "gateway_model": '"gateway-model"',
     "https_mode": '"enforced"',
     "endpoints": json.dumps(["https://example.com/app1"]),
 }
@@ -265,7 +265,7 @@ def test_gateway_route_https_mode_enforced(
                 endpoint="gateway-route",
                 remote_app_data={
                     "gateway_name": '"my-gateway"',
-                    "model_name": '"gateway-model"',
+                    "gateway_model": '"gateway-model"',
                     "https_mode": '"enforced"',
                     "endpoints": json.dumps([]),
                 },
@@ -318,7 +318,7 @@ def test_gateway_route_https_mode_disabled(
                 endpoint="gateway-route",
                 remote_app_data={
                     "gateway_name": '"my-gateway"',
-                    "model_name": '"gateway-model"',
+                    "gateway_model": '"gateway-model"',
                     "https_mode": '"disabled"',
                     "endpoints": json.dumps([]),
                 },
@@ -360,7 +360,7 @@ def test_gateway_route_https_mode_enabled(
                 endpoint="gateway-route",
                 remote_app_data={
                     "gateway_name": '"my-gateway"',
-                    "model_name": '"gateway-model"',
+                    "gateway_model": '"gateway-model"',
                     "https_mode": '"enabled"',
                     "endpoints": json.dumps([]),
                 },

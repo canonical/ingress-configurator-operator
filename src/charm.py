@@ -12,7 +12,10 @@ import logging
 import typing
 
 import ops
-from charms.gateway_api_integrator.v0.gateway_route import GatewayRouteRequirer
+from charms.gateway_api_integrator.v1.gateway_route import (
+    GatewayRouteInvalidRelationDataError,
+    GatewayRouteRequirer,
+)
 from charms.haproxy.v1.haproxy_route_tcp import DataValidationError, HaproxyRouteTcpRequirer
 from charms.haproxy.v2.haproxy_route import HaproxyRouteRequirer
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider
@@ -241,6 +244,17 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self.unit.status = ops.BlockedStatus("Invalid ingress relation data")
             return
 
+        # Since we have not yet implemented support in integration mode,
+        # we cannot fall back to it when the ports are closed, so we block instead for now.
+        if not ingress_data.app.is_port_open:
+            logger.error(
+                "Workload ports are not open according to ingress relation data. "
+            )
+            self.unit.status = ops.BlockedStatus(
+                "Support for backends with closed ports not yet implemented"
+            )
+            return
+
         try:
             state = GatewayRouteState.from_charm(self, ingress_data)
         except InvalidGatewayRouteStateError as exc:
@@ -249,19 +263,28 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
         self.unit.status = ops.MaintenanceStatus("Configuring gateway route")
 
-        self._gateway_route.provide_gateway_route_requirements(
-            name=state.application_name,
-            model=state.model_name,
-            port=state.port,
-            hostname=state.hostname,
-            additional_hostnames=list(state.additional_hostnames),
-            paths=state.paths,
-        )
+        try:
+            self._gateway_route.publish_requirer_data(
+                hostname=state.hostname,
+                additional_hostnames=list(state.additional_hostnames),
+            )
+        except GatewayRouteInvalidRelationDataError as exc:
+            logger.exception("Invalid gateway-route relation data.")
+            self.unit.status = ops.BlockedStatus(str(exc))
+            return
 
-        provider_data = self._gateway_route.get_provider_data()
+        provider_data = None
+        try:
+            provider_data = self._gateway_route.get_provider_data()
+        except GatewayRouteInvalidRelationDataError:
+            logger.exception("Invalid gateway-route provider data.")
+            self.unit.status = ops.BlockedStatus("Invalid gateway-route provider data")
         if provider_data is None:
             self.unit.status = ops.WaitingStatus("Waiting for gateway-route provider data")
             return
+
+        gateway_relation = self._gateway_route.relation
+        raw_provider = gateway_relation.data[gateway_relation.app]  # type: ignore[union-attr]
 
         manager = HTTPRouteManager(
             client=self.lightkube_client,
@@ -271,9 +294,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
         try:
             self._create_http_routes(
                 http_route_manager=manager,
-                gateway_name=provider_data.gateway_name,  # type: ignore[arg-type]
-                gateway_namespace=provider_data.model_name,  # type: ignore[arg-type]
-                https_mode=provider_data.https_mode,  # type: ignore[arg-type]
+                gateway_name=provider_data.gateway_name,
+                gateway_model=provider_data.model_name,
+                https_mode=provider_data.https_mode,
                 hostnames=state.hostnames,
                 paths=state.paths,
                 backend_service_name=state.application_name,
@@ -283,7 +306,13 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self.unit.status = ops.BlockedStatus(str(exc))
             return
 
-        if endpoints := self._gateway_route.get_routed_endpoints():
+        raw_endpoints_json = raw_provider.get("endpoints", "[]")
+        try:
+            endpoints = json.loads(raw_endpoints_json)
+        except json.JSONDecodeError:
+            endpoints = []
+
+        if endpoints:
             self._ingress.publish_url(ingress_relation, url=str(endpoints[0]))
             self.unit.status = ops.ActiveStatus("Ready")
         else:
@@ -293,7 +322,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         self,
         http_route_manager: HTTPRouteManager,
         gateway_name: str,
-        gateway_namespace: str,
+        gateway_model: str,
         https_mode: str,
         hostnames: list[str],
         paths: list[str],
@@ -314,13 +343,15 @@ class IngressConfiguratorCharm(ops.CharmBase):
         """
         managed_names = []
         route_base_name = f"{self.app.name}-{backend_service_name}"
+        http_listener = f"{gateway_name}-http"
+        https_listener = f"{gateway_name}-https"
 
         if https_mode == "disabled":
             config = HTTPRouteConfig(
                 name=f"{route_base_name}-http",
                 gateway_name=gateway_name,
-                gateway_namespace=gateway_namespace,
-                listener_name=f"{gateway_name}-http-listener",
+                gateway_namespace=gateway_model,
+                listener_name=http_listener,
                 hostnames=hostnames,
                 paths=paths,
                 backend_service_name=backend_service_name,
@@ -329,12 +360,12 @@ class IngressConfiguratorCharm(ops.CharmBase):
             managed_names.append(http_route_manager.apply(config))
 
         elif https_mode == "enabled":
-            for scheme in ("http", "https"):
+            for scheme, listener in (("http", http_listener), ("https", https_listener)):
                 config = HTTPRouteConfig(
                     name=f"{route_base_name}-{scheme}",
                     gateway_name=gateway_name,
-                    gateway_namespace=gateway_namespace,
-                    listener_name=f"{gateway_name}-{scheme}-listener",
+                    gateway_namespace=gateway_model,
+                    listener_name=listener,
                     hostnames=hostnames,
                     paths=paths,
                     backend_service_name=backend_service_name,
@@ -346,8 +377,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
             redirect_config = HTTPRouteConfig(
                 name=f"{route_base_name}-http",
                 gateway_name=gateway_name,
-                gateway_namespace=gateway_namespace,
-                listener_name=f"{gateway_name}-http-listener",
+                gateway_namespace=gateway_model,
+                listener_name=http_listener,
                 hostnames=hostnames,
                 paths=paths,
                 backend_service_name=backend_service_name,
@@ -358,8 +389,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
             https_config = HTTPRouteConfig(
                 name=f"{route_base_name}-https",
                 gateway_name=gateway_name,
-                gateway_namespace=gateway_namespace,
-                listener_name=f"{gateway_name}-https-listener",
+                gateway_namespace=gateway_model,
+                listener_name=https_listener,
                 hostnames=hostnames,
                 paths=paths,
                 backend_service_name=backend_service_name,

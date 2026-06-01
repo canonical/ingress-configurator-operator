@@ -18,6 +18,7 @@ INGRESS_REMOTE_APP_DATA = {
     "model": '"testing-model"',
     "name": '"testing-app"',
     "port": "8080",
+    "is_port_open": "true",
 }
 INGRESS_REMOTE_UNITS_DATA = {0: {"host": '"test.local"'}}
 
@@ -60,9 +61,10 @@ def test_gateway_route_happy_path(context_k8s: ops.testing.Context["IngressConfi
     assert out.unit_status == ops.testing.ActiveStatus("Ready")
     gateway_rel_app_data = out.get_relations("gateway-route")[0].local_app_data
     assert gateway_rel_app_data["hostname"] == '"example.com"'
-    assert gateway_rel_app_data["port"] == "8080"
-    assert gateway_rel_app_data["name"] == '"testing-app"'
-    assert gateway_rel_app_data["model"] == '"testing-model"'
+    assert "name" not in gateway_rel_app_data
+    assert "model" not in gateway_rel_app_data
+    assert "paths" not in gateway_rel_app_data
+    assert "port" not in gateway_rel_app_data
 
 
 @pytest.mark.usefixtures("mock_lightkube")
@@ -281,7 +283,7 @@ def test_gateway_route_https_mode_enforced(
 
     # HTTP route: 301 redirect to HTTPS, http-listener
     assert http_resource.metadata.name.endswith("-http")
-    assert http_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http-listener"
+    assert http_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http"
     http_rule = http_resource.spec["rules"][0]
     assert http_rule["filters"][0]["type"] == "RequestRedirect"
     assert http_rule["filters"][0]["requestRedirect"]["scheme"] == "https"
@@ -290,7 +292,7 @@ def test_gateway_route_https_mode_enforced(
 
     # HTTPS route: forwards to backend, https-listener
     assert https_resource.metadata.name.endswith("-https")
-    assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https-listener"
+    assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https"
     https_rule = https_resource.spec["rules"][0]
     assert https_rule["backendRefs"][0]["port"] == 8080
     assert "filters" not in https_rule
@@ -331,7 +333,7 @@ def test_gateway_route_https_mode_disabled(
     resource = mock_lightkube.apply.call_args_list[0][0][0]
 
     assert resource.metadata.name.endswith("-http")
-    assert resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http-listener"
+    assert resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http"
     rule = resource.spec["rules"][0]
     assert rule["backendRefs"][0]["port"] == 8080
     assert "filters" not in rule
@@ -376,13 +378,13 @@ def test_gateway_route_https_mode_enabled(
 
     # Both routes forward to the backend
     assert http_resource.metadata.name.endswith("-http")
-    assert http_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http-listener"
+    assert http_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http"
     http_rule = http_resource.spec["rules"][0]
     assert http_rule["backendRefs"][0]["port"] == 8080
     assert "filters" not in http_rule
 
     assert https_resource.metadata.name.endswith("-https")
-    assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https-listener"
+    assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https"
     https_rule = https_resource.spec["rules"][0]
     assert https_rule["backendRefs"][0]["port"] == 8080
     assert "filters" not in https_rule
@@ -407,3 +409,40 @@ def test_gateway_route_blocked_on_machine_substrate(
     assert out.unit_status == ops.testing.BlockedStatus(
         "gateway-route relation only supported on Kubernetes."
     )
+
+@pytest.mark.usefixtures("mock_lightkube")
+@pytest.mark.parametrize("ports_open", ["false", "null"])
+def test_ports_open_false_blocks(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    ports_open: str,
+):
+    """
+    arrange: workload reports ports_open=False.
+    act: trigger config-changed.
+    assert: status is BlockedStatus with a message about Mode 2 not being implemented.
+    """
+    state = ops.testing.State(
+        config={"hostname": "example.com"},
+        relations=[
+            ops.testing.Relation(
+                endpoint="ingress",
+                remote_app_data={
+                    "model": '"testing-model"',
+                    "name": '"testing-app"',
+                    "port": "8080",
+                    "ports_open": ports_open,
+                },
+                remote_units_data=INGRESS_REMOTE_UNITS_DATA,
+            ),
+            ops.testing.Relation(
+                endpoint="gateway-route",
+                remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
+            ),
+        ],
+        leader=True,
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+
+    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
+    assert "Support for backends with closed ports not yet implemented" in out.unit_status.message

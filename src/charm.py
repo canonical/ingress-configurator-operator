@@ -307,17 +307,18 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self.unit.status = ops.BlockedStatus(str(exc))
             return
 
-        raw_endpoints_json = raw_provider.get("endpoints", "[]")
-        try:
-            endpoints = json.loads(raw_endpoints_json)
-        except json.JSONDecodeError:
-            endpoints = []
+        scheme = (
+            "https"
+            if provider_data.https_mode in (HttpsMode.ENABLED, HttpsMode.ENFORCED)
+            else "http"
+        )
+        path = state.paths[0].lstrip("/")
+        endpoint = (
+            f"{scheme}://{state.hostname}/{path}" if path else f"{scheme}://{state.hostname}"
+        )
+        self._ingress.publish_url(ingress_relation, url=endpoint)
+        self.unit.status = ops.ActiveStatus("Ready")
 
-        if endpoints:
-            self._ingress.publish_url(ingress_relation, url=str(endpoints[0]))
-            self.unit.status = ops.ActiveStatus("Ready")
-        else:
-            self.unit.status = ops.ActiveStatus()
 
     def _create_http_routes(
         self,

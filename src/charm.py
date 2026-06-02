@@ -233,14 +233,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
         ingress_relation = self.model.get_relation(self._ingress.relation_name)
         # Only support through ingress relation for now,
         # so if it's missing or not ready we can't proceed with gateway-route configuration
-        if not ingress_relation:
-            logger.info("gateway-route relation present but ingress relation is missing")
+        if not ingress_relation or not self._ingress.is_ready():
+            logger.info("gateway-route relation present but ingress relation is missing or not ready")
             self.unit.status = ops.WaitingStatus("Waiting for ingress relation")
-            return
-
-        if not self._ingress.is_ready():
-            logger.info("gateway-route relation present but ingress relation is not ready")
-            self.unit.status = ops.WaitingStatus("Waiting for ingress relation data")
             return
 
         try:

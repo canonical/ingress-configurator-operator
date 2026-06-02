@@ -95,7 +95,7 @@ def test_gateway_route_no_hostname(
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
     assert isinstance(out.unit_status, ops.testing.BlockedStatus)
-    assert "hostname is required" in out.unit_status.message
+    assert "Invalid gateway-route configuration: hostname" in out.unit_status.message
 
 
 @pytest.mark.usefixtures("mock_lightkube")
@@ -126,7 +126,7 @@ def test_gateway_route_additional_hostnames_only(
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
     assert isinstance(out.unit_status, ops.testing.BlockedStatus)
-    assert "hostname is required" in out.unit_status.message
+    assert "Invalid gateway-route configuration: hostname" in out.unit_status.message
 
 
 @pytest.mark.usefixtures("mock_lightkube")

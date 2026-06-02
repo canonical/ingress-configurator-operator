@@ -38,8 +38,8 @@ class GatewayRouteState:
 
     application_name: str
     model_name: str
+    hostname: Annotated[str, BeforeValidator(valid_fqdn)]
     port: int = Field(gt=0, le=65535)
-    hostname: Optional[Annotated[str, BeforeValidator(valid_fqdn)]] = Field(default=None)
     additional_hostnames: list[Annotated[str, BeforeValidator(valid_fqdn)]] = Field(default=[])
     paths: list[str] = Field(default=["/"])
 
@@ -57,7 +57,7 @@ class GatewayRouteState:
         Returns:
             GatewayRouteState instance.
         """
-        hostname = cast(Optional[str], charm.config.get("hostname"))
+        hostname = cast(str, charm.config.get("hostname"))
         additional_hostnames = (
             cast(str, charm.config.get("additional-hostnames")).split(CHARM_CONFIG_DELIMITER)
             if charm.config.get("additional-hostnames")
@@ -96,8 +96,6 @@ class GatewayRouteState:
         """All hostnames: primary + additional.
 
         Returns:
-            List of all hostnames, or empty list if no hostname configured.
+            List of all hostnames, including the primary and additional hostnames.
         """
-        if not self.hostname:
-            return list(self.additional_hostnames)
         return [self.hostname, *self.additional_hostnames]

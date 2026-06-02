@@ -4,7 +4,7 @@
 """Gateway route state management module."""
 
 import logging
-from typing import Annotated, Optional, Self, cast
+from typing import Annotated, Self, cast
 
 import ops
 from charms.gateway_api_integrator.v1.gateway_route import valid_fqdn

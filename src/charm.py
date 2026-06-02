@@ -21,7 +21,7 @@ from charms.haproxy.v2.haproxy_route import HaproxyRouteRequirer
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider
 from lightkube import Client
 
-from gateway_route import (
+from http_route import (
     HTTPRouteConfig,
     HTTPRouteManager,
     InsufficientPermissionError,

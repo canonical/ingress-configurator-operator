@@ -236,7 +236,7 @@ charm-libs:
   - lib: traefik_k8s.ingress
     version: "2"
   - lib: gateway_api_integrator.gateway_route
-    version: "0"
+    version: "1"
 
 actions:
   get-proxied-endpoints:

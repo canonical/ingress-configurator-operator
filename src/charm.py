@@ -13,12 +13,23 @@ import typing
 
 import ops
 from charms.gateway_api_integrator.v1.gateway_route import (
+    GATEWAY_ROUTE_RELATION_NAME as GATEWAY_ROUTE_RELATION,
+)
+from charms.gateway_api_integrator.v1.gateway_route import (
     GatewayRouteInvalidRelationDataError,
     GatewayRouteRequirer,
     HttpsMode,
 )
-from charms.haproxy.v1.haproxy_route_tcp import DataValidationError, HaproxyRouteTcpRequirer
+from charms.haproxy.v1.haproxy_route_tcp import (
+    HAPROXY_ROUTE_TCP_RELATION_NAME as HAPROXY_ROUTE_TCP_RELATION,
+)
+from charms.haproxy.v1.haproxy_route_tcp import (
+    DataValidationError,
+    HaproxyRouteTcpRequirer,
+)
+from charms.haproxy.v2.haproxy_route import HAPROXY_ROUTE_RELATION_NAME as HAPROXY_ROUTE_RELATION
 from charms.haproxy.v2.haproxy_route import HaproxyRouteRequirer
+from charms.traefik_k8s.v2.ingress import DEFAULT_RELATION_NAME as INGRESS_RELATION
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider
 from lightkube import Client
 
@@ -40,10 +51,6 @@ from state.haproxy_route_tcp import (
 )
 
 logger = logging.getLogger(__name__)
-HAPROXY_ROUTE_RELATION = "haproxy-route"
-HAPROXY_ROUTE_TCP_RELATION = "haproxy-route-tcp"
-INGRESS_RELATION = "ingress"
-GATEWAY_ROUTE_RELATION = "gateway-route"
 CREATED_BY_LABEL = "ingress-configurator.charm.juju.is/managed-by"
 
 
@@ -65,9 +72,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
         self._lightkube_field_manager = self.app.name
         self._haproxy_route = HaproxyRouteRequirer(self, HAPROXY_ROUTE_RELATION)
         self._haproxy_route_tcp = HaproxyRouteTcpRequirer(self, HAPROXY_ROUTE_TCP_RELATION)
-        self._gateway_route = GatewayRouteRequirer(self, relation_name=GATEWAY_ROUTE_RELATION)
+        self._gateway_route = GatewayRouteRequirer(self)
 
-        self._ingress = IngressPerAppProvider(self, INGRESS_RELATION)
+        self._ingress = IngressPerAppProvider(self)
         self.framework.observe(self.on.config_changed, self._reconcile)
         self.framework.observe(self.on[HAPROXY_ROUTE_RELATION].relation_changed, self._reconcile)
         self.framework.observe(self.on[HAPROXY_ROUTE_RELATION].relation_broken, self._reconcile)

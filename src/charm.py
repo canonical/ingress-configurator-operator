@@ -222,7 +222,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         """
         self._provide_haproxy_route_tcp_requirements()
 
-    def _reconcile_gateway_route(self) -> None:  # noqa: C901 (complexity)
+    def _reconcile_gateway_route(self) -> None:
         """Reconcile gateway-route: create HTTPRoute resources and update relation data."""
         if not self.is_kubernetes():
             self.unit.status = ops.BlockedStatus(
@@ -234,7 +234,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
         # Only support through ingress relation for now,
         # so if it's missing or not ready we can't proceed with gateway-route configuration
         if not ingress_relation or not self._ingress.is_ready():
-            logger.info("gateway-route relation present but ingress relation is missing or not ready")
+            logger.info(
+                "gateway-route relation present but ingress relation is missing or not ready"
+            )
             self.unit.status = ops.WaitingStatus("Waiting for ingress relation")
             return
 

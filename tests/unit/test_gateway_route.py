@@ -495,7 +495,7 @@ def test_gateway_route_blocked_on_machine_substrate(
     out = context_machine.run(context_machine.on.config_changed(), state)
 
     assert out.unit_status == ops.testing.BlockedStatus(
-        "gateway-route relation only supported on Kubernetes."
+        "ingress-configurator can only be deployed on Kubernetes when integrated with gateway-route."
     )
 
 

@@ -179,3 +179,51 @@ class HTTPRouteManager:
                     logger.info("Deleted stale HTTPRoute %s", name)
         except ApiError:
             logger.exception("Error cleaning up stale HTTPRoutes")
+
+
+def create_http_routes(
+    http_route_manager: HTTPRouteManager,
+    app_name: str,
+    gateway_name: str,
+    gateway_model: str,
+    https_mode: str,
+    hostnames: list[str],
+    paths: list[str],
+    backend_service_name: str,
+    backend_service_port: int,
+) -> None:
+    """Create HTTPRoute K8s resources based on https_mode.
+
+    Args:
+        http_route_manager: The HTTPRouteManager to apply and clean up resources.
+        app_name: Application name used in managed HTTPRoute resource names.
+        gateway_name: Name of the Gateway K8s resource.
+        gateway_model: Name of the model running the Gateway.
+        https_mode: One of "disabled", "enabled", "enforced".
+        hostnames: List of hostnames for the HTTPRoute.
+        paths: List of path prefixes.
+        backend_service_name: Name of the backend K8s Service.
+        backend_service_port: Port of the backend Service.
+    """
+    managed_names = []
+    route_base_name = f"{app_name}-{backend_service_name}"
+
+    route_specs: list[str] = ["http"]
+    if https_mode in ("enabled", "enforced"):
+        route_specs.append("https")
+
+    for scheme in route_specs:
+        config = HTTPRouteConfig(
+            name=f"{route_base_name}-{scheme}",
+            gateway_name=gateway_name,
+            gateway_namespace=gateway_model,
+            listener_name=f"{gateway_name}-{scheme}",
+            hostnames=hostnames,
+            paths=paths,
+            backend_service_name=backend_service_name,
+            backend_service_port=backend_service_port,
+            redirect_https=https_mode == "enforced" and scheme == "http",
+        )
+        managed_names.append(http_route_manager.apply(config))
+
+    http_route_manager.delete_stale(exclude=managed_names)

@@ -15,6 +15,7 @@ import ops
 from charms.gateway_api_integrator.v1.gateway_route import (
     GatewayRouteInvalidRelationDataError,
     GatewayRouteRequirer,
+    HttpsMode,
 )
 from charms.haproxy.v1.haproxy_route_tcp import DataValidationError, HaproxyRouteTcpRequirer
 from charms.haproxy.v2.haproxy_route import HaproxyRouteRequirer
@@ -22,9 +23,9 @@ from charms.traefik_k8s.v2.ingress import IngressPerAppProvider
 from lightkube import Client
 
 from http_route import (
-    HTTPRouteConfig,
     HTTPRouteManager,
     InsufficientPermissionError,
+    create_http_routes,
 )
 from kubernetes import (
     delete_nodeport_services_owned_by,
@@ -225,12 +226,13 @@ class IngressConfiguratorCharm(ops.CharmBase):
         """Reconcile gateway-route: create HTTPRoute resources and update relation data."""
         if not self.is_kubernetes():
             self.unit.status = ops.BlockedStatus(
-                "gateway-route relation only supported on Kubernetes."
+                "ingress-configurator can only be deployed on Kubernetes when integrated with gateway-route."
             )
             return
 
         ingress_relation = self.model.get_relation(self._ingress.relation_name)
-        # Only support through ingress relation for now, so if it's missing or not ready we can't proceed with gateway-route configuration
+        # Only support through ingress relation for now,
+        # so if it's missing or not ready we can't proceed with gateway-route configuration
         if not ingress_relation:
             logger.info("gateway-route relation present but ingress relation is missing")
             self.unit.status = ops.WaitingStatus("Waiting for ingress relation")
@@ -284,17 +286,15 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self.unit.status = ops.WaitingStatus("Waiting for gateway-route provider data")
             return
 
-        gateway_relation = self._gateway_route.relation
-        raw_provider = gateway_relation.data[gateway_relation.app]  # type: ignore[union-attr]
-
         manager = HTTPRouteManager(
             client=self.lightkube_client,
             namespace=self.model.name,
             labels={CREATED_BY_LABEL: self.app.name},
         )
         try:
-            self._create_http_routes(
+            create_http_routes(
                 http_route_manager=manager,
+                app_name=self.app.name,
                 gateway_name=provider_data.gateway_name,
                 gateway_model=provider_data.gateway_model,
                 https_mode=provider_data.https_mode,
@@ -318,53 +318,6 @@ class IngressConfiguratorCharm(ops.CharmBase):
         )
         self._ingress.publish_url(ingress_relation, url=endpoint)
         self.unit.status = ops.ActiveStatus("Ready")
-
-
-    def _create_http_routes(
-        self,
-        http_route_manager: HTTPRouteManager,
-        gateway_name: str,
-        gateway_model: str,
-        https_mode: str,
-        hostnames: list[str],
-        paths: list[str],
-        backend_service_name: str,
-        backend_service_port: int,
-    ) -> None:
-        """Create HTTPRoute K8s resources based on https_mode.
-
-        Args:
-            http_route_manager: The HTTPRouteManager to apply and clean up resources.
-            gateway_name: Name of the Gateway K8s resource.
-            gateway_model: Name of the model running the Gateway.
-            https_mode: One of "disabled", "enabled", "enforced".
-            hostnames: List of hostnames for the HTTPRoute.
-            paths: List of path prefixes.
-            backend_service_name: Name of the backend K8s Service.
-            backend_service_port: Port of the backend Service.
-        """
-        managed_names = []
-        route_base_name = f"{self.app.name}-{backend_service_name}"
-
-        route_specs: list[str] = ["http"]
-        if https_mode in ("enabled", "enforced"):
-            route_specs.append("https")
-
-        for scheme in route_specs:
-            config = HTTPRouteConfig(
-                name=f"{route_base_name}-{scheme}",
-                gateway_name=gateway_name,
-                gateway_namespace=gateway_model,
-                listener_name=f"{gateway_name}-{scheme}",
-                hostnames=hostnames,
-                paths=paths,
-                backend_service_name=backend_service_name,
-                backend_service_port=backend_service_port,
-                redirect_https=https_mode == "enforced" and scheme == "http",
-            )
-            managed_names.append(http_route_manager.apply(config))
-
-        http_route_manager.delete_stale(exclude=managed_names)
 
     def _on_update_status(self, event: ops.UpdateStatusEvent) -> None:
         """Periodically refresh node IPs and reconcile the NodePort service.

@@ -104,6 +104,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         haproxy_route_tcp_related = self._haproxy_route_tcp.relation is not None
 
         if sum([haproxy_route_related, haproxy_route_tcp_related]) > 1:
+            logger.error("Mulltiple route relations exist.")
             self.unit.status = ops.BlockedStatus(
                 "Only one route relation type should exist (haproxy-route or haproxy-route-tcp)."
             )
@@ -188,6 +189,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
     def _reconcile_haproxy_route_tcp(self) -> None:
         """Reconcile haproxy-route-tcp requirer data."""
         if self.model.get_relation(self._ingress.relation_name) is not None:
+            logger.error(
+                "Cannot relate to both haproxy-route-tcp and ingress relations simultaneously."
+            )
             self.unit.status = ops.BlockedStatus(
                 "haproxy-route-tcp cannot be used with ingress relation. Use integrator mode only."
             )

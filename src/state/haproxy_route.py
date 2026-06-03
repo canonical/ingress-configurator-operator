@@ -75,7 +75,7 @@ class HealthCheck:
     fall: Optional[int] = Field(gt=0)
 
     @model_validator(mode="after")
-    def validate_health_check_all_set(self) -> "HealthCheck":
+    def validate_health_check_all_set(self) -> Self:
         """Perform additional validations.
 
         Returns: this class instance.
@@ -94,7 +94,7 @@ class HealthCheck:
         return self
 
     @classmethod
-    def from_charm(cls, charm: ops.CharmBase) -> "HealthCheck":
+    def from_charm(cls, charm: ops.CharmBase) -> Self:
         """Create an HealthCheck class from a charm instance.
 
         Args:
@@ -175,7 +175,7 @@ class HaproxyRouteState:
         return self._backend_state.backend_protocol
 
     @property
-    def kubernetes_backend_state(self) -> "NodePortState | None":
+    def kubernetes_backend_state(self) -> NodePortState | None:
         """Kubernetes-specific backend configuration."""
         return self._kubernetes_backend_state
 

@@ -54,10 +54,6 @@ logger = logging.getLogger(__name__)
 CREATED_BY_LABEL = "ingress-configurator.charm.juju.is/managed-by"
 
 
-class ProvideHaproxyRouteTcpRequirementsError(Exception):
-    """Exception raised when providing HAProxy TCP route requirements fails."""
-
-
 class IngressConfiguratorCharm(ops.CharmBase):
     """Charm the service."""
 
@@ -124,38 +120,22 @@ class IngressConfiguratorCharm(ops.CharmBase):
         """Dispatch to the appropriate reconcile method based on active relations."""
         haproxy_route_related = self._haproxy_route.relation is not None
         haproxy_route_tcp_related = self._haproxy_route_tcp.relation is not None
-        haproxy_related = haproxy_route_related or haproxy_route_tcp_related
         gateway_route_related = self._gateway_route.relation is not None
 
-        if haproxy_related and gateway_route_related:
+        if sum([haproxy_route_related, haproxy_route_tcp_related, gateway_route_related]) > 1:
             self.unit.status = ops.BlockedStatus(
-                "Only one route relation type should exist (haproxy-route/haproxy-route-tcp or gateway-route)."
+                "Only one route relation type should exist (haproxy-route, haproxy-route-tcp, or gateway-route)."
             )
             return
 
         if gateway_route_related:
             self._reconcile_gateway_route()
-        elif haproxy_related:
-            self._reconcile_haproxy()
+        elif haproxy_route_related:
+            self._reconcile_haproxy_http()
+        elif haproxy_route_tcp_related:
+            self._reconcile_haproxy_tcp()
         else:
             self.unit.status = ops.BlockedStatus("Route relation required.")
-
-    def _reconcile_haproxy(self) -> None:
-        """Reconcile haproxy-route and haproxy-route-tcp requirer data."""
-        try:
-            if self._haproxy_route.relation is not None:
-                self._reconcile_haproxy_http()
-            if self._haproxy_route_tcp.relation is not None:
-                self._reconcile_haproxy_tcp()
-            self.unit.status = ops.ActiveStatus()
-        except InvalidStateError as exc:
-            logger.exception("Invalid haproxy-route configuration.")
-            self.unit.status = ops.BlockedStatus(str(exc))
-        except ProvideHaproxyRouteTcpRequirementsError:
-            logger.exception("Error providing haproxy-route-tcp requirements.")
-            self.unit.status = ops.BlockedStatus(
-                "Error updating haproxy-route-tcp relation data, check your configuration."
-            )
 
     def _reconcile_haproxy_http(self) -> None:
         """Reconcile haproxy-route (HTTP) requirer data.
@@ -185,7 +165,13 @@ class IngressConfiguratorCharm(ops.CharmBase):
             )
         elif self.is_kubernetes() and ingress_relation_data is None:
             delete_nodeport_services_owned_by(self.lightkube_client, self.app.name)
-        charm_state = State.from_charm(self, ingress_relation_data, kubernetes_data)
+        try:
+            charm_state = State.from_charm(self, ingress_relation_data, kubernetes_data)
+        except InvalidStateError as exc:
+            logger.exception("Invalid haproxy-route configuration.")
+            self.unit.status = ops.BlockedStatus(str(exc))
+            return
+
         # Assign consistent_hashing to a local variable due to line length limit
         consistent_hashing = charm_state.load_balancing_configuration.consistent_hashing
         params = {
@@ -220,6 +206,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         proxied_endpoints = self._haproxy_route.get_proxied_endpoints()
         if ingress_relation and proxied_endpoints:
             self._ingress.publish_url(ingress_relation, str(proxied_endpoints[0]))
+        self.unit.status = ops.ActiveStatus("Ready")
 
     def _reconcile_haproxy_tcp(self) -> None:
         """Reconcile haproxy-route-tcp requirer data.
@@ -227,7 +214,38 @@ class IngressConfiguratorCharm(ops.CharmBase):
         Raises:
             ProvideHaproxyRouteTcpRequirementsError: When providing TCP requirements fails.
         """
-        self._provide_haproxy_route_tcp_requirements()
+        try:
+            tcp_requirements = HaproxyRouteTcpRequirements.from_charm(self)
+            self._haproxy_route_tcp.provide_haproxy_route_tcp_requirements(
+                hosts=tcp_requirements.backend_addresses,
+                port=tcp_requirements.port,
+                backend_port=tcp_requirements.backend_port,
+                tls_terminate=tcp_requirements.tls_terminate,
+                sni=tcp_requirements.hostname,
+                retry_count=tcp_requirements.retry.count,
+                retry_redispatch=tcp_requirements.retry.redispatch or False,
+                load_balancing_algorithm=tcp_requirements.load_balancing_configuration.algorithm,
+                load_balancing_consistent_hashing=(
+                    tcp_requirements.load_balancing_configuration.consistent_hashing
+                ),
+                enforce_tls=tcp_requirements.enforce_tls,
+                check_interval=tcp_requirements.health_check.interval,
+                check_rise=tcp_requirements.health_check.rise,
+                check_fall=tcp_requirements.health_check.fall,
+                check_type=tcp_requirements.health_check.check_type,
+                check_send=tcp_requirements.health_check.send,
+                check_expect=tcp_requirements.health_check.expect,
+                check_db_user=tcp_requirements.health_check.db_user,
+                server_timeout=tcp_requirements.timeout.server,
+                connect_timeout=tcp_requirements.timeout.connect,
+                queue_timeout=tcp_requirements.timeout.queue,
+                proxy_protocol=tcp_requirements.proxy_protocol,
+            )
+        except (InvalidHaproxyRouteTcpRequirementsError, DataValidationError) as exc:
+            logger.exception("Error providing haproxy-route-tcp requirements.")
+            self.unit.status = ops.BlockedStatus(str(exc))
+            return
+        self.unit.status = ops.ActiveStatus("Ready")
 
     def _reconcile_gateway_route(self) -> None:
         """Reconcile gateway-route: create HTTPRoute resources and update relation data."""
@@ -345,40 +363,6 @@ class IngressConfiguratorCharm(ops.CharmBase):
         result = {"endpoints": json.dumps(endpoints) if endpoints else {}}
 
         event.set_results(result)
-
-    def _provide_haproxy_route_tcp_requirements(self) -> None:
-        """Provide HAProxy TCP route requirements to the requirer."""
-        try:
-            tcp_requirements = HaproxyRouteTcpRequirements.from_charm(self)
-            self._haproxy_route_tcp.provide_haproxy_route_tcp_requirements(
-                hosts=tcp_requirements.backend_addresses,
-                port=tcp_requirements.port,
-                backend_port=tcp_requirements.backend_port,
-                tls_terminate=tcp_requirements.tls_terminate,
-                sni=tcp_requirements.hostname,
-                retry_count=tcp_requirements.retry.count,
-                retry_redispatch=tcp_requirements.retry.redispatch or False,
-                load_balancing_algorithm=tcp_requirements.load_balancing_configuration.algorithm,
-                load_balancing_consistent_hashing=(
-                    tcp_requirements.load_balancing_configuration.consistent_hashing
-                ),
-                enforce_tls=tcp_requirements.enforce_tls,
-                check_interval=tcp_requirements.health_check.interval,
-                check_rise=tcp_requirements.health_check.rise,
-                check_fall=tcp_requirements.health_check.fall,
-                check_type=tcp_requirements.health_check.check_type,
-                check_send=tcp_requirements.health_check.send,
-                check_expect=tcp_requirements.health_check.expect,
-                check_db_user=tcp_requirements.health_check.db_user,
-                server_timeout=tcp_requirements.timeout.server,
-                connect_timeout=tcp_requirements.timeout.connect,
-                queue_timeout=tcp_requirements.timeout.queue,
-                proxy_protocol=tcp_requirements.proxy_protocol,
-            )
-        except (InvalidHaproxyRouteTcpRequirementsError, DataValidationError) as exc:
-            raise ProvideHaproxyRouteTcpRequirementsError(
-                "Failed to provide haproxy-route-tcp requirements."
-            ) from exc
 
 
 if __name__ == "__main__":  # pragma: nocover

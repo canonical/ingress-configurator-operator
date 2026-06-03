@@ -3,6 +3,7 @@
 
 """Unit tests for the ingress configurator charm."""
 
+from itertools import combinations
 import json
 from typing import TYPE_CHECKING
 from unittest.mock import ANY, MagicMock
@@ -76,7 +77,7 @@ def test_config_changed_integrator(
 
     out = context_machine.run(context_machine.on.config_changed(), charm_state)
 
-    assert out.unit_status == ops.testing.ActiveStatus()
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
 
 
 def test_protocol_propagated_to_haproxy(
@@ -94,7 +95,7 @@ def test_protocol_propagated_to_haproxy(
     )
     out = context_machine.run(context_machine.on.config_changed(), in_)
 
-    assert out.unit_status == ops.testing.ActiveStatus("")
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
     assert out.get_relations("haproxy-route")[0].local_app_data == {
         "service": ANY,
         "ports": "[80]",
@@ -119,7 +120,7 @@ def test_external_grpc_port_propagated_to_haproxy(
     )
     out = context_machine.run(context_machine.on.config_changed(), in_)
 
-    assert out.unit_status == ops.testing.ActiveStatus("")
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
     assert out.get_relations("haproxy-route")[0].local_app_data == {
         "service": ANY,
         "ports": "[80]",
@@ -271,7 +272,7 @@ def test_haproxy_route(context_machine: ops.testing.Context["IngressConfigurator
     )
     out = context_machine.run(context_machine.on.config_changed(), in_)
 
-    assert out.unit_status == ops.testing.ActiveStatus("")
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
     application_data: dict = dict(out.get_relations("haproxy-route-tcp")[0].local_app_data)
     assert application_data["port"] == "4000"
     assert application_data["backend_port"] == "5000"
@@ -282,3 +283,38 @@ def test_haproxy_route(context_machine: ops.testing.Context["IngressConfigurator
         "algorithm": "source",
         "consistent_hashing": True,
     }
+
+
+@pytest.mark.parametrize(
+    ("relation1", "relation2"),
+    [
+        pytest.param(r1, r2, id=f"{r1} and {r2}")
+        for r1, r2 in combinations(["haproxy-route", "haproxy-route-tcp", "gateway-route"], 2)
+    ],
+)
+def test_routes_mutual_exclusivity(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    relation1: str,
+    relation2: str,
+):
+    """
+    arrange: both multiple relations are present.
+    act: trigger config-changed.
+    assert: status is Blocked about only one route type supported.
+    """
+    state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
+        relations=[
+            ops.testing.Relation(relation1),
+            ops.testing.Relation(relation2),
+        ],
+        leader=True,
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+
+    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
+    assert (
+        out.unit_status.message
+        == "Only one route relation type should exist (haproxy-route, haproxy-route-tcp, or gateway-route)."
+    )

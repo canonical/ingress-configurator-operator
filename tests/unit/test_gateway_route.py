@@ -218,36 +218,6 @@ def test_gateway_route_no_gateway_route_relation(
 
 
 @pytest.mark.usefixtures("mock_lightkube")
-def test_gateway_route_mutual_exclusivity(
-    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
-):
-    """
-    arrange: both haproxy-route and gateway-route relations are active.
-    act: trigger config-changed.
-    assert: status is Blocked about only one route type supported.
-    """
-    state = ops.testing.State(
-        config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
-        relations=[
-            ops.testing.Relation("haproxy-route"),
-            ops.testing.Relation(
-                endpoint="gateway-route",
-                remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
-            ),
-        ],
-        leader=True,
-    )
-
-    out = context_k8s.run(context_k8s.on.config_changed(), state)
-
-    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
-    assert (
-        out.unit_status.message
-        == "Only one route relation type should exist (haproxy-route/haproxy-route-tcp or gateway-route)."
-    )
-
-
-@pytest.mark.usefixtures("mock_lightkube")
 def test_gateway_route_waiting_for_provider_data(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
 ):

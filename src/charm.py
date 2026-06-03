@@ -131,13 +131,13 @@ class IngressConfiguratorCharm(ops.CharmBase):
         if gateway_route_related:
             self._reconcile_gateway_route()
         elif haproxy_route_related:
-            self._reconcile_haproxy_http()
+            self._reconcile_haproxy_route()
         elif haproxy_route_tcp_related:
-            self._reconcile_haproxy_tcp()
+            self._reconcile_haproxy_route_tcp()
         else:
             self.unit.status = ops.BlockedStatus("Route relation required.")
 
-    def _reconcile_haproxy_http(self) -> None:
+    def _reconcile_haproxy_route(self) -> None:
         """Reconcile haproxy-route (HTTP) requirer data.
 
         Raises:
@@ -208,7 +208,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self._ingress.publish_url(ingress_relation, str(proxied_endpoints[0]))
         self.unit.status = ops.ActiveStatus("Ready")
 
-    def _reconcile_haproxy_tcp(self) -> None:
+    def _reconcile_haproxy_route_tcp(self) -> None:
         """Reconcile haproxy-route-tcp requirer data.
 
         Raises:

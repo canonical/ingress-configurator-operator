@@ -138,11 +138,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self.unit.status = ops.BlockedStatus("Route relation required.")
 
     def _reconcile_haproxy_route(self) -> None:
-        """Reconcile haproxy-route (HTTP) requirer data.
-
-        Raises:
-            InvalidStateError: When the charm state is invalid.
-        """
+        """Reconcile haproxy-route (HTTP) requirer data."""
         ingress_relation_data = None
         ingress_relation = self.model.get_relation(self._ingress.relation_name)
         if self._ingress.is_ready():

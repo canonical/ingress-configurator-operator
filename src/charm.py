@@ -43,11 +43,11 @@ from kubernetes import (
     ensure_nodeport_service,
     get_kubernetes_data,
 )
-from state.charm_state import InvalidStateError, State
+from state.charm_state import InvalidStateError
 from state.gateway_route import GatewayRouteState, InvalidGatewayRouteStateError
+from state.haproxy_route import HaproxyRouteState
 from state.haproxy_route_tcp import (
     HaproxyRouteTcpRequirements,
-    InvalidHaproxyRouteTcpRequirementsError,
 )
 
 logger = logging.getLogger(__name__)
@@ -162,7 +162,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
         elif self.is_kubernetes() and ingress_relation_data is None:
             delete_nodeport_services_owned_by(self.lightkube_client, self.app.name)
         try:
-            charm_state = State.from_charm(self, ingress_relation_data, kubernetes_data)
+            charm_state = HaproxyRouteState.from_charm(
+                self, ingress_relation_data, kubernetes_data
+            )
         except InvalidStateError as exc:
             logger.exception("Invalid haproxy-route configuration.")
             self.unit.status = ops.BlockedStatus(str(exc))
@@ -239,7 +241,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 queue_timeout=tcp_requirements.timeout.queue,
                 proxy_protocol=tcp_requirements.proxy_protocol,
             )
-        except (InvalidHaproxyRouteTcpRequirementsError, DataValidationError) as exc:
+        except (InvalidStateError, DataValidationError) as exc:
             logger.exception("Error providing haproxy-route-tcp requirements.")
             self.unit.status = ops.BlockedStatus(str(exc))
             return

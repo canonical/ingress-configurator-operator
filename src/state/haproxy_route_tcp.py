@@ -23,44 +23,9 @@ from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
 from helpers import get_invalid_config_fields
-from state.charm_state import Retry
+from state.charm_state import InvalidStateError, Retry, Timeout
 
 logger = logging.getLogger(__name__)
-
-
-class InvalidHaproxyRouteTcpRequirementsError(Exception):
-    """Exception raised when HaproxyRouteTcpRequirements contains invalid attributes."""
-
-
-@dataclass(frozen=True)
-class TCPTimeout:
-    """TCP backend timeout configuration.
-
-    Attributes:
-        server: Server timeout in seconds.
-        connect: Connect timeout in seconds.
-        queue: Queue timeout in seconds.
-    """
-
-    server: Optional[int] = Field(default=None, gt=0)
-    connect: Optional[int] = Field(default=None, gt=0)
-    queue: Optional[int] = Field(default=None, gt=0)
-
-    @classmethod
-    def from_charm(cls, charm: ops.CharmBase) -> Self:
-        """Create a TCPTimeout from charm config.
-
-        Args:
-            charm: The charm instance.
-
-        Returns:
-            TCPTimeout instance.
-        """
-        return cls(
-            server=cast(Optional[int], charm.config.get("tcp-timeout-server")),
-            connect=cast(Optional[int], charm.config.get("tcp-timeout-connect")),
-            queue=cast(Optional[int], charm.config.get("tcp-timeout-queue")),
-        )
 
 
 @dataclass(frozen=True)
@@ -113,7 +78,7 @@ class TCPHealthCheck:
             charm: The charm instance.
 
         Raises:
-            InvalidHaproxyRouteTcpRequirementsError: If the health check type is invalid.
+            InvalidStateError: If the health check type is invalid.
 
         Returns:
             TCPHealthCheck instance.
@@ -124,7 +89,7 @@ class TCPHealthCheck:
             try:
                 check_type = TCPHealthCheckType(check_type_str)
             except ValueError as exc:
-                raise InvalidHaproxyRouteTcpRequirementsError(
+                raise InvalidStateError(
                     f"Invalid health check type: {check_type_str}. "
                     "Must be one of: generic, mysql, postgres, redis, smtp."
                 ) from exc
@@ -173,7 +138,7 @@ class HaproxyRouteTcpRequirements:  # pylint: disable=too-many-instance-attribut
     load_balancing_configuration: TCPLoadBalancingConfiguration
     enforce_tls: bool
     health_check: TCPHealthCheck
-    timeout: TCPTimeout
+    timeout: Timeout
     proxy_protocol: bool
 
     @classmethod
@@ -184,7 +149,7 @@ class HaproxyRouteTcpRequirements:  # pylint: disable=too-many-instance-attribut
             charm: The IngressConfiguratorCharm instance.
 
         Raises:
-            InvalidHaproxyRouteTcpRequirementsError: If the configuration
+            InvalidStateError: If the configuration
                 parameters are invalid.
 
         Returns:
@@ -209,9 +174,7 @@ class HaproxyRouteTcpRequirements:  # pylint: disable=too-many-instance-attribut
             )
         except ValueError as exc:
             logger.error(str(exc))
-            raise InvalidHaproxyRouteTcpRequirementsError(
-                "Invalid load balancing algorithm."
-            ) from exc
+            raise InvalidStateError("Invalid load balancing algorithm.") from exc
 
         try:
             load_balancing_configuration = TCPLoadBalancingConfiguration(
@@ -230,7 +193,7 @@ class HaproxyRouteTcpRequirements:  # pylint: disable=too-many-instance-attribut
                 load_balancing_configuration=load_balancing_configuration,
                 enforce_tls=enforce_tls,
                 health_check=TCPHealthCheck.from_charm(charm),
-                timeout=TCPTimeout.from_charm(charm),
+                timeout=Timeout.from_charm(charm, prefix="tcp-"),
                 proxy_protocol=cast(bool, charm.config.get("tcp-enable-proxy-protocol", False)),
             )
         except ValidationError as exc:
@@ -238,6 +201,4 @@ class HaproxyRouteTcpRequirements:  # pylint: disable=too-many-instance-attribut
                 "Failed to validate haproxy-route-tcp requirements. Invalid config fields: %s",
                 get_invalid_config_fields(exc),
             )
-            raise InvalidHaproxyRouteTcpRequirementsError(
-                "Invalid haproxy-route-tcp configuration."
-            ) from exc
+            raise InvalidStateError("Invalid haproxy-route-tcp configuration.") from exc

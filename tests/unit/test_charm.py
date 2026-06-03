@@ -3,8 +3,8 @@
 
 """Unit tests for the ingress configurator charm."""
 
-from itertools import combinations
 import json
+from itertools import combinations
 from typing import TYPE_CHECKING
 from unittest.mock import ANY, MagicMock
 
@@ -283,6 +283,36 @@ def test_haproxy_route(context_machine: ops.testing.Context["IngressConfigurator
         "algorithm": "source",
         "consistent_hashing": True,
     }
+
+
+def test_haproxy_route_tcp_blocked_with_ingress(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: haproxy-route-tcp relation exists with an ingress relation.
+    act: trigger config-changed.
+    assert: status is Blocked with a message that haproxy-route-tcp cannot be used with ingress.
+    """
+    state = ops.testing.State(
+        config={
+            "tcp-backend-addresses": "10.0.0.1",
+            "tcp-frontend-port": 4000,
+            "tcp-backend-port": 5000,
+        },
+        relations=[
+            ops.testing.Relation("haproxy-route-tcp"),
+            ops.testing.Relation("ingress"),
+        ],
+        leader=True,
+    )
+
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
+    assert (
+        out.unit_status.message
+        == "haproxy-route-tcp cannot be used with ingress relation. Use integrator mode only."
+    )
 
 
 @pytest.mark.parametrize(

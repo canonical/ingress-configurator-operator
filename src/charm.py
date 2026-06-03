@@ -209,11 +209,13 @@ class IngressConfiguratorCharm(ops.CharmBase):
         self.unit.status = ops.ActiveStatus("Ready")
 
     def _reconcile_haproxy_route_tcp(self) -> None:
-        """Reconcile haproxy-route-tcp requirer data.
+        """Reconcile haproxy-route-tcp requirer data."""
+        if self.model.get_relation(self._ingress.relation_name) is not None:
+            self.unit.status = ops.BlockedStatus(
+                "haproxy-route-tcp cannot be used with ingress relation. Use integrator mode only."
+            )
+            return
 
-        Raises:
-            ProvideHaproxyRouteTcpRequirementsError: When providing TCP requirements fails.
-        """
         try:
             tcp_requirements = HaproxyRouteTcpRequirements.from_charm(self)
             self._haproxy_route_tcp.provide_haproxy_route_tcp_requirements(

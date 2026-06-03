@@ -15,7 +15,8 @@ from charms.traefik_k8s.v2.ingress import (
 from ops import CharmBase
 from pydantic import ValidationError
 
-from state.charm_state import InvalidStateError, NodePortState, State
+from state.charm_state import InvalidStateError
+from state.haproxy_route import HaproxyRouteState, NodePortState
 
 
 def test_adapter_state_from_charm():
@@ -46,7 +47,7 @@ def test_adapter_state_from_charm():
         app=IngressRequirerAppData(model="model", name="name", port=8080),
         units=[IngressRequirerUnitData(host="sample.host", ip="127.0.0.1")],
     )
-    charm_state = State.from_charm(charm, ingress_relation_data)
+    charm_state = HaproxyRouteState.from_charm(charm, ingress_relation_data)
 
     assert [str(address) for address in charm_state.backend_addresses] == [
         ingress_relation_data.units[0].ip
@@ -84,7 +85,7 @@ def test_integrator_state_from_charm():
         "retry-redispatch": True,
         "http-server-close": True,
     }
-    charm_state = State.from_charm(charm, None)
+    charm_state = HaproxyRouteState.from_charm(charm, None)
     assert [str(address) for address in charm_state.backend_addresses] == charm.config.get(
         "backend-addresses"
     ).split(",")
@@ -105,7 +106,7 @@ def test_state_from_charm_no_backend():
     charm = Mock(CharmBase)
     charm.config = {}
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_address():
@@ -120,7 +121,7 @@ def test_state_from_charm_invalid_address():
         "backend-ports": "8080",
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_paths():
@@ -136,7 +137,7 @@ def test_state_from_charm_invalid_paths():
         "paths": "invalid path",
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_port():
@@ -151,7 +152,7 @@ def test_state_from_charm_invalid_port():
         "backend-ports": "99999",
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_protocol():
@@ -163,7 +164,7 @@ def test_state_from_charm_invalid_protocol():
         "backend-protocol": "gopher",
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_check_path():
@@ -179,7 +180,7 @@ def test_state_from_charm_invalid_check_path():
         "health-check-path": "invalid$path",
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_check_port():
@@ -195,7 +196,7 @@ def test_state_from_charm_invalid_check_port():
         "health-check-port": 99999,
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_check_interval():
@@ -211,7 +212,7 @@ def test_state_from_charm_invalid_check_interval():
         "health-check-interval": 0,
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_check_rise():
@@ -227,7 +228,7 @@ def test_state_from_charm_invalid_check_rise():
         "health-check-rise": 0,
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_check_fall():
@@ -243,7 +244,7 @@ def test_state_from_charm_invalid_check_fall():
         "health-check-fall": 0,
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_missing_check_interval():
@@ -260,7 +261,7 @@ def test_state_from_charm_invalid_missing_check_interval():
         "health-check-fall": 4,
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_missing_check_rise():
@@ -277,7 +278,7 @@ def test_state_from_charm_invalid_missing_check_rise():
         "health-check-fall": 4,
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_missing_check_fall():
@@ -294,7 +295,7 @@ def test_state_from_charm_invalid_missing_check_fall():
         "health-check-rise": 3,
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_retry_count():
@@ -310,7 +311,7 @@ def test_state_from_charm_invalid_retry_count():
         "retry-count": 0,
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_timeout_server():
@@ -326,7 +327,7 @@ def test_state_from_charm_invalid_timeout_server():
         "timeout-server": -1,
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_timeout_connect():
@@ -342,7 +343,7 @@ def test_state_from_charm_invalid_timeout_connect():
         "timeout-connect": -1,
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_timeout_queue():
@@ -358,7 +359,7 @@ def test_state_from_charm_invalid_timeout_queue():
         "timeout-queue": -1,
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_hostname():
@@ -374,7 +375,7 @@ def test_state_from_charm_invalid_hostname():
         "hostname": "invalid$hostname",
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_additional_hostnames():
@@ -391,7 +392,7 @@ def test_state_from_charm_invalid_additional_hostnames():
         "additional-hostnames": "invalid$\\",
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 @pytest.mark.parametrize(
@@ -417,7 +418,7 @@ def test_state_from_charm_valid_hostname_with_wildcard(hostname):
         "backend-ports": "8080",
         "hostname": hostname,
     }
-    charm_state = State.from_charm(charm, None)
+    charm_state = HaproxyRouteState.from_charm(charm, None)
     assert charm_state.hostname == hostname
 
 
@@ -446,7 +447,7 @@ def test_state_from_charm_invalid_hostname_wildcard(invalid_hostname):
         "hostname": invalid_hostname,
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 @pytest.mark.parametrize(
@@ -470,7 +471,7 @@ def test_state_from_charm_valid_additional_hostnames_with_wildcard(additional_ho
         "backend-ports": "8080",
         "additional-hostnames": additional_hostnames,
     }
-    charm_state = State.from_charm(charm, None)
+    charm_state = HaproxyRouteState.from_charm(charm, None)
     assert charm_state.additional_hostnames == additional_hostnames.split(",")
 
 
@@ -496,7 +497,7 @@ def test_state_from_charm_invalid_additional_hostnames_wildcard(invalid_addition
         "additional-hostnames": invalid_additional_hostnames,
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_port_invalid_int():
@@ -511,7 +512,7 @@ def test_state_from_charm_port_invalid_int():
         "backend-ports": "invalid",
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_load_balancing_algorithm():
@@ -527,7 +528,7 @@ def test_state_from_charm_invalid_load_balancing_algorithm():
         "load-balancing-algorithm": "invalid",
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_invalid_load_balancing_configuration():
@@ -544,7 +545,7 @@ def test_state_from_charm_invalid_load_balancing_configuration():
         "load-balancing-cookie": "TEST",
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
     charm.config = {
         "backend-addresses": "127.0.0.1",
@@ -553,7 +554,7 @@ def test_state_from_charm_invalid_load_balancing_configuration():
         "load-balancing-consistent-hashing": True,
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_load_balancing_default_value():
@@ -567,7 +568,7 @@ def test_state_from_charm_load_balancing_default_value():
         "backend-addresses": "127.0.0.1",
         "backend-ports": "80",
     }
-    charm_state = State.from_charm(charm, None)
+    charm_state = HaproxyRouteState.from_charm(charm, None)
     assert charm_state.load_balancing_configuration.algorithm == LoadBalancingAlgorithm.LEASTCONN
 
 
@@ -598,7 +599,7 @@ def test_state_from_charm_path_rewrite(path_rewrite_expression: str, expected_re
         "backend-ports": "80",
         "path-rewrite-expressions": path_rewrite_expression,
     }
-    charm_state = State.from_charm(charm, None)
+    charm_state = HaproxyRouteState.from_charm(charm, None)
     assert charm_state.path_rewrite_expressions == expected_result
 
 
@@ -635,7 +636,7 @@ def test_state_from_charm_header_rewrite(
         "backend-ports": "80",
         "header-rewrite-expressions": header_rewrite_expression,
     }
-    charm_state = State.from_charm(charm, None)
+    charm_state = HaproxyRouteState.from_charm(charm, None)
     assert charm_state.header_rewrite_expressions == expected_result
 
 
@@ -652,7 +653,7 @@ def test_state_from_charm_invalid_header_rewrite():
         "header-rewrite-expressions": "X-Forwarded-For",
     }
     with pytest.raises(InvalidStateError):
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
 
 
 def test_state_from_charm_external_grpc_port_nominal():
@@ -668,7 +669,7 @@ def test_state_from_charm_external_grpc_port_nominal():
         "backend-protocol": "https",
         "external-grpc-port": 50051,
     }
-    charm_state = State.from_charm(charm, None)
+    charm_state = HaproxyRouteState.from_charm(charm, None)
     assert charm_state.external_grpc_port == 50051
 
 
@@ -686,7 +687,7 @@ def test_state_from_charm_invalid_external_grpc_port_and_http():
         "external-grpc-port": 50051,
     }
     with pytest.raises(InvalidStateError) as exc_info:
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
     assert isinstance(exc_info.value.__cause__, ValueError)
     assert "external_grpc_port can only be set when backend_protocol is 'https'" in str(
         exc_info.value.__cause__
@@ -708,7 +709,7 @@ def test_state_from_charm_invalid_external_grpc_port_invalid_and_allow_http():
         "allow-http": True,
     }
     with pytest.raises(InvalidStateError) as exc_info:
-        State.from_charm(charm, None)
+        HaproxyRouteState.from_charm(charm, None)
     assert "external_grpc_port cannot be set when allow_http is True." in str(
         exc_info.value.__cause__
     )
@@ -731,7 +732,7 @@ def test_state_from_charm_with_kubernetes_backend():
         backend_port=8080,
     )
 
-    charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
+    charm_state = HaproxyRouteState.from_charm(charm, None, kubernetes_data=kubernetes_data)
 
     assert isinstance(charm_state.kubernetes_backend_state, NodePortState)
     assert charm_state.kubernetes_backend_state.backend_port == 8080
@@ -759,7 +760,7 @@ def test_state_from_charm_kubernetes_overrides_backend_addresses_and_ports():
         backend_port=8080,
     )
 
-    charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
+    charm_state = HaproxyRouteState.from_charm(charm, None, kubernetes_data=kubernetes_data)
 
     assert [str(a) for a in charm_state.backend_addresses] == ["10.0.0.1", "10.0.0.2"]
     assert charm_state.backend_ports == [8080]
@@ -785,8 +786,8 @@ def test_state_from_charm_service_name():
         backend_port=8080,
     )
 
-    with_kubernetes = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
-    without_kubernetes = State.from_charm(charm, None, kubernetes_data=None)
+    with_kubernetes = HaproxyRouteState.from_charm(charm, None, kubernetes_data=kubernetes_data)
+    without_kubernetes = HaproxyRouteState.from_charm(charm, None, kubernetes_data=None)
 
     assert with_kubernetes.service == "my-k8s-service"
     assert without_kubernetes.service == "test-model-test-app"
@@ -810,7 +811,7 @@ def test_state_from_charm_kubernetes_backend_protocol_from_config():
         backend_port=8080,
     )
 
-    charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
+    charm_state = HaproxyRouteState.from_charm(charm, None, kubernetes_data=kubernetes_data)
 
     assert charm_state.backend_protocol == "https"
 
@@ -827,7 +828,7 @@ def test_state_from_charm_without_kubernetes_backend():
         "backend-ports": "80",
     }
 
-    charm_state = State.from_charm(charm, None, kubernetes_data=None)
+    charm_state = HaproxyRouteState.from_charm(charm, None, kubernetes_data=None)
 
     assert charm_state.kubernetes_backend_state is None
 
@@ -849,7 +850,7 @@ def test_state_from_charm_kubernetes_without_config_backend():
         backend_port=30080,
     )
 
-    charm_state = State.from_charm(charm, None, kubernetes_data=kubernetes_data)
+    charm_state = HaproxyRouteState.from_charm(charm, None, kubernetes_data=kubernetes_data)
 
     assert [str(a) for a in charm_state.backend_addresses] == ["10.0.0.1", "10.0.0.2"]
     assert charm_state.backend_ports == [30080]

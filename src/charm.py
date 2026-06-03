@@ -12,8 +12,16 @@ import logging
 import typing
 
 import ops
-from charms.haproxy.v1.haproxy_route_tcp import DataValidationError, HaproxyRouteTcpRequirer
+from charms.haproxy.v1.haproxy_route_tcp import (
+    HAPROXY_ROUTE_TCP_RELATION_NAME as HAPROXY_ROUTE_TCP_RELATION,
+)
+from charms.haproxy.v1.haproxy_route_tcp import (
+    DataValidationError,
+    HaproxyRouteTcpRequirer,
+)
+from charms.haproxy.v2.haproxy_route import HAPROXY_ROUTE_RELATION_NAME as HAPROXY_ROUTE_RELATION
 from charms.haproxy.v2.haproxy_route import HaproxyRouteRequirer
+from charms.traefik_k8s.v2.ingress import DEFAULT_RELATION_NAME as INGRESS_RELATION
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider
 from lightkube import Client
 
@@ -22,20 +30,14 @@ from kubernetes import (
     ensure_nodeport_service,
     get_kubernetes_data,
 )
-from state.charm_state import InvalidStateError, State
+from state.charm_state import InvalidStateError
+from state.haproxy_route import HaproxyRouteState
 from state.haproxy_route_tcp import (
-    HaproxyRouteTcpRequirements,
-    InvalidHaproxyRouteTcpRequirementsError,
+    HaproxyRouteTcpState,
 )
 
 logger = logging.getLogger(__name__)
-HAPROXY_ROUTE_RELATION = "haproxy-route"
-HAPROXY_ROUTE_TCP_RELATION = "haproxy-route-tcp"
-INGRESS_RELATION = "ingress"
-
-
-class ProvideHaproxyRouteTcpRequirementsError(Exception):
-    """Exception raised when providing HAProxy TCP route requirements fails."""
+CREATED_BY_LABEL = "ingress-configurator.charm.juju.is/managed-by"
 
 
 class IngressConfiguratorCharm(ops.CharmBase):
@@ -53,7 +55,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         self._haproxy_route = HaproxyRouteRequirer(self, HAPROXY_ROUTE_RELATION)
         self._haproxy_route_tcp = HaproxyRouteTcpRequirer(self, HAPROXY_ROUTE_TCP_RELATION)
 
-        self._ingress = IngressPerAppProvider(self, INGRESS_RELATION)
+        self._ingress = IngressPerAppProvider(self)
         self.framework.observe(self.on.config_changed, self._reconcile)
         self.framework.observe(self.on[HAPROXY_ROUTE_RELATION].relation_changed, self._reconcile)
         self.framework.observe(self.on[HAPROXY_ROUTE_RELATION].relation_broken, self._reconcile)
@@ -97,108 +99,102 @@ class IngressConfiguratorCharm(ops.CharmBase):
         return self.model._backend._juju_context.machine_id is None
 
     def _reconcile(self, _: ops.EventBase) -> None:
-        """Refresh haproxy-route requirer data."""
+        """Dispatch to the appropriate reconcile method based on active relations."""
+        haproxy_route_related = self._haproxy_route.relation is not None
+        haproxy_route_tcp_related = self._haproxy_route_tcp.relation is not None
+
+        if sum([haproxy_route_related, haproxy_route_tcp_related]) > 1:
+            self.unit.status = ops.BlockedStatus(
+                "Only one route relation type should exist (haproxy-route or haproxy-route-tcp)."
+            )
+            return
+
+        if haproxy_route_related:
+            self._reconcile_haproxy_route()
+        elif haproxy_route_tcp_related:
+            self._reconcile_haproxy_route_tcp()
+        else:
+            self.unit.status = ops.BlockedStatus("Route relation required.")
+
+    def _reconcile_haproxy_route(self) -> None:
+        """Reconcile haproxy-route (HTTP) requirer data."""
+        ingress_relation_data = None
+        ingress_relation = self.model.get_relation(self._ingress.relation_name)
+        if self._ingress.is_ready():
+            ingress_relation_data = (
+                self._ingress.get_data(ingress_relation) if ingress_relation else None
+            )
+        kubernetes_data = None
+        if self.is_kubernetes() and ingress_relation_data is not None:
+            service_name = f"{self.model.name}-{self.app.name}-service"
+            ensure_nodeport_service(
+                self.lightkube_client,
+                ingress_relation_data.app.port,
+                service_name,
+                ingress_relation_data.app.name,
+                self.app.name,
+            )
+            kubernetes_data = get_kubernetes_data(
+                self.lightkube_client,
+                service_name,
+            )
+        elif self.is_kubernetes() and ingress_relation_data is None:
+            delete_nodeport_services_owned_by(self.lightkube_client, self.app.name)
         try:
-            if self._haproxy_route.relation is not None:
-                ingress_relation_data = None
-                ingress_relation = self.model.get_relation(self._ingress.relation_name)
-                if self._ingress.is_ready():
-                    ingress_relation_data = (
-                        self._ingress.get_data(ingress_relation) if ingress_relation else None
-                    )
-                kubernetes_data = None
-                if self.is_kubernetes() and ingress_relation_data is not None:
-                    service_name = f"{self.model.name}-{self.app.name}-service"
-                    ensure_nodeport_service(
-                        self.lightkube_client,
-                        ingress_relation_data.app.port,
-                        service_name,
-                        ingress_relation_data.app.name,
-                        self.app.name,
-                    )
-                    kubernetes_data = get_kubernetes_data(
-                        self.lightkube_client,
-                        service_name,
-                    )
-                elif self.is_kubernetes() and ingress_relation_data is None:
-                    delete_nodeport_services_owned_by(self.lightkube_client, self.app.name)
-                charm_state = State.from_charm(self, ingress_relation_data, kubernetes_data)
-                # Assign consistent_hashing to a local variable due to line length limit
-                consistent_hashing = charm_state.load_balancing_configuration.consistent_hashing
-                params = {
-                    "hosts": [str(address) for address in charm_state.backend_addresses],
-                    "check_interval": charm_state.health_check.interval,
-                    "check_rise": charm_state.health_check.rise,
-                    "check_fall": charm_state.health_check.fall,
-                    "check_path": charm_state.health_check.path,
-                    "check_port": charm_state.health_check.port,
-                    "paths": charm_state.paths,
-                    "ports": charm_state.backend_ports,
-                    "protocol": charm_state.backend_protocol,
-                    "retry_count": charm_state.retry.count,
-                    "retry_redispatch": charm_state.retry.redispatch,
-                    "server_timeout": charm_state.timeout.server,
-                    "connect_timeout": charm_state.timeout.connect,
-                    "queue_timeout": charm_state.timeout.queue,
-                    "service": charm_state.service,
-                    "hostname": charm_state.hostname,
-                    "additional_hostnames": charm_state.additional_hostnames,
-                    "load_balancing_algorithm": charm_state.load_balancing_configuration.algorithm,
-                    "load_balancing_cookie": charm_state.load_balancing_configuration.cookie,
-                    "load_balancing_consistent_hashing": consistent_hashing,
-                    "http_server_close": charm_state.http_server_close,
-                    "path_rewrite_expressions": charm_state.path_rewrite_expressions,
-                    "header_rewrite_expressions": charm_state.header_rewrite_expressions,
-                    "allow_http": charm_state.allow_http,
-                    "external_grpc_port": charm_state.external_grpc_port,
-                }
-                not_none_params = {k: v for k, v in params.items() if v is not None}
-                self._haproxy_route.provide_haproxy_route_requirements(**not_none_params)
-                proxied_endpoints = self._haproxy_route.get_proxied_endpoints()
-                if ingress_relation and proxied_endpoints:
-                    self._ingress.publish_url(ingress_relation, str(proxied_endpoints[0]))
-
-            if self._haproxy_route_tcp.relation is not None:
-                # Handle TCP
-                self._provide_haproxy_route_tcp_requirements()
-
-            self.unit.status = ops.ActiveStatus()
+            charm_state = HaproxyRouteState.from_charm(
+                self, ingress_relation_data, kubernetes_data
+            )
         except InvalidStateError as exc:
             logger.exception("Invalid haproxy-route configuration.")
             self.unit.status = ops.BlockedStatus(str(exc))
-        except ProvideHaproxyRouteTcpRequirementsError:
-            logger.exception("Error providing haproxy-route-tcp requirements.")
+            return
+
+        # Assign consistent_hashing to a local variable due to line length limit
+        consistent_hashing = charm_state.load_balancing_configuration.consistent_hashing
+        params = {
+            "hosts": [str(address) for address in charm_state.backend_addresses],
+            "check_interval": charm_state.health_check.interval,
+            "check_rise": charm_state.health_check.rise,
+            "check_fall": charm_state.health_check.fall,
+            "check_path": charm_state.health_check.path,
+            "check_port": charm_state.health_check.port,
+            "paths": charm_state.paths,
+            "ports": charm_state.backend_ports,
+            "protocol": charm_state.backend_protocol,
+            "retry_count": charm_state.retry.count,
+            "retry_redispatch": charm_state.retry.redispatch,
+            "server_timeout": charm_state.timeout.server,
+            "connect_timeout": charm_state.timeout.connect,
+            "queue_timeout": charm_state.timeout.queue,
+            "service": charm_state.service,
+            "hostname": charm_state.hostname,
+            "additional_hostnames": charm_state.additional_hostnames,
+            "load_balancing_algorithm": charm_state.load_balancing_configuration.algorithm,
+            "load_balancing_cookie": charm_state.load_balancing_configuration.cookie,
+            "load_balancing_consistent_hashing": consistent_hashing,
+            "http_server_close": charm_state.http_server_close,
+            "path_rewrite_expressions": charm_state.path_rewrite_expressions,
+            "header_rewrite_expressions": charm_state.header_rewrite_expressions,
+            "allow_http": charm_state.allow_http,
+            "external_grpc_port": charm_state.external_grpc_port,
+        }
+        not_none_params = {k: v for k, v in params.items() if v is not None}
+        self._haproxy_route.provide_haproxy_route_requirements(**not_none_params)
+        proxied_endpoints = self._haproxy_route.get_proxied_endpoints()
+        if ingress_relation and proxied_endpoints:
+            self._ingress.publish_url(ingress_relation, str(proxied_endpoints[0]))
+        self.unit.status = ops.ActiveStatus("Ready")
+
+    def _reconcile_haproxy_route_tcp(self) -> None:
+        """Reconcile haproxy-route-tcp requirer data."""
+        if self.model.get_relation(self._ingress.relation_name) is not None:
             self.unit.status = ops.BlockedStatus(
-                "Error updating haproxy-route-tcp relation data, check your configuration."
+                "haproxy-route-tcp cannot be used with ingress relation. Use integrator mode only."
             )
-
-    def _on_update_status(self, event: ops.UpdateStatusEvent) -> None:
-        """Periodically refresh node IPs and reconcile the NodePort service.
-
-        On Kubernetes substrates, node IPs can change over time. This handler
-        ensures the haproxy-route relation data stays in sync with the current
-        cluster state by delegating to the standard reconcile flow.
-        """
-        if not self.is_kubernetes():
-            return
-        self._reconcile(event)
-
-    def _on_get_proxied_endpoint(self, event: ops.ActionEvent) -> None:
-        """Handle the get_proxied_endpoints action."""
-        haproxy_relation = self._haproxy_route.relation
-        if not haproxy_relation:
-            event.fail("Missing haproxy-route relation.")
             return
 
-        endpoints = [str(endpoint) for endpoint in self._haproxy_route.get_proxied_endpoints()]
-        result = {"endpoints": json.dumps(endpoints) if endpoints else {}}
-
-        event.set_results(result)
-
-    def _provide_haproxy_route_tcp_requirements(self) -> None:
-        """Provide HAProxy TCP route requirements to the requirer."""
         try:
-            tcp_requirements = HaproxyRouteTcpRequirements.from_charm(self)
+            tcp_requirements = HaproxyRouteTcpState.from_charm(self)
             self._haproxy_route_tcp.provide_haproxy_route_tcp_requirements(
                 hosts=tcp_requirements.backend_addresses,
                 port=tcp_requirements.port,
@@ -224,10 +220,34 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 queue_timeout=tcp_requirements.timeout.queue,
                 proxy_protocol=tcp_requirements.proxy_protocol,
             )
-        except (InvalidHaproxyRouteTcpRequirementsError, DataValidationError) as exc:
-            raise ProvideHaproxyRouteTcpRequirementsError(
-                "Failed to provide haproxy-route-tcp requirements."
-            ) from exc
+        except (InvalidStateError, DataValidationError) as exc:
+            logger.exception("Error providing haproxy-route-tcp requirements.")
+            self.unit.status = ops.BlockedStatus(str(exc))
+            return
+        self.unit.status = ops.ActiveStatus("Ready")
+
+    def _on_update_status(self, event: ops.UpdateStatusEvent) -> None:
+        """Periodically refresh node IPs and reconcile the NodePort service.
+
+        On Kubernetes substrates, node IPs can change over time. This handler
+        ensures the haproxy-route relation data stays in sync with the current
+        cluster state by delegating to the standard reconcile flow.
+        """
+        if not self.is_kubernetes():
+            return
+        self._reconcile(event)
+
+    def _on_get_proxied_endpoint(self, event: ops.ActionEvent) -> None:
+        """Handle the get_proxied_endpoints action."""
+        haproxy_relation = self._haproxy_route.relation
+        if not haproxy_relation:
+            event.fail("Missing haproxy-route relation.")
+            return
+
+        endpoints = [str(endpoint) for endpoint in self._haproxy_route.get_proxied_endpoints()]
+        result = {"endpoints": json.dumps(endpoints) if endpoints else {}}
+
+        event.set_results(result)
 
 
 if __name__ == "__main__":  # pragma: nocover

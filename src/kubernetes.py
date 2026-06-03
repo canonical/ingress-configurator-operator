@@ -11,7 +11,8 @@ from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Node, Service
 
-from state.charm_state import InvalidStateError, NodePortState
+from state.charm_state import InvalidStateError
+from state.haproxy_route import NodePortState
 
 logger = logging.getLogger(__name__)
 

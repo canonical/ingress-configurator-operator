@@ -10,7 +10,6 @@ from charms.haproxy.v2.haproxy_route import LoadBalancingAlgorithm
 from ops import CharmBase
 
 from state.haproxy_route import (
-    HaproxyRouteBackendState,
     HaproxyRouteState,
     InvalidHaproxyRouteBackendStateError,
     InvalidHaproxyRouteStateError,
@@ -18,10 +17,8 @@ from state.haproxy_route import (
 
 
 def _make_integrator_state(charm):
-    """Build HaproxyRouteState via the two-step BackendState + from_charm API."""
-    service = f"{charm.model.name}-{charm.app.name}"
-    backend_state = HaproxyRouteBackendState.for_integrator_mode(charm)
-    return HaproxyRouteState.from_charm(charm, backend_state, service)
+    """Build HaproxyRouteState for integrator mode."""
+    return HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_integrator_state_from_charm():
@@ -59,7 +56,7 @@ def test_state_from_charm_no_backend():
     """
     charm = Mock(CharmBase)
     charm.config = {}
-    with pytest.raises(InvalidHaproxyRouteBackendStateError):
+    with pytest.raises(InvalidHaproxyRouteStateError):
         _make_integrator_state(charm)
 
 
@@ -74,7 +71,7 @@ def test_state_from_charm_invalid_address():
         "backend-addresses": "invalid",
         "backend-ports": "8080",
     }
-    with pytest.raises(InvalidHaproxyRouteBackendStateError):
+    with pytest.raises(InvalidHaproxyRouteStateError):
         _make_integrator_state(charm)
 
 
@@ -105,7 +102,7 @@ def test_state_from_charm_invalid_port():
         "backend-addresses": "127.0.0.1,127.0.0.2",
         "backend-ports": "99999",
     }
-    with pytest.raises(InvalidHaproxyRouteBackendStateError):
+    with pytest.raises(InvalidHaproxyRouteStateError):
         _make_integrator_state(charm)
 
 
@@ -117,7 +114,7 @@ def test_state_from_charm_invalid_protocol():
         "backend-ports": "80",
         "backend-protocol": "gopher",
     }
-    with pytest.raises(InvalidHaproxyRouteBackendStateError):
+    with pytest.raises(InvalidHaproxyRouteStateError):
         _make_integrator_state(charm)
 
 

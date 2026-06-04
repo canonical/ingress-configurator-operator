@@ -10,16 +10,14 @@ from charms.haproxy.v1.haproxy_route_tcp import LoadBalancingAlgorithm
 from ops import CharmBase
 
 from state.haproxy_route_tcp import (
-    HaproxyRouteTcpBackendState,
     HaproxyRouteTcpState,
     InvalidHaproxyRouteTcpStateError,
 )
 
 
 def _make_tcp_integrator_state(charm):
-    """Build HaproxyRouteTcpState via the two-step BackendState + from_charm API."""
-    backend_state = HaproxyRouteTcpBackendState.for_integrator_mode(charm)
-    return HaproxyRouteTcpState.from_charm(charm, backend_state)
+    """Build HaproxyRouteTcpState for integrator mode."""
+    return HaproxyRouteTcpState.for_integrator_mode(charm)
 
 
 def test_haproxy_route_tcp_requirements_for_integrator_mode():

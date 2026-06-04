@@ -36,165 +36,6 @@ class InvalidHaproxyRouteStateError(Exception):
     """Exception raised when HAProxy route requirements are invalid."""
 
 
-class InvalidHaproxyRouteBackendStateError(Exception):
-    """Exception raised when the HAProxy route backend configuration is invalid."""
-
-
-@dataclass(frozen=True)
-class HaproxyRouteBackendState:
-    """Charm state subset that contains the backend configuration for HAProxyRouteState."""
-
-    backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
-    backend_ports: Annotated[list[Annotated[int, Field(gt=0, le=65535)]], Len(min_length=1)]
-    backend_protocol: Literal["http", "https"]
-
-    @staticmethod
-    def has_integrator_config(charm: ops.CharmBase) -> bool:
-        """Return True if any integrator backend config option is set.
-
-        This is intentionally a presence check — it does not validate the values.
-        Use it to detect ambiguous mode (ingress relation + backend config both
-        present) before attempting to parse the config with for_integrator_mode.
-
-        Args:
-            charm: the ingress-configurator charm.
-
-        Returns:
-            True if backend-addresses, backend-ports is set in config.
-        """
-        return any(
-            [
-                charm.config.get("backend-addresses"),
-                charm.config.get("backend-ports"),
-                charm.config.get("backend-protocol"),
-            ]
-        )
-
-    @classmethod
-    def for_integrator_mode(cls, charm: ops.CharmBase) -> Self:
-        """Create BackendState for integrator mode from charm config.
-
-        Args:
-            charm: the ingress-configurator charm.
-
-        Raises:
-            InvalidBackendStateError: when backend config is missing or invalid.
-
-        Returns:
-            BackendState: instance of the backend state.
-        """
-        try:
-            config_backend_addresses = (
-                [
-                    cast(IPvAnyAddress, address)
-                    for address in cast(str, charm.config.get("backend-addresses")).split(",")
-                ]
-                if charm.config.get("backend-addresses")
-                else []
-            )
-            config_backend_ports = (
-                [int(port) for port in cast(str, charm.config.get("backend-ports")).split(",")]
-                if charm.config.get("backend-ports")
-                else []
-            )
-            backend_protocol = cast(
-                Literal["http", "https"], charm.config.get("backend-protocol", "http")
-            )
-        except ValueError as exc:
-            logger.error(str(exc))
-            raise InvalidHaproxyRouteBackendStateError(
-                "HAProxy route backend state contains invalid value(s)."
-            ) from exc
-        try:
-            return cls(config_backend_addresses, config_backend_ports, backend_protocol)
-        except ValidationError as exc:
-            logger.error(str(exc))
-            error_field_str = ",".join(f"{field}" for field in get_invalid_config_fields(exc))
-            raise InvalidHaproxyRouteBackendStateError(
-                f"Invalid integrator backend configuration: {error_field_str}"
-            ) from exc
-
-    @classmethod
-    def for_adapter_mode(
-        cls,
-        charm: ops.CharmBase,
-        ingress_data: IngressRequirerData,
-    ) -> Self:
-        """Create BackendState for adapter mode from ingress requirer data.
-
-        Args:
-            charm: the ingress-configurator charm.
-            ingress_data: the ingress requirer relation data.
-
-        Raises:
-            InvalidBackendStateError: when the configuration is invalid.
-
-        Returns:
-            BackendState: instance of the backend state.
-        """
-        try:
-            backend_addresses = [cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units]
-            backend_ports = [ingress_data.app.port]
-            backend_protocol = cast(
-                Literal["http", "https"],
-                (charm.config.get("backend-protocol") or "http"),
-            )
-        except ValueError as exc:
-            logger.error(str(exc))
-            raise InvalidHaproxyRouteBackendStateError(
-                "HAProxy route backend state contains invalid value(s)."
-            ) from exc
-        try:
-            return cls(backend_addresses, backend_ports, backend_protocol)
-        except ValidationError as exc:
-            logger.error(str(exc))
-            error_field_str = ",".join(f"{field}" for field in get_invalid_config_fields(exc))
-            raise InvalidHaproxyRouteBackendStateError(
-                f"Invalid adapter backend configuration: {error_field_str}"
-            ) from exc
-
-    @classmethod
-    def for_kubernetes_adapter_mode(
-        cls,
-        charm: ops.CharmBase,
-        kubernetes_data: NodePortState,
-    ) -> Self:
-        """Create BackendState from pre-resolved Kubernetes NodePort data.
-
-        Args:
-            charm: the ingress-configurator charm.
-            kubernetes_data: resolved NodePort service data.
-
-        Raises:
-            InvalidHaproxyRouteBackendStateError: when the configuration is invalid.
-
-        Returns:
-            HaproxyRouteBackendState: instance of the backend state.
-        """
-        try:
-            backend_protocol = cast(
-                Literal["http", "https"],
-                charm.config.get("backend-protocol", "http"),
-            )
-        except ValueError as exc:
-            logger.error(str(exc))
-            raise InvalidHaproxyRouteBackendStateError(
-                "HAProxy route backend state contains invalid value(s)."
-            ) from exc
-        try:
-            return cls(
-                kubernetes_data.backend_addresses,
-                [kubernetes_data.backend_port],
-                backend_protocol,
-            )
-        except ValidationError as exc:
-            logger.error(str(exc))
-            error_field_str = ",".join(f"{field}" for field in get_invalid_config_fields(exc))
-            raise InvalidHaproxyRouteBackendStateError(
-                f"Invalid k8s adapter backend configuration: {error_field_str}"
-            ) from exc
-
-
 @dataclass(frozen=True)
 class HealthCheck:
     """Charm state that contains the health check configuration.
@@ -328,18 +169,139 @@ class HaproxyRouteState:
 
         return self
 
-    @classmethod
-    def from_charm(
-        cls,
-        charm: ops.CharmBase,
-        backend_state: HaproxyRouteBackendState,
-        service: str,
-    ) -> Self:
-        """Build HaproxyRouteState from a resolved backend and charm config.
+    @staticmethod
+    def has_integrator_config(charm: ops.CharmBase) -> bool:
+        """Return True if any integrator backend config option is set.
+
+        This is intentionally a presence check — it does not validate the values.
+        Use it to detect ambiguous mode (ingress relation + backend config both
+        present) before attempting to parse the config with for_integrator_mode.
 
         Args:
             charm: the ingress-configurator charm.
-            backend_state: pre-resolved backend configuration.
+
+        Returns:
+            True if backend-addresses, backend-ports is set in config.
+        """
+        return any(
+            [
+                charm.config.get("backend-addresses"),
+                charm.config.get("backend-ports"),
+            ]
+        )
+
+    @classmethod
+    def for_integrator_mode(cls, charm: ops.CharmBase) -> Self:
+        """Create HaproxyRouteState for integrator mode from charm config.
+
+        Args:
+            charm: the ingress-configurator charm.
+
+        Raises:
+            InvalidHaproxyRouteBackendStateError: when backend config is missing or invalid.
+            InvalidHaproxyRouteStateError: when the route configuration is invalid.
+
+        Returns:
+            HaproxyRouteState: instance of the state.
+        """
+        try:
+            config_backend_addresses = (
+                [
+                    cast(IPvAnyAddress, address)
+                    for address in cast(str, charm.config.get("backend-addresses")).split(",")
+                ]
+                if charm.config.get("backend-addresses")
+                else []
+            )
+            config_backend_ports = (
+                [int(port) for port in cast(str, charm.config.get("backend-ports")).split(",")]
+                if charm.config.get("backend-ports")
+                else []
+            )
+        except ValueError as exc:
+            logger.error(str(exc))
+            raise InvalidHaproxyRouteStateError(
+                "HAProxy route state contains invalid value(s)."
+            ) from exc
+        return cls._build(
+            charm,
+            config_backend_addresses,
+            config_backend_ports,
+            f"{charm.model.name}-{charm.app.name}",
+        )
+
+    @classmethod
+    def for_adapter_mode(
+        cls,
+        charm: ops.CharmBase,
+        ingress_data: IngressRequirerData,
+    ) -> Self:
+        """Create HaproxyRouteState for adapter mode from ingress requirer data.
+
+        Args:
+            charm: the ingress-configurator charm.
+            ingress_data: the ingress requirer relation data.
+
+        Raises:
+            InvalidHaproxyRouteBackendStateError: when backend config is missing or invalid.
+            InvalidHaproxyRouteStateError: when the route configuration is invalid.
+
+        Returns:
+            HaproxyRouteState: instance of the state.
+        """
+        try:
+            backend_addresses = [cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units]
+            backend_ports = [ingress_data.app.port]
+        except ValueError as exc:
+            logger.error(str(exc))
+            raise InvalidHaproxyRouteStateError(
+                "HAProxy route state contains invalid value(s)."
+            ) from exc
+        return cls._build(
+            charm, backend_addresses, backend_ports, f"{charm.model.name}-{charm.app.name}"
+        )
+
+    @classmethod
+    def for_kubernetes_adapter_mode(
+        cls,
+        charm: ops.CharmBase,
+        kubernetes_data: NodePortState,
+    ) -> Self:
+        """Create HaproxyRouteState from pre-resolved Kubernetes NodePort data.
+
+        Args:
+            charm: the ingress-configurator charm.
+            kubernetes_data: resolved NodePort service data.
+
+        Raises:
+            InvalidHaproxyRouteBackendStateError: when backend config is missing or invalid.
+            InvalidHaproxyRouteStateError: when the route configuration is invalid.
+
+        Returns:
+            HaproxyRouteState: instance of the state.
+        """
+        return cls._build(
+            charm,
+            kubernetes_data.backend_addresses,
+            [kubernetes_data.backend_port],
+            kubernetes_data.service_name,
+        )
+
+    @classmethod
+    def _build(
+        cls,
+        charm: ops.CharmBase,
+        backend_addresses: list[IPvAnyAddress],
+        backend_ports: list[int],
+        service: str,
+    ) -> Self:
+        """Build HaproxyRouteState from resolved backend fields and charm config.
+
+        Args:
+            charm: the ingress-configurator charm.
+            backend_addresses: list of resolved backend IP addresses.
+            backend_ports: list of resolved backend ports.
+            backend_protocol: the backend protocol ("http" or "https").
             service: the service name.
 
         Raises:
@@ -417,10 +379,14 @@ class HaproxyRouteState:
                 }
             )
             allow_http = cast(bool, charm.config.get("allow-http", False))
+            backend_protocol = cast(
+                Literal["http", "https"],
+                charm.config.get("backend-protocol", "http"),
+            )
             return cls(
-                backend_addresses=backend_state.backend_addresses,
-                backend_ports=backend_state.backend_ports,
-                backend_protocol=backend_state.backend_protocol,
+                backend_addresses=backend_addresses,
+                backend_ports=backend_ports,
+                backend_protocol=backend_protocol,
                 paths=paths,
                 health_check=HealthCheck.from_charm(charm),
                 retry=retry,

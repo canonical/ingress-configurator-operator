@@ -12,14 +12,12 @@ from charms.traefik_k8s.v2.ingress import (
 )
 from ops import CharmBase
 
-from state.haproxy_route import HaproxyRouteBackendState, HaproxyRouteState
+from state.haproxy_route import HaproxyRouteState
 
 
 def _make_adapter_state(charm, ingress_data):
-    """Build HaproxyRouteState via the two-step BackendState + from_charm API."""
-    service = f"{charm.model.name}-{charm.app.name}"
-    backend_state = HaproxyRouteBackendState.for_adapter_mode(charm, ingress_data)
-    return HaproxyRouteState.from_charm(charm, backend_state, service)
+    """Build HaproxyRouteState for adapter mode."""
+    return HaproxyRouteState.for_adapter_mode(charm, ingress_data)
 
 
 def test_adapter_state_from_charm():

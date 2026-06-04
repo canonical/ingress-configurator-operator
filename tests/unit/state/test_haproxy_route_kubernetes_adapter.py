@@ -7,21 +7,18 @@ from unittest.mock import Mock
 
 from ops import CharmBase
 
-from state.haproxy_route import HaproxyRouteBackendState, HaproxyRouteState
+from state.haproxy_route import HaproxyRouteState
 from state.kubernetes import NodePortState
 
 
 def _make_k8s_state(charm, kubernetes_data):
-    """Build HaproxyRouteState via the two-step BackendState + from_charm API."""
-    backend_state = HaproxyRouteBackendState.for_kubernetes_adapter_mode(charm, kubernetes_data)
-    return HaproxyRouteState.from_charm(charm, backend_state, kubernetes_data.service_name)
+    """Build HaproxyRouteState for Kubernetes adapter mode."""
+    return HaproxyRouteState.for_kubernetes_adapter_mode(charm, kubernetes_data)
 
 
 def _make_integrator_state(charm):
-    """Build HaproxyRouteState via the two-step BackendState + from_charm API."""
-    service = f"{charm.model.name}-{charm.app.name}"
-    backend_state = HaproxyRouteBackendState.for_integrator_mode(charm)
-    return HaproxyRouteState.from_charm(charm, backend_state, service)
+    """Build HaproxyRouteState for integrator mode."""
+    return HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_with_kubernetes_backend():

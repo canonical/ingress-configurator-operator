@@ -7,7 +7,6 @@ This module provides state management functionality for HAProxy TCP routes
 in the ingress configurator operator.
 """
 
-import dataclasses
 import logging
 from typing import Annotated, Optional, Self, cast
 
@@ -32,81 +31,6 @@ logger = logging.getLogger(__name__)
 
 class InvalidHaproxyRouteTcpStateError(Exception):
     """Exception raised when HAProxy TCP route requirements are invalid."""
-
-
-class InvalidHaproxyRouteTcpBackendStateError(Exception):
-    """Exception raised when HAProxy TCP backend state is invalid."""
-
-
-@dataclasses.dataclass(frozen=True)
-class HaproxyRouteTcpBackendState:
-    """Charm state subset that contains the TCP backend configuration.
-
-    Attributes:
-        backend_addresses: Configured list of backend IP addresses.
-        backend_port: Configured backend port.
-    """
-
-    backend_addresses: list[IPvAnyAddress]
-    backend_port: Annotated[int, Field(gt=0, le=65535)]
-
-    @classmethod
-    def has_integrator_config(cls, charm: ops.CharmBase) -> bool:
-        """Return True if any TCP integrator backend config option is set.
-
-        This is intentionally a presence check — it does not validate the values.
-        Use it to detect the absence of backend configuration before attempting
-        to parse the config with for_integrator_mode.
-
-        Args:
-            charm: the ingress-configurator charm.
-
-        Returns:
-            True if tcp-backend-addresses or tcp-backend-port is set in config.
-        """
-        return any(
-            [
-                charm.config.get("tcp-backend-addresses"),
-                charm.config.get("tcp-backend-port"),
-            ]
-        )
-
-    @classmethod
-    def for_integrator_mode(cls, charm: ops.CharmBase) -> "Self":
-        """Create HaproxyRouteTcpBackendState for integrator mode from charm config.
-
-        Args:
-            charm: the ingress-configurator charm.
-
-        Raises:
-            InvalidBackendStateError: when backend config is missing or invalid.
-
-        Returns:
-            HaproxyRouteTcpBackendState: instance of the TCP backend state.
-        """
-        try:
-            backend_addresses = (
-                [
-                    cast(IPvAnyAddress, address)
-                    for address in cast(str, charm.config.get("tcp-backend-addresses")).split(",")
-                ]
-                if charm.config.get("tcp-backend-addresses")
-                else []
-            )
-            backend_port = cast(int, charm.config.get("tcp-backend-port"))
-        except ValueError as exc:
-            logger.error(str(exc))
-            raise InvalidHaproxyRouteTcpStateError(
-                "TCP backend state contains invalid value(s)."
-            ) from exc
-        try:
-            return cls(backend_addresses=backend_addresses, backend_port=backend_port)
-        except ValidationError as exc:
-            logger.error(str(exc))
-            error_field_str = ",".join(f"{field}" for field in get_invalid_config_fields(exc))
-            raise InvalidHaproxyRouteTcpBackendStateError(
-                f"Invalid integrator backend configuration: {error_field_str}"
-            ) from exc
 
 
 @dataclass(frozen=True)
@@ -223,16 +147,69 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
     proxy_protocol: bool
 
     @classmethod
-    def from_charm(
+    def has_integrator_config(cls, charm: ops.CharmBase) -> bool:
+        """Return True if any TCP integrator backend config option is set.
+
+        This is intentionally a presence check — it does not validate the values.
+        Use it to detect the absence of backend configuration before attempting
+        to parse the config with for_integrator_mode.
+
+        Args:
+            charm: the ingress-configurator charm.
+
+        Returns:
+            True if tcp-backend-addresses or tcp-backend-port is set in config.
+        """
+        return any(
+            [
+                charm.config.get("tcp-backend-addresses"),
+                charm.config.get("tcp-backend-port"),
+            ]
+        )
+
+    @classmethod
+    def for_integrator_mode(cls, charm: ops.CharmBase) -> Self:
+        """Create HaproxyRouteTcpState for integrator mode from charm config.
+
+        Args:
+            charm: the ingress-configurator charm.
+
+        Raises:
+            InvalidHaproxyRouteTcpStateError: when backend config is missing or invalid.
+
+        Returns:
+            HaproxyRouteTcpState: instance of the TCP state.
+        """
+        try:
+            backend_addresses = (
+                [
+                    cast(IPvAnyAddress, address)
+                    for address in cast(str, charm.config.get("tcp-backend-addresses")).split(",")
+                ]
+                if charm.config.get("tcp-backend-addresses")
+                else []
+            )
+            backend_port = cast(int, charm.config.get("tcp-backend-port"))
+        except ValueError as exc:
+            logger.error(str(exc))
+            raise InvalidHaproxyRouteTcpStateError(
+                "TCP backend state contains invalid value(s)."
+            ) from exc
+        return cls._build(charm, backend_addresses, backend_port)
+
+    @classmethod
+    def _build(
         cls,
         charm: ops.CharmBase,
-        backend_state: HaproxyRouteTcpBackendState,
+        backend_addresses: list[IPvAnyAddress],
+        backend_port: int,
     ) -> Self:
-        """Build HaproxyRouteTcpState from a resolved backend and charm config.
+        """Build HaproxyRouteTcpState from resolved backend fields and charm config.
 
         Args:
             charm: The IngressConfiguratorCharm instance.
-            backend_state: pre-resolved TCP backend configuration.
+            backend_addresses: list of resolved backend IP addresses.
+            backend_port: the resolved backend port.
 
         Raises:
             InvalidHaproxyRouteTcpStateError: If the configuration
@@ -270,8 +247,8 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
                 else None
             )
             return cls(
-                backend_addresses=backend_state.backend_addresses,
-                backend_port=backend_state.backend_port,
+                backend_addresses=backend_addresses,
+                backend_port=backend_port,
                 port=port,
                 tls_terminate=tls_terminate,
                 hostname=hostname,

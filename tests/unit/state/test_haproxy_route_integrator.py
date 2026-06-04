@@ -9,8 +9,15 @@ import pytest
 from charms.haproxy.v2.haproxy_route import LoadBalancingAlgorithm
 from ops import CharmBase
 
-from state.haproxy_route import HaproxyRouteState
+from state.haproxy_route import BackendState, HaproxyRouteState
 from state.helpers import InvalidStateError
+
+
+def _make_integrator_state(charm):
+    """Build HaproxyRouteState via the two-step BackendState + from_charm API."""
+    service = f"{charm.model.name}-{charm.app.name}"
+    backend_state = BackendState.for_integrator_mode(charm)
+    return HaproxyRouteState.from_charm(charm, backend_state, service)
 
 
 def test_integrator_state_from_charm():
@@ -27,7 +34,7 @@ def test_integrator_state_from_charm():
         "retry-redispatch": True,
         "http-server-close": True,
     }
-    charm_state = HaproxyRouteState.for_integrator_mode(charm)
+    charm_state = _make_integrator_state(charm)
 
     assert [str(address) for address in charm_state.backend_addresses] == charm.config.get(
         "backend-addresses"
@@ -49,7 +56,7 @@ def test_state_from_charm_no_backend():
     charm = Mock(CharmBase)
     charm.config = {}
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_invalid_address():
@@ -64,7 +71,7 @@ def test_state_from_charm_invalid_address():
         "backend-ports": "8080",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_invalid_paths():
@@ -80,7 +87,7 @@ def test_state_from_charm_invalid_paths():
         "paths": "invalid path",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_invalid_port():
@@ -95,7 +102,7 @@ def test_state_from_charm_invalid_port():
         "backend-ports": "99999",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_invalid_protocol():
@@ -107,7 +114,7 @@ def test_state_from_charm_invalid_protocol():
         "backend-protocol": "gopher",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_invalid_check_path():
@@ -123,7 +130,7 @@ def test_state_from_charm_invalid_check_path():
         "health-check-path": "invalid$path",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_invalid_check_port():
@@ -139,7 +146,7 @@ def test_state_from_charm_invalid_check_port():
         "health-check-port": 99999,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_invalid_check_interval():
@@ -155,7 +162,7 @@ def test_state_from_charm_invalid_check_interval():
         "health-check-interval": 0,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_invalid_check_rise():
@@ -171,7 +178,7 @@ def test_state_from_charm_invalid_check_rise():
         "health-check-rise": 0,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_invalid_check_fall():
@@ -187,7 +194,7 @@ def test_state_from_charm_invalid_check_fall():
         "health-check-fall": 0,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_invalid_missing_check_interval():
@@ -204,7 +211,7 @@ def test_state_from_charm_invalid_missing_check_interval():
         "health-check-fall": 4,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_invalid_missing_check_rise():
@@ -221,7 +228,7 @@ def test_state_from_charm_invalid_missing_check_rise():
         "health-check-fall": 4,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_invalid_missing_check_fall():
@@ -238,7 +245,7 @@ def test_state_from_charm_invalid_missing_check_fall():
         "health-check-rise": 3,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_invalid_retry_count():
@@ -254,7 +261,7 @@ def test_state_from_charm_invalid_retry_count():
         "retry-count": 0,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_invalid_timeout_server():
@@ -270,7 +277,7 @@ def test_state_from_charm_invalid_timeout_server():
         "timeout-server": -1,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_invalid_timeout_connect():
@@ -286,7 +293,7 @@ def test_state_from_charm_invalid_timeout_connect():
         "timeout-connect": -1,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_invalid_timeout_queue():
@@ -302,7 +309,7 @@ def test_state_from_charm_invalid_timeout_queue():
         "timeout-queue": -1,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_invalid_hostname():
@@ -318,7 +325,7 @@ def test_state_from_charm_invalid_hostname():
         "hostname": "invalid$hostname",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_invalid_additional_hostnames():
@@ -335,7 +342,7 @@ def test_state_from_charm_invalid_additional_hostnames():
         "additional-hostnames": "invalid$\\",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 @pytest.mark.parametrize(
@@ -361,7 +368,7 @@ def test_state_from_charm_valid_hostname_with_wildcard(hostname):
         "backend-ports": "8080",
         "hostname": hostname,
     }
-    charm_state = HaproxyRouteState.for_integrator_mode(charm)
+    charm_state = _make_integrator_state(charm)
     assert charm_state.hostname == hostname
 
 
@@ -390,7 +397,7 @@ def test_state_from_charm_invalid_hostname_wildcard(invalid_hostname):
         "hostname": invalid_hostname,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 @pytest.mark.parametrize(
@@ -414,7 +421,7 @@ def test_state_from_charm_valid_additional_hostnames_with_wildcard(additional_ho
         "backend-ports": "8080",
         "additional-hostnames": additional_hostnames,
     }
-    charm_state = HaproxyRouteState.for_integrator_mode(charm)
+    charm_state = _make_integrator_state(charm)
     assert charm_state.additional_hostnames == additional_hostnames.split(",")
 
 
@@ -440,7 +447,7 @@ def test_state_from_charm_invalid_additional_hostnames_wildcard(invalid_addition
         "additional-hostnames": invalid_additional_hostnames,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_port_invalid_int():
@@ -455,7 +462,7 @@ def test_state_from_charm_port_invalid_int():
         "backend-ports": "invalid",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_invalid_load_balancing_algorithm():
@@ -471,7 +478,7 @@ def test_state_from_charm_invalid_load_balancing_algorithm():
         "load-balancing-algorithm": "invalid",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_invalid_load_balancing_configuration():
@@ -488,7 +495,7 @@ def test_state_from_charm_invalid_load_balancing_configuration():
         "load-balancing-cookie": "TEST",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
     charm.config = {
         "backend-addresses": "127.0.0.1",
@@ -497,7 +504,7 @@ def test_state_from_charm_invalid_load_balancing_configuration():
         "load-balancing-consistent-hashing": True,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_load_balancing_default_value():
@@ -511,7 +518,7 @@ def test_state_from_charm_load_balancing_default_value():
         "backend-addresses": "127.0.0.1",
         "backend-ports": "80",
     }
-    charm_state = HaproxyRouteState.for_integrator_mode(charm)
+    charm_state = _make_integrator_state(charm)
     assert charm_state.load_balancing_configuration.algorithm == LoadBalancingAlgorithm.LEASTCONN
 
 
@@ -542,7 +549,7 @@ def test_state_from_charm_path_rewrite(path_rewrite_expression: str, expected_re
         "backend-ports": "80",
         "path-rewrite-expressions": path_rewrite_expression,
     }
-    charm_state = HaproxyRouteState.for_integrator_mode(charm)
+    charm_state = _make_integrator_state(charm)
     assert charm_state.path_rewrite_expressions == expected_result
 
 
@@ -579,7 +586,7 @@ def test_state_from_charm_header_rewrite(
         "backend-ports": "80",
         "header-rewrite-expressions": header_rewrite_expression,
     }
-    charm_state = HaproxyRouteState.for_integrator_mode(charm)
+    charm_state = _make_integrator_state(charm)
     assert charm_state.header_rewrite_expressions == expected_result
 
 
@@ -596,7 +603,7 @@ def test_state_from_charm_invalid_header_rewrite():
         "header-rewrite-expressions": "X-Forwarded-For",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
 
 
 def test_state_from_charm_external_grpc_port_nominal():
@@ -612,7 +619,7 @@ def test_state_from_charm_external_grpc_port_nominal():
         "backend-protocol": "https",
         "external-grpc-port": 50051,
     }
-    charm_state = HaproxyRouteState.for_integrator_mode(charm)
+    charm_state = _make_integrator_state(charm)
     assert charm_state.external_grpc_port == 50051
 
 
@@ -630,7 +637,7 @@ def test_state_from_charm_invalid_external_grpc_port_and_http():
         "external-grpc-port": 50051,
     }
     with pytest.raises(InvalidStateError) as exc_info:
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
     assert isinstance(exc_info.value.__cause__, ValueError)
     assert "external_grpc_port can only be set when backend_protocol is 'https'" in str(
         exc_info.value.__cause__
@@ -652,7 +659,7 @@ def test_state_from_charm_invalid_external_grpc_port_invalid_and_allow_http():
         "allow-http": True,
     }
     with pytest.raises(InvalidStateError) as exc_info:
-        HaproxyRouteState.for_integrator_mode(charm)
+        _make_integrator_state(charm)
     assert "external_grpc_port cannot be set when allow_http is True." in str(
         exc_info.value.__cause__
     )

@@ -12,7 +12,14 @@ from charms.traefik_k8s.v2.ingress import (
 )
 from ops import CharmBase
 
-from state.haproxy_route import HaproxyRouteState
+from state.haproxy_route import BackendState, HaproxyRouteState
+
+
+def _make_adapter_state(charm, ingress_data):
+    """Build HaproxyRouteState via the two-step BackendState + from_charm API."""
+    service = f"{charm.model.name}-{charm.app.name}"
+    backend_state = BackendState.for_adapter_mode(charm, ingress_data)
+    return HaproxyRouteState.from_charm(charm, backend_state, service)
 
 
 def test_adapter_state_from_charm():
@@ -43,7 +50,7 @@ def test_adapter_state_from_charm():
         app=IngressRequirerAppData(model="model", name="name", port=8080),
         units=[IngressRequirerUnitData(host="sample.host", ip="127.0.0.1")],
     )
-    charm_state = HaproxyRouteState.for_adapter_mode(charm, ingress_relation_data)
+    charm_state = _make_adapter_state(charm, ingress_relation_data)
 
     assert [str(address) for address in charm_state.backend_addresses] == [
         ingress_relation_data.units[0].ip

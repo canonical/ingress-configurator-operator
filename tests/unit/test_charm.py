@@ -6,19 +6,16 @@
 import json
 from itertools import combinations
 from typing import TYPE_CHECKING
-from unittest.mock import ANY, MagicMock
+from unittest.mock import ANY
 
 import ops.testing
 import pytest
-
-from state.haproxy_route import HaproxyRouteState, InvalidHaproxyRouteStateError
 
 if TYPE_CHECKING:
     from charm import IngressConfiguratorCharm
 
 
 def test_config_changed_invalid_state(
-    monkeypatch: pytest.MonkeyPatch,
     context_machine: ops.testing.Context["IngressConfiguratorCharm"],
 ):
     """
@@ -26,11 +23,6 @@ def test_config_changed_invalid_state(
     act: trigger a config changed event.
     assert: status is blocked.
     """
-    monkeypatch.setattr(
-        HaproxyRouteState,
-        "for_integrator_mode",
-        MagicMock(side_effect=InvalidHaproxyRouteStateError),
-    )
     charm_state = ops.testing.State(
         config={"backend-addresses": "10.0.0.1,invalid", "backend-ports": "8080"},
         relations=[ops.testing.Relation("haproxy-route")],
@@ -39,7 +31,7 @@ def test_config_changed_invalid_state(
 
     out = context_machine.run(context_machine.on.config_changed(), charm_state)
 
-    assert out.unit_status == ops.testing.BlockedStatus()
+    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
 
 
 def test_config_changed_ingress_relation_not_ready(
@@ -62,6 +54,70 @@ def test_config_changed_ingress_relation_not_ready(
     out = context_machine.run(context_machine.on.config_changed(), charm_state)
 
     assert out.unit_status == ops.testing.WaitingStatus("Waiting for ingress relation data.")
+
+
+@pytest.mark.parametrize(
+    "context_fixture",
+    [
+        pytest.param("context_machine", id="machine"),
+        pytest.param("context_k8s", id="k8s"),
+    ],
+)
+def test_config_changed_adapter_with_backend_addresses_conflict(
+    context_fixture: str,
+    request: pytest.FixtureRequest,
+):
+    """
+    arrange: ingress relation is ready (adapter mode trigger) and backend-addresses config is
+        also set (integrator mode trigger). Applies to both machine and Kubernetes substrates.
+    act: trigger config-changed.
+    assert: status is Blocked — no valid mode can be determined.
+    """
+    context = request.getfixturevalue(context_fixture)
+    state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation(
+                "ingress",
+                remote_app_data={
+                    "model": '"test-model"',
+                    "name": '"some-app"',
+                    "port": "8080",
+                },
+                remote_units_data={0: {"host": '"host.example"', "ip": '"10.1.0.1"'}},
+            ),
+        ],
+        leader=True,
+    )
+
+    out = context.run(context.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.BlockedStatus(
+        "No valid mode: remove backend configuration or the ingress relation."
+    )
+
+
+def test_config_changed_no_valid_mode(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: haproxy-route relation exists but neither an ingress relation nor backend-addresses
+        and backend-ports config are present (machine substrate).
+    act: trigger config-changed.
+    assert: status is Blocked — no valid mode can be determined.
+    """
+    state = ops.testing.State(
+        config={},
+        relations=[ops.testing.Relation("haproxy-route")],
+        leader=True,
+    )
+
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.BlockedStatus(
+        "No valid mode: add an ingress relation or set backend configuration."
+    )
 
 
 @pytest.mark.usefixtures("mock_lightkube")

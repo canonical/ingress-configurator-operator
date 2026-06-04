@@ -10,6 +10,7 @@
 import json
 import logging
 import typing
+from functools import cached_property
 
 import ops
 from charms.haproxy.v1.haproxy_route_tcp import (
@@ -22,7 +23,7 @@ from charms.haproxy.v1.haproxy_route_tcp import (
 from charms.haproxy.v2.haproxy_route import HAPROXY_ROUTE_RELATION_NAME as HAPROXY_ROUTE_RELATION
 from charms.haproxy.v2.haproxy_route import HaproxyRouteRequirer
 from charms.traefik_k8s.v2.ingress import DEFAULT_RELATION_NAME as INGRESS_RELATION
-from charms.traefik_k8s.v2.ingress import IngressPerAppProvider, IngressRequirerData
+from charms.traefik_k8s.v2.ingress import IngressPerAppProvider
 from lightkube import Client
 
 from kubernetes import (
@@ -51,7 +52,6 @@ class IngressConfiguratorCharm(ops.CharmBase):
             args: Arguments passed to the CharmBase parent constructor.
         """
         super().__init__(*args)
-        self._lightkube_client: Client | None = None
         self._lightkube_field_manager = self.app.name
         self._haproxy_route = HaproxyRouteRequirer(self, HAPROXY_ROUTE_RELATION)
         self._haproxy_route_tcp = HaproxyRouteTcpRequirer(self, HAPROXY_ROUTE_TCP_RELATION)
@@ -78,14 +78,10 @@ class IngressConfiguratorCharm(ops.CharmBase):
         # Action handlers
         self.framework.observe(self.on.get_proxied_endpoints_action, self._on_get_proxied_endpoint)
 
-    @property
+    @cached_property
     def lightkube_client(self) -> Client:
         """Returns a lightkube client configured for this charm."""
-        if self._lightkube_client is None:
-            self._lightkube_client = Client(
-                namespace=self.model.name, field_manager=self._lightkube_field_manager
-            )
-        return self._lightkube_client
+        return Client(namespace=self.model.name, field_manager=self._lightkube_field_manager)
 
     def is_kubernetes(self) -> bool:
         """Return True if the charm is running on a Kubernetes substrate.

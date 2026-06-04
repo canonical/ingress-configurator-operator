@@ -36,7 +36,6 @@ from state.haproxy_route_tcp import (
     HaproxyRouteTcpState,
     InvalidHaproxyRouteTcpStateError,
 )
-from state.helpers import InvalidStateError
 
 logger = logging.getLogger(__name__)
 CREATED_BY_LABEL = "ingress-configurator.charm.juju.is/managed-by"
@@ -142,35 +141,45 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self._ingress.get_data(ingress_relation) if ingress_relation is not None else None
         )
 
-        try:
-            if ingress_data is not None:  # Adapter mode
-                if self.is_kubernetes():
-                    service_name = f"{self.model.name}-{self.app.name}-service"
-                    ensure_nodeport_service(
-                        self.lightkube_client,
-                        ingress_data.app.port,
-                        service_name,
-                        ingress_data.app.name,
-                        self.app.name,
-                    )
-                    kubernetes_data = get_kubernetes_data(self.lightkube_client, service_name)
+        if ingress_data is not None:  # Adapter mode
+            if self.is_kubernetes():
+                service_name = f"{self.model.name}-{self.app.name}-service"
+                ensure_nodeport_service(
+                    self.lightkube_client,
+                    ingress_data.app.port,
+                    service_name,
+                    ingress_data.app.name,
+                    self.app.name,
+                )
+                kubernetes_data = get_kubernetes_data(self.lightkube_client, service_name)
+                try:
                     charm_state = HaproxyRouteState.for_kubernetes_adapter_mode(
                         self,
                         backend_addresses=kubernetes_data.backend_addresses,
                         backend_ports=[kubernetes_data.backend_port],
                         service=kubernetes_data.service_name,
                     )
-                else:
+                except InvalidHaproxyRouteStateError as exc:
+                    logger.exception(
+                        "Invalid haproxy-route configuration [adapter with k8s backend]."
+                    )
+                    self.unit.status = ops.BlockedStatus(str(exc))
+                    return
+            else:
+                try:
                     charm_state = HaproxyRouteState.for_adapter_mode(self, ingress_data)
-            else:  # Integrator mode
+                except InvalidHaproxyRouteStateError as exc:
+                    logger.exception("Invalid haproxy-route configuration [adapter].")
+                    self.unit.status = ops.BlockedStatus(str(exc))
+                    return
+        else:  # Integrator mode
+            try:
                 charm_state = HaproxyRouteState.for_integrator_mode(self)
-        except InvalidStateError as exc:
-            logger.exception("Invalid haproxy-route configuration.")
-            self.unit.status = ops.BlockedStatus(str(exc))
-            return
+            except InvalidHaproxyRouteStateError as exc:
+                logger.exception("Invalid haproxy-route configuration [integrator].")
+                self.unit.status = ops.BlockedStatus(str(exc))
+                return
 
-        # Assign consistent_hashing to a local variable due to line length limit
-        consistent_hashing = charm_state.load_balancing_configuration.consistent_hashing
         params = {
             "hosts": [str(address) for address in charm_state.backend_addresses],
             "check_interval": charm_state.health_check.interval,
@@ -191,7 +200,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             "additional_hostnames": charm_state.additional_hostnames,
             "load_balancing_algorithm": charm_state.load_balancing_configuration.algorithm,
             "load_balancing_cookie": charm_state.load_balancing_configuration.cookie,
-            "load_balancing_consistent_hashing": consistent_hashing,
+            "load_balancing_consistent_hashing": charm_state.load_balancing_configuration.consistent_hashing,
             "http_server_close": charm_state.http_server_close,
             "path_rewrite_expressions": charm_state.path_rewrite_expressions,
             "header_rewrite_expressions": charm_state.header_rewrite_expressions,

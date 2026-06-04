@@ -11,12 +11,9 @@ from unittest.mock import ANY, MagicMock
 import ops.testing
 import pytest
 
-from state.haproxy_route import HaproxyRouteState
-from state.helpers import InvalidStateError
+from state.haproxy_route import HaproxyRouteState, InvalidHaproxyRouteStateError
 
 if TYPE_CHECKING:
-    from lightkube import Client as LightkubeClient
-
     from charm import IngressConfiguratorCharm
 
 
@@ -30,7 +27,9 @@ def test_config_changed_invalid_state(
     assert: status is blocked.
     """
     monkeypatch.setattr(
-        HaproxyRouteState, "for_integrator_mode", MagicMock(side_effect=InvalidStateError)
+        HaproxyRouteState,
+        "for_integrator_mode",
+        MagicMock(side_effect=InvalidHaproxyRouteStateError),
     )
     charm_state = ops.testing.State(
         config={"backend-addresses": "10.0.0.1,invalid", "backend-ports": "8080"},

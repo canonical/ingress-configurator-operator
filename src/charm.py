@@ -31,10 +31,10 @@ from kubernetes import (
     ensure_nodeport_service,
     get_kubernetes_data,
 )
+from state.common import BackendState, InvalidBackendStateError
 from state.haproxy_route import (
-    BackendState,
+    HaproxyRouteBackendState,
     HaproxyRouteState,
-    InvalidBackendStateError,
     InvalidHaproxyRouteStateError,
 )
 from state.haproxy_route_tcp import (
@@ -167,7 +167,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 )
                 kubernetes_data = get_kubernetes_data(self.lightkube_client, service_name)
                 try:
-                    backend_state = BackendState.for_kubernetes_adapter_mode(
+                    backend_state = HaproxyRouteBackendState.for_kubernetes_adapter_mode(
                         self,
                         kubernetes_data.backend_addresses,
                         [kubernetes_data.backend_port],
@@ -179,15 +179,15 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 service = kubernetes_data.service_name
             else:
                 try:
-                    backend_state = BackendState.for_adapter_mode(self, ingress_data)
+                    backend_state = HaproxyRouteBackendState.for_adapter_mode(self, ingress_data)
                 except InvalidBackendStateError as exc:
                     logger.exception("Invalid backend configuration [adapter].")
                     self.unit.status = ops.BlockedStatus(str(exc))
                     return
                 service = f"{self.model.name}-{self.app.name}"
-        elif BackendState.has_integrator_config(self):  # Integrator mode
+        elif HaproxyRouteBackendState.has_integrator_config(self):  # Integrator mode
             try:
-                backend_state = BackendState.for_integrator_mode(self)
+                backend_state = HaproxyRouteBackendState.for_integrator_mode(self)
             except InvalidBackendStateError as exc:
                 logger.exception("Invalid backend configuration [integrator].")
                 self.unit.status = ops.BlockedStatus(str(exc))

@@ -12,7 +12,8 @@ from charms.traefik_k8s.v2.ingress import (
 )
 from ops import CharmBase
 
-from state.haproxy_route import BackendState, HaproxyRouteState
+from state.common import BackendState
+from state.haproxy_route import HaproxyRouteState
 
 
 def _make_adapter_state(charm, ingress_data):

@@ -9,8 +9,8 @@ import pytest
 from charms.haproxy.v2.haproxy_route import LoadBalancingAlgorithm
 from ops import CharmBase
 
-from state.haproxy_route import BackendState, HaproxyRouteState
-from state.helpers import InvalidStateError
+from state.common import BackendState, InvalidStateError
+from state.haproxy_route import HaproxyRouteState
 
 
 def _make_integrator_state(charm):

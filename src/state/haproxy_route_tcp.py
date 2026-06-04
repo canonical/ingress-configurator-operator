@@ -25,7 +25,7 @@ from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
 from helpers import get_invalid_config_fields
-from state.helpers import InvalidStateError
+from state.common import InvalidStateError
 
 logger = logging.getLogger(__name__)
 

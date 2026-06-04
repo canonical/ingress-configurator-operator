@@ -15,7 +15,7 @@ from kubernetes import (
     get_nodeport_service,
     get_nodes_ips,
 )
-from state.helpers import InvalidStateError
+from state.common import InvalidStateError
 from state.kubernetes import NodePortState
 
 

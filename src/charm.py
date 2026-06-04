@@ -273,8 +273,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 backend_port=charm_state.backend_port,
                 tls_terminate=charm_state.tls_terminate,
                 sni=charm_state.hostname,
-                retry_count=charm_state.retry.count,
-                retry_redispatch=charm_state.retry.redispatch or False,
+                retry_count=charm_state.retry.count if charm_state.retry else None,
+                retry_redispatch=charm_state.retry.redispatch if charm_state.retry else False,
                 load_balancing_algorithm=charm_state.load_balancing_configuration.algorithm,
                 load_balancing_consistent_hashing=(
                     charm_state.load_balancing_configuration.consistent_hashing

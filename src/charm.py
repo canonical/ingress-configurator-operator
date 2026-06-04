@@ -30,11 +30,11 @@ from kubernetes import (
     ensure_nodeport_service,
     get_kubernetes_data,
 )
-from state.charm_state import InvalidStateError
 from state.haproxy_route import HaproxyRouteState
 from state.haproxy_route_tcp import (
     HaproxyRouteTcpState,
 )
+from state.helpers import InvalidStateError
 
 logger = logging.getLogger(__name__)
 CREATED_BY_LABEL = "ingress-configurator.charm.juju.is/managed-by"
@@ -162,8 +162,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
             "paths": charm_state.paths,
             "ports": charm_state.backend_ports,
             "protocol": charm_state.backend_protocol,
-            "retry_count": charm_state.retry.count,
-            "retry_redispatch": charm_state.retry.redispatch,
+            "retry_count": charm_state.retry.count if charm_state.retry else None,
+            "retry_redispatch": charm_state.retry.redispatch if charm_state.retry else None,
             "server_timeout": charm_state.timeout.server,
             "connect_timeout": charm_state.timeout.connect,
             "queue_timeout": charm_state.timeout.queue,

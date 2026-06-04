@@ -11,6 +11,8 @@ from annotated_types import Len
 from charms.haproxy.v2.haproxy_route import (
     LoadBalancingAlgorithm,
     LoadBalancingConfiguration,
+    Retry,
+    TimeoutConfiguration,
     valid_domain_with_wildcard,
 )
 from charms.traefik_k8s.v2.ingress import IngressRequirerData
@@ -19,11 +21,15 @@ from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
 from helpers import get_invalid_config_fields, value_has_valid_characters
-from state.charm_state import InvalidStateError, Retry, Timeout
+from state.helpers import InvalidStateError
 
 logger = logging.getLogger()
 CHARM_CONFIG_DELIMITER = ","
 DEFAULT_PATH_REWRITE_EXPRESSION_DELIMITER = ";"
+
+
+class InvalidHaproxyRouteStateError(InvalidStateError):
+    """Exception raised when HAProxy route requirements are invalid."""
 
 
 @dataclass(frozen=True)
@@ -139,8 +145,8 @@ class HaproxyRouteState:
 
     _backend_state: BackendState
     health_check: HealthCheck
-    retry: Retry
-    timeout: Timeout
+    retry: Retry | None
+    timeout: TimeoutConfiguration
     service: str = Field(..., min_length=1)
     paths: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(default=[])
     hostname: Optional[Annotated[str, BeforeValidator(valid_domain_with_wildcard)]] = Field(
@@ -275,7 +281,7 @@ class HaproxyRouteState:
             # Skip this check when kubernetes_data is provided, since K8s mode
             # supplies its own backend addresses and port at line 392.
             if not kubernetes_data and config_backend == ingress_backend:
-                raise InvalidStateError("No valid mode detected.")
+                raise InvalidHaproxyRouteStateError("No valid mode detected.")
             backend_addresses = config_backend_addresses or ingress_backend_addresses
             backend_ports = config_backend_ports or ingress_backend_ports
 
@@ -313,6 +319,27 @@ class HaproxyRouteState:
                 if charm.config.get("header-rewrite-expressions")
                 else []
             )
+            retry_count = cast(int | None, charm.config.get("retry-count"))
+            retry = (
+                Retry(
+                    count=retry_count,
+                    redispatch=cast(bool, charm.config.get("retry-redispatch")),
+                )
+                if retry_count is not None
+                else None
+            )
+
+            timeout = TimeoutConfiguration(
+                **{
+                    k: v
+                    for k, v in {
+                        "server": cast(int | None, charm.config.get("timeout-server")),
+                        "connect": cast(int | None, charm.config.get("timeout-connect")),
+                        "queue": cast(int | None, charm.config.get("timeout-queue")),
+                    }.items()
+                    if v is not None
+                }
+            )
             allow_http = cast(bool, charm.config.get("allow-http", False))
             service = f"{charm.model.name}-{charm.app.name}"
             if kubernetes_data:
@@ -323,8 +350,8 @@ class HaproxyRouteState:
                 _backend_state=BackendState(backend_addresses, backend_ports, backend_protocol),
                 paths=paths,
                 health_check=HealthCheck.from_charm(charm),
-                retry=Retry.from_charm(charm),
-                timeout=Timeout.from_charm(charm),
+                retry=retry,
+                timeout=timeout,
                 service=service,
                 hostname=hostname,
                 additional_hostnames=additional_hostnames,

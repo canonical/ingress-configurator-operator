@@ -15,8 +15,8 @@ from kubernetes import (
     get_nodeport_service,
     get_nodes_ips,
 )
-from state.charm_state import InvalidStateError
 from state.haproxy_route import NodePortState
+from state.helpers import InvalidStateError
 
 
 def _make_node(*addresses: tuple[str, str]) -> MagicMock:

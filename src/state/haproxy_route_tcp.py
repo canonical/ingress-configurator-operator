@@ -14,8 +14,10 @@ import ops
 from annotated_types import Len
 from charms.haproxy.v1.haproxy_route_tcp import (
     LoadBalancingAlgorithm,
+    Retry,
     TCPHealthCheckType,
     TCPLoadBalancingConfiguration,
+    TimeoutConfiguration,
     valid_domain_with_wildcard,
 )
 from pydantic import BeforeValidator, Field, ValidationError, model_validator
@@ -23,9 +25,13 @@ from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
 from helpers import get_invalid_config_fields
-from state.charm_state import InvalidStateError, Retry, Timeout
+from state.helpers import InvalidStateError
 
 logger = logging.getLogger(__name__)
+
+
+class InvalidHaproxyRouteTcpStateError(InvalidStateError):
+    """Exception raised when HAProxy TCP route requirements are invalid."""
 
 
 @dataclass(frozen=True)
@@ -134,11 +140,11 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
     backend_port: Annotated[int, Field(gt=0, le=65535)]
     tls_terminate: bool
     hostname: Annotated[str, BeforeValidator(valid_domain_with_wildcard)] | None
-    retry: Retry
+    retry: Retry | None
     load_balancing_configuration: TCPLoadBalancingConfiguration
     enforce_tls: bool
     health_check: TCPHealthCheck
-    timeout: Timeout
+    timeout: TimeoutConfiguration
     proxy_protocol: bool
 
     @classmethod
@@ -183,17 +189,30 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
                     bool, charm.config.get("tcp-load-balancing-consistent-hashing")
                 ),
             )
+            retry_count = cast(int | None, charm.config.get("tcp-retry-count"))
+            retry = (
+                Retry(
+                    count=retry_count,
+                    redispatch=cast(bool, charm.config.get("tcp-retry-redispatch")),
+                )
+                if retry_count is not None
+                else None
+            )
             return cls(
                 port=port,
                 backend_port=backend_port,
                 tls_terminate=tls_terminate,
                 hostname=hostname,
                 backend_addresses=config_tcp_backend_addresses,
-                retry=Retry.from_charm(charm, prefix="tcp-"),
+                retry=retry,
                 load_balancing_configuration=load_balancing_configuration,
                 enforce_tls=enforce_tls,
                 health_check=TCPHealthCheck.from_charm(charm),
-                timeout=Timeout.from_charm(charm, prefix="tcp-"),
+                timeout=TimeoutConfiguration(
+                    server=cast(int | None, charm.config.get("tcp-timeout-server")),
+                    connect=cast(int | None, charm.config.get("tcp-timeout-connect")),
+                    queue=cast(int | None, charm.config.get("tcp-timeout-queue")),
+                ),
                 proxy_protocol=cast(bool, charm.config.get("tcp-enable-proxy-protocol", False)),
             )
         except ValidationError as exc:
@@ -201,4 +220,6 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
                 "Failed to validate haproxy-route-tcp requirements. Invalid config fields: %s",
                 get_invalid_config_fields(exc),
             )
-            raise InvalidStateError("Invalid haproxy-route-tcp configuration.") from exc
+            raise InvalidHaproxyRouteTcpStateError(
+                "Invalid haproxy-route-tcp configuration."
+            ) from exc

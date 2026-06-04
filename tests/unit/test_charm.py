@@ -11,8 +11,8 @@ from unittest.mock import ANY, MagicMock
 import ops.testing
 import pytest
 
-from state.charm_state import InvalidStateError
 from state.haproxy_route import HaproxyRouteState
+from state.helpers import InvalidStateError
 
 if TYPE_CHECKING:
     from charm import IngressConfiguratorCharm

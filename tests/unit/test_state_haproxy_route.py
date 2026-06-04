@@ -15,8 +15,8 @@ from charms.traefik_k8s.v2.ingress import (
 from ops import CharmBase
 from pydantic import ValidationError
 
-from state.charm_state import InvalidStateError
 from state.haproxy_route import HaproxyRouteState, NodePortState
+from state.helpers import InvalidStateError
 
 
 def test_adapter_state_from_charm():

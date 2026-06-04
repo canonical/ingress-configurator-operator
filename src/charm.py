@@ -22,7 +22,7 @@ from charms.haproxy.v1.haproxy_route_tcp import (
 from charms.haproxy.v2.haproxy_route import HAPROXY_ROUTE_RELATION_NAME as HAPROXY_ROUTE_RELATION
 from charms.haproxy.v2.haproxy_route import HaproxyRouteRequirer
 from charms.traefik_k8s.v2.ingress import DEFAULT_RELATION_NAME as INGRESS_RELATION
-from charms.traefik_k8s.v2.ingress import IngressPerAppProvider
+from charms.traefik_k8s.v2.ingress import IngressPerAppProvider, IngressRequirerData
 from lightkube import Client
 
 from kubernetes import (
@@ -30,7 +30,7 @@ from kubernetes import (
     ensure_nodeport_service,
     get_kubernetes_data,
 )
-from state.haproxy_route import HaproxyRouteState
+from state.haproxy_route import HaproxyRouteState, InvalidHaproxyRouteStateError
 from state.haproxy_route_tcp import (
     HaproxyRouteTcpState,
     InvalidHaproxyRouteTcpStateError,
@@ -119,40 +119,54 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self.unit.status = ops.BlockedStatus("Route relation required.")
 
     def _reconcile_haproxy_route(self) -> None:
-        """Reconcile haproxy-route (HTTP) requirer data."""
-        ingress_relation_data = None
+        """Reconcile haproxy-route (HTTP) requirer data.
+
+        Mode selection:
+        - Guard: no ingress relation on Kubernetes → blocked (relation must be added).
+        - Guard: ingress relation present but requirer not ready → wait for data.
+        - Kubernetes adapter: ingress data available on Kubernetes substrate.
+        - Adapter: ingress data available on a machine substrate.
+        - Integrator: no ingress relation, backend addresses come from charm config.
+        """
         ingress_relation = self.model.get_relation(self._ingress.relation_name)
-        if self._ingress.is_ready():
-            ingress_relation_data = (
-                self._ingress.get_data(ingress_relation) if ingress_relation else None
-            )
-        kubernetes_data = None
-        if self.is_kubernetes() and ingress_relation_data is not None:
-            service_name = f"{self.model.name}-{self.app.name}-service"
-            ensure_nodeport_service(
-                self.lightkube_client,
-                ingress_relation_data.app.port,
-                service_name,
-                ingress_relation_data.app.name,
-                self.app.name,
-            )
-            kubernetes_data = get_kubernetes_data(
-                self.lightkube_client,
-                service_name,
-            )
-        elif self.is_kubernetes() and ingress_relation_data is None:
+
+        if ingress_relation is None and self.is_kubernetes():
             delete_nodeport_services_owned_by(self.lightkube_client, self.app.name)
+            self.unit.status = ops.BlockedStatus(
+                "Ingress relation required on Kubernetes substrate."
+            )
+            return
+
+        if ingress_relation is not None and not self._ingress.is_ready():
+            logger.info("Ingress relation exists but is not ready. Waiting for ingress data.")
+            self.unit.status = ops.WaitingStatus("Waiting for ingress relation data.")
+            return
+
+        ingress_data = (
+            self._ingress.get_data(ingress_relation) if ingress_relation is not None else None
+        )
+
         try:
-            if kubernetes_data is not None:
-                charm_state = HaproxyRouteState.for_kubernetes_adapter_mode(
-                    self,
-                    backend_addresses=kubernetes_data.backend_addresses,
-                    backend_ports=[kubernetes_data.backend_port],
-                    service=kubernetes_data.service_name,
-                )
-            elif ingress_relation_data is not None:
-                charm_state = HaproxyRouteState.for_adapter_mode(self, ingress_relation_data)
-            else:
+            if ingress_data is not None:  # Adapter mode
+                if self.is_kubernetes():
+                    service_name = f"{self.model.name}-{self.app.name}-service"
+                    ensure_nodeport_service(
+                        self.lightkube_client,
+                        ingress_data.app.port,
+                        service_name,
+                        ingress_data.app.name,
+                        self.app.name,
+                    )
+                    kubernetes_data = get_kubernetes_data(self.lightkube_client, service_name)
+                    charm_state = HaproxyRouteState.for_kubernetes_adapter_mode(
+                        self,
+                        backend_addresses=kubernetes_data.backend_addresses,
+                        backend_ports=[kubernetes_data.backend_port],
+                        service=kubernetes_data.service_name,
+                    )
+                else:
+                    charm_state = HaproxyRouteState.for_adapter_mode(self, ingress_data)
+            else:  # Integrator mode
                 charm_state = HaproxyRouteState.for_integrator_mode(self)
         except InvalidStateError as exc:
             logger.exception("Invalid haproxy-route configuration.")
@@ -190,8 +204,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
         }
         not_none_params = {k: v for k, v in params.items() if v is not None}
         self._haproxy_route.provide_haproxy_route_requirements(**not_none_params)
-        proxied_endpoints = self._haproxy_route.get_proxied_endpoints()
-        if ingress_relation and proxied_endpoints:
+
+        # Publish endpoints in adapter mode if ingress relation exists. In integrator mode.
+        if ingress_relation and (proxied_endpoints := self._haproxy_route.get_proxied_endpoints()):
             self._ingress.publish_url(ingress_relation, str(proxied_endpoints[0]))
         self.unit.status = ops.ActiveStatus("Ready")
 

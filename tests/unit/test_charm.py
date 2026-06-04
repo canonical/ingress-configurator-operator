@@ -15,6 +15,8 @@ from state.haproxy_route import HaproxyRouteState
 from state.helpers import InvalidStateError
 
 if TYPE_CHECKING:
+    from lightkube import Client as LightkubeClient
+
     from charm import IngressConfiguratorCharm
 
 
@@ -48,8 +50,7 @@ def test_config_changed_ingress_relation_not_ready(
     arrange: prepare state with haproxy-route and an ingress relation whose requirer
         hasn't populated the databag yet (empty remote app data).
     act: trigger a config-changed event.
-    assert: the hook succeeds (no exception) and the unit is blocked, not stuck in
-        error state.
+    assert: the unit is waiting, not blocked or erroring.
     """
     charm_state = ops.testing.State(
         relations=[
@@ -61,7 +62,28 @@ def test_config_changed_ingress_relation_not_ready(
 
     out = context_machine.run(context_machine.on.config_changed(), charm_state)
 
-    assert out.unit_status == ops.testing.BlockedStatus("No valid mode detected.")
+    assert out.unit_status == ops.testing.WaitingStatus("Waiting for ingress relation data.")
+
+
+@pytest.mark.usefixtures("mock_lightkube")
+def test_config_changed_kubernetes_without_ingress_relation(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: prepare state with haproxy-route but no ingress relation on a Kubernetes substrate.
+    act: trigger a config-changed event.
+    assert: the unit is blocked because adapter mode requires an ingress relation on Kubernetes.
+    """
+    charm_state = ops.testing.State(
+        relations=[ops.testing.Relation("haproxy-route")],
+        leader=True,
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), charm_state)
+
+    assert out.unit_status == ops.testing.BlockedStatus(
+        "Ingress relation required on Kubernetes substrate."
+    )
 
 
 def test_config_changed_integrator(

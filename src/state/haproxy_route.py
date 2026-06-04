@@ -198,8 +198,7 @@ class HaproxyRouteState:
             charm: the ingress-configurator charm.
 
         Raises:
-            InvalidHaproxyRouteBackendStateError: when backend config is missing or invalid.
-            InvalidHaproxyRouteStateError: when the route configuration is invalid.
+            InvalidHaproxyRouteStateError: when the configuration is missing or invalid.
 
         Returns:
             HaproxyRouteState: instance of the state.
@@ -243,8 +242,7 @@ class HaproxyRouteState:
             ingress_data: the ingress requirer relation data.
 
         Raises:
-            InvalidHaproxyRouteBackendStateError: when backend config is missing or invalid.
-            InvalidHaproxyRouteStateError: when the route configuration is invalid.
+            InvalidHaproxyRouteStateError: when the configuration is missing or invalid.
 
         Returns:
             HaproxyRouteState: instance of the state.
@@ -274,8 +272,7 @@ class HaproxyRouteState:
             kubernetes_data: resolved NodePort service data.
 
         Raises:
-            InvalidHaproxyRouteBackendStateError: when backend config is missing or invalid.
-            InvalidHaproxyRouteStateError: when the route configuration is invalid.
+            InvalidHaproxyRouteStateError: when the configuration is invalid.
 
         Returns:
             HaproxyRouteState: instance of the state.
@@ -301,7 +298,6 @@ class HaproxyRouteState:
             charm: the ingress-configurator charm.
             backend_addresses: list of resolved backend IP addresses.
             backend_ports: list of resolved backend ports.
-            backend_protocol: the backend protocol ("http" or "https").
             service: the service name.
 
         Raises:

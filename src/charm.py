@@ -222,7 +222,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         not_none_params = {k: v for k, v in params.items() if v is not None}
         self._haproxy_route.provide_haproxy_route_requirements(**not_none_params)
 
-        # Publish endpoints in adapter mode if ingress relation exists. In integrator mode.
+        # Publish endpoints in adapter mode.
         if ingress_relation and (proxied_endpoints := self._haproxy_route.get_proxied_endpoints()):
             self._ingress.publish_url(ingress_relation, str(proxied_endpoints[0]))
         self.unit.status = ops.ActiveStatus("Ready")

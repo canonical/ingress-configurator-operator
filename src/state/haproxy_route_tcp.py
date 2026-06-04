@@ -83,7 +83,7 @@ class TCPHealthCheck:
             charm: The charm instance.
 
         Raises:
-            InvalidStateError: If the health check type is invalid.
+            InvalidHaproxyRouteTcpStateError: If the health check type is invalid.
 
         Returns:
             TCPHealthCheck instance.
@@ -118,7 +118,7 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
     TCP routes through HAProxy.
 
     Raises:
-        InvalidHaproxyRouteTcpRequirementsError: If the provided configuration
+        InvalidHaproxyRouteTcpStateError: If the provided configuration
             parameters are invalid.
 
     Attributes:

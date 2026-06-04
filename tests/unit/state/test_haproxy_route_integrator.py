@@ -11,7 +11,6 @@ from ops import CharmBase
 
 from state.haproxy_route import (
     HaproxyRouteState,
-    InvalidHaproxyRouteBackendStateError,
     InvalidHaproxyRouteStateError,
 )
 
@@ -462,7 +461,7 @@ def test_state_from_charm_port_invalid_int():
         "backend-addresses": "127.0.0.1,127.0.0.2",
         "backend-ports": "invalid",
     }
-    with pytest.raises(InvalidHaproxyRouteBackendStateError):
+    with pytest.raises(InvalidHaproxyRouteStateError):
         _make_integrator_state(charm)
 
 

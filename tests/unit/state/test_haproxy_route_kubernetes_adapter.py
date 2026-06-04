@@ -7,22 +7,20 @@ from unittest.mock import Mock
 
 from ops import CharmBase
 
-from state.common import BackendState
 from state.haproxy_route import HaproxyRouteBackendState, HaproxyRouteState
+from state.kubernetes import NodePortState
 
 
-def _make_k8s_state(charm, backend_addresses, backend_ports, service):
+def _make_k8s_state(charm, kubernetes_data):
     """Build HaproxyRouteState via the two-step BackendState + from_charm API."""
-    backend_state = HaproxyRouteBackendState.for_kubernetes_adapter_mode(
-        charm, backend_addresses, backend_ports
-    )
-    return HaproxyRouteState.from_charm(charm, backend_state, service)
+    backend_state = HaproxyRouteBackendState.for_kubernetes_adapter_mode(charm, kubernetes_data)
+    return HaproxyRouteState.from_charm(charm, backend_state, kubernetes_data.service_name)
 
 
 def _make_integrator_state(charm):
     """Build HaproxyRouteState via the two-step BackendState + from_charm API."""
     service = f"{charm.model.name}-{charm.app.name}"
-    backend_state = BackendState.for_integrator_mode(charm)
+    backend_state = HaproxyRouteBackendState.for_integrator_mode(charm)
     return HaproxyRouteState.from_charm(charm, backend_state, service)
 
 
@@ -37,9 +35,11 @@ def test_state_from_charm_with_kubernetes_backend():
 
     charm_state = _make_k8s_state(
         charm,
-        backend_addresses=["10.0.0.1", "10.0.0.2"],
-        backend_ports=[8080],
-        service="my-service",
+        NodePortState(
+            backend_addresses=["10.0.0.1", "10.0.0.2"],
+            backend_port=8080,
+            service_name="my-service",
+        ),
     )
 
     assert [str(a) for a in charm_state.backend_addresses] == ["10.0.0.1", "10.0.0.2"]
@@ -61,9 +61,11 @@ def test_state_from_charm_kubernetes_overrides_backend_addresses_and_ports():
 
     charm_state = _make_k8s_state(
         charm,
-        backend_addresses=["10.0.0.1", "10.0.0.2"],
-        backend_ports=[8080],
-        service="my-service",
+        NodePortState(
+            backend_addresses=["10.0.0.1", "10.0.0.2"],
+            backend_port=8080,
+            service_name="my-service",
+        ),
     )
 
     assert [str(a) for a in charm_state.backend_addresses] == ["10.0.0.1", "10.0.0.2"]
@@ -87,9 +89,11 @@ def test_state_from_charm_service_name():
 
     with_kubernetes = _make_k8s_state(
         charm,
-        backend_addresses=["10.0.0.1"],
-        backend_ports=[8080],
-        service="my-k8s-service",
+        NodePortState(
+            backend_addresses=["10.0.0.1"],
+            backend_port=8080,
+            service_name="my-k8s-service",
+        ),
     )
     without_kubernetes = _make_integrator_state(charm)
 
@@ -112,9 +116,11 @@ def test_state_from_charm_kubernetes_backend_protocol_from_config():
 
     charm_state = _make_k8s_state(
         charm,
-        backend_addresses=["10.0.0.1"],
-        backend_ports=[8080],
-        service="my-service",
+        NodePortState(
+            backend_addresses=["10.0.0.1"],
+            backend_port=8080,
+            service_name="my-service",
+        ),
     )
 
     assert charm_state.backend_protocol == "https"
@@ -153,9 +159,11 @@ def test_state_from_charm_kubernetes_without_config_backend():
 
     charm_state = _make_k8s_state(
         charm,
-        backend_addresses=["10.0.0.1", "10.0.0.2"],
-        backend_ports=[30080],
-        service="my-k8s-service",
+        NodePortState(
+            backend_addresses=["10.0.0.1", "10.0.0.2"],
+            backend_port=30080,
+            service_name="my-k8s-service",
+        ),
     )
 
     assert [str(a) for a in charm_state.backend_addresses] == ["10.0.0.1", "10.0.0.2"]

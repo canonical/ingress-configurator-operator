@@ -7,6 +7,7 @@ This module provides state management functionality for HAProxy TCP routes
 in the ingress configurator operator.
 """
 
+import dataclasses
 import logging
 from typing import Annotated, Optional, Self, cast
 
@@ -32,6 +33,81 @@ logger = logging.getLogger(__name__)
 
 class InvalidHaproxyRouteTcpStateError(InvalidStateError):
     """Exception raised when HAProxy TCP route requirements are invalid."""
+
+
+class InvalidHaproxyRouteTcpBackendStateError(InvalidStateError):
+    """Exception raised when HAProxy TCP backend state is invalid."""
+
+
+@dataclasses.dataclass(frozen=True)
+class HaproxyRouteTcpBackendState:
+    """Charm state subset that contains the TCP backend configuration.
+
+    Attributes:
+        backend_addresses: Configured list of backend IP addresses.
+        backend_port: Configured backend port.
+    """
+
+    backend_addresses: list[IPvAnyAddress]
+    backend_port: Annotated[int, Field(gt=0, le=65535)]
+
+    @classmethod
+    def has_integrator_config(cls, charm: ops.CharmBase) -> bool:
+        """Return True if any TCP integrator backend config option is set.
+
+        This is intentionally a presence check — it does not validate the values.
+        Use it to detect the absence of backend configuration before attempting
+        to parse the config with for_integrator_mode.
+
+        Args:
+            charm: the ingress-configurator charm.
+
+        Returns:
+            True if tcp-backend-addresses or tcp-backend-port is set in config.
+        """
+        return any(
+            [
+                charm.config.get("tcp-backend-addresses"),
+                charm.config.get("tcp-backend-port"),
+            ]
+        )
+
+    @classmethod
+    def for_integrator_mode(cls, charm: ops.CharmBase) -> "Self":
+        """Create HaproxyRouteTcpBackendState for integrator mode from charm config.
+
+        Args:
+            charm: the ingress-configurator charm.
+
+        Raises:
+            InvalidBackendStateError: when backend config is missing or invalid.
+
+        Returns:
+            HaproxyRouteTcpBackendState: instance of the TCP backend state.
+        """
+        try:
+            backend_addresses = (
+                [
+                    cast(IPvAnyAddress, address)
+                    for address in cast(str, charm.config.get("tcp-backend-addresses")).split(",")
+                ]
+                if charm.config.get("tcp-backend-addresses")
+                else []
+            )
+            backend_port = cast(int, charm.config.get("tcp-backend-port"))
+        except ValueError as exc:
+            logger.error(str(exc))
+            raise InvalidHaproxyRouteTcpStateError(
+                "TCP backend state contains invalid value(s)."
+            ) from exc
+        try:
+            return cls(backend_addresses=backend_addresses, backend_port=backend_port)
+        except ValidationError as exc:
+            logger.error(str(exc))
+            error_field_str = ",".join(f"{field}" for field in get_invalid_config_fields(exc))
+            raise InvalidHaproxyRouteTcpBackendStateError(
+                f"Invalid integrator backend configuration: {error_field_str}"
+            ) from exc
 
 
 @dataclass(frozen=True)
@@ -136,8 +212,8 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
     """
 
     backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
-    port: Annotated[int, Field(gt=0, le=65535)]
     backend_port: Annotated[int, Field(gt=0, le=65535)]
+    port: Annotated[int, Field(gt=0, le=65535)]
     tls_terminate: bool
     hostname: Annotated[str, BeforeValidator(valid_domain_with_wildcard)] | None
     retry: Retry | None
@@ -148,30 +224,26 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
     proxy_protocol: bool
 
     @classmethod
-    def for_integrator_mode(cls, charm: ops.CharmBase) -> Self:
-        """Create HaproxyRouteTcpRequirements from charm and requirer.
+    def from_charm(
+        cls,
+        charm: ops.CharmBase,
+        backend_state: HaproxyRouteTcpBackendState,
+    ) -> Self:
+        """Build HaproxyRouteTcpState from a resolved backend and charm config.
 
         Args:
             charm: The IngressConfiguratorCharm instance.
+            backend_state: pre-resolved TCP backend configuration.
 
         Raises:
-            InvalidStateError: If the configuration
+            InvalidHaproxyRouteTcpStateError: If the configuration
                 parameters are invalid.
 
         Returns:
-            HaproxyRouteTcpRequirements instance populated with relevant info.
+            HaproxyRouteTcpState instance populated with relevant info.
         """
-        config_tcp_backend_addresses = (
-            [
-                cast(IPvAnyAddress, address)
-                for address in cast(str, charm.config.get("tcp-backend-addresses")).split(",")
-            ]
-            if charm.config.get("tcp-backend-addresses")
-            else []
-        )
         tls_terminate = cast(bool, charm.config.get("tcp-tls-terminate", True))
         port = cast(int, charm.config.get("tcp-frontend-port"))
-        backend_port = cast(int, charm.config.get("tcp-backend-port"))
         hostname = cast(str | None, charm.config.get("tcp-hostname"))
         enforce_tls = cast(bool, charm.config.get("tcp-enforce-tls"))
         try:
@@ -180,7 +252,7 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
             )
         except ValueError as exc:
             logger.error(str(exc))
-            raise InvalidStateError("Invalid load balancing algorithm.") from exc
+            raise InvalidHaproxyRouteTcpStateError("Invalid load balancing algorithm.") from exc
 
         try:
             load_balancing_configuration = TCPLoadBalancingConfiguration(
@@ -199,11 +271,11 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
                 else None
             )
             return cls(
+                backend_addresses=backend_state.backend_addresses,
+                backend_port=backend_state.backend_port,
                 port=port,
-                backend_port=backend_port,
                 tls_terminate=tls_terminate,
                 hostname=hostname,
-                backend_addresses=config_tcp_backend_addresses,
                 retry=retry,
                 load_balancing_configuration=load_balancing_configuration,
                 enforce_tls=enforce_tls,

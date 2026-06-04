@@ -31,13 +31,14 @@ from kubernetes import (
     ensure_nodeport_service,
     get_kubernetes_data,
 )
-from state.common import BackendState, InvalidBackendStateError
 from state.haproxy_route import (
     HaproxyRouteBackendState,
     HaproxyRouteState,
+    InvalidHaproxyRouteBackendStateError,
     InvalidHaproxyRouteStateError,
 )
 from state.haproxy_route_tcp import (
+    HaproxyRouteTcpBackendState,
     HaproxyRouteTcpState,
     InvalidHaproxyRouteTcpStateError,
 )
@@ -148,7 +149,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self._ingress.get_data(ingress_relation) if ingress_relation is not None else None
         )
 
-        has_integrator_config = BackendState.has_integrator_config(self)
+        has_integrator_config = HaproxyRouteBackendState.has_integrator_config(self)
         if ingress_data is not None and has_integrator_config:
             self.unit.status = ops.BlockedStatus(
                 "No valid mode: remove backend configuration or the ingress relation."
@@ -168,11 +169,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 kubernetes_data = get_kubernetes_data(self.lightkube_client, service_name)
                 try:
                     backend_state = HaproxyRouteBackendState.for_kubernetes_adapter_mode(
-                        self,
-                        kubernetes_data.backend_addresses,
-                        [kubernetes_data.backend_port],
+                        self, kubernetes_data
                     )
-                except InvalidBackendStateError as exc:
+                except InvalidHaproxyRouteBackendStateError as exc:
                     logger.exception("Invalid backend configuration [adapter with k8s backend].")
                     self.unit.status = ops.BlockedStatus(str(exc))
                     return
@@ -180,7 +179,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             else:
                 try:
                     backend_state = HaproxyRouteBackendState.for_adapter_mode(self, ingress_data)
-                except InvalidBackendStateError as exc:
+                except InvalidHaproxyRouteBackendStateError as exc:
                     logger.exception("Invalid backend configuration [adapter].")
                     self.unit.status = ops.BlockedStatus(str(exc))
                     return
@@ -188,7 +187,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         elif HaproxyRouteBackendState.has_integrator_config(self):  # Integrator mode
             try:
                 backend_state = HaproxyRouteBackendState.for_integrator_mode(self)
-            except InvalidBackendStateError as exc:
+            except InvalidHaproxyRouteBackendStateError as exc:
                 logger.exception("Invalid backend configuration [integrator].")
                 self.unit.status = ops.BlockedStatus(str(exc))
                 return
@@ -253,7 +252,14 @@ class IngressConfiguratorCharm(ops.CharmBase):
             return
 
         try:
-            tcp_requirements = HaproxyRouteTcpState.for_integrator_mode(self)
+            backend_state = HaproxyRouteTcpBackendState.for_integrator_mode(self)
+        except InvalidHaproxyRouteTcpStateError as exc:
+            logger.exception("Invalid TCP backend configuration [integrator].")
+            self.unit.status = ops.BlockedStatus(str(exc))
+            return
+
+        try:
+            charm_state = HaproxyRouteTcpState.from_charm(self, backend_state)
         except InvalidHaproxyRouteTcpStateError as exc:
             logger.exception("Invalid haproxy-route-tcp configuration [integrator].")
             self.unit.status = ops.BlockedStatus(str(exc))
@@ -261,29 +267,29 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
         try:
             self._haproxy_route_tcp.provide_haproxy_route_tcp_requirements(
-                hosts=tcp_requirements.backend_addresses,
-                port=tcp_requirements.port,
-                backend_port=tcp_requirements.backend_port,
-                tls_terminate=tcp_requirements.tls_terminate,
-                sni=tcp_requirements.hostname,
-                retry_count=tcp_requirements.retry.count,
-                retry_redispatch=tcp_requirements.retry.redispatch or False,
-                load_balancing_algorithm=tcp_requirements.load_balancing_configuration.algorithm,
+                hosts=charm_state.backend_addresses,
+                port=charm_state.port,
+                backend_port=charm_state.backend_port,
+                tls_terminate=charm_state.tls_terminate,
+                sni=charm_state.hostname,
+                retry_count=charm_state.retry.count,
+                retry_redispatch=charm_state.retry.redispatch or False,
+                load_balancing_algorithm=charm_state.load_balancing_configuration.algorithm,
                 load_balancing_consistent_hashing=(
-                    tcp_requirements.load_balancing_configuration.consistent_hashing
+                    charm_state.load_balancing_configuration.consistent_hashing
                 ),
-                enforce_tls=tcp_requirements.enforce_tls,
-                check_interval=tcp_requirements.health_check.interval,
-                check_rise=tcp_requirements.health_check.rise,
-                check_fall=tcp_requirements.health_check.fall,
-                check_type=tcp_requirements.health_check.check_type,
-                check_send=tcp_requirements.health_check.send,
-                check_expect=tcp_requirements.health_check.expect,
-                check_db_user=tcp_requirements.health_check.db_user,
-                server_timeout=tcp_requirements.timeout.server,
-                connect_timeout=tcp_requirements.timeout.connect,
-                queue_timeout=tcp_requirements.timeout.queue,
-                proxy_protocol=tcp_requirements.proxy_protocol,
+                enforce_tls=charm_state.enforce_tls,
+                check_interval=charm_state.health_check.interval,
+                check_rise=charm_state.health_check.rise,
+                check_fall=charm_state.health_check.fall,
+                check_type=charm_state.health_check.check_type,
+                check_send=charm_state.health_check.send,
+                check_expect=charm_state.health_check.expect,
+                check_db_user=charm_state.health_check.db_user,
+                server_timeout=charm_state.timeout.server,
+                connect_timeout=charm_state.timeout.connect,
+                queue_timeout=charm_state.timeout.queue,
+                proxy_protocol=charm_state.proxy_protocol,
             )
         except DataValidationError as exc:
             logger.exception("Error providing haproxy-route-tcp requirements.")

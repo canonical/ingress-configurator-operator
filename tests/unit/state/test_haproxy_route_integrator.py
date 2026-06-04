@@ -9,14 +9,14 @@ import pytest
 from charms.haproxy.v2.haproxy_route import LoadBalancingAlgorithm
 from ops import CharmBase
 
-from state.common import BackendState, InvalidStateError
-from state.haproxy_route import HaproxyRouteState
+from state.common import InvalidStateError
+from state.haproxy_route import HaproxyRouteBackendState, HaproxyRouteState
 
 
 def _make_integrator_state(charm):
     """Build HaproxyRouteState via the two-step BackendState + from_charm API."""
     service = f"{charm.model.name}-{charm.app.name}"
-    backend_state = BackendState.for_integrator_mode(charm)
+    backend_state = HaproxyRouteBackendState.for_integrator_mode(charm)
     return HaproxyRouteState.from_charm(charm, backend_state, service)
 
 

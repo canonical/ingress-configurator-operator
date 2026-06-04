@@ -10,9 +10,16 @@ from charms.haproxy.v1.haproxy_route_tcp import LoadBalancingAlgorithm
 from ops import CharmBase
 
 from state.haproxy_route_tcp import (
+    HaproxyRouteTcpBackendState,
     HaproxyRouteTcpState,
     InvalidStateError,
 )
+
+
+def _make_tcp_integrator_state(charm):
+    """Build HaproxyRouteTcpState via the two-step BackendState + from_charm API."""
+    backend_state = HaproxyRouteTcpBackendState.for_integrator_mode(charm)
+    return HaproxyRouteTcpState.from_charm(charm, backend_state)
 
 
 def test_haproxy_route_tcp_requirements_for_integrator_mode():
@@ -35,7 +42,7 @@ def test_haproxy_route_tcp_requirements_for_integrator_mode():
         "tcp-enforce-tls": True,
     }
 
-    requirements = HaproxyRouteTcpState.for_integrator_mode(charm)
+    requirements = _make_tcp_integrator_state(charm)
 
     assert [str(addr) for addr in requirements.backend_addresses] == [
         "192.168.1.10",
@@ -70,7 +77,7 @@ def test_haproxy_route_tcp_invalid_algorithm():
     }
 
     with pytest.raises(InvalidStateError) as exc_info:
-        HaproxyRouteTcpState.for_integrator_mode(charm)
+        _make_tcp_integrator_state(charm)
     assert "Invalid load balancing algorithm" in str(exc_info.value)
 
 
@@ -92,7 +99,7 @@ def test_haproxy_route_tcp_requirements_for_integrator_mode_no_tls():
         "tcp-load-balancing-consistent-hashing": False,
     }
 
-    requirements = HaproxyRouteTcpState.for_integrator_mode(charm)
+    requirements = _make_tcp_integrator_state(charm)
 
     assert [str(addr) for addr in requirements.backend_addresses] == ["10.0.0.1"]
     assert requirements.port == 9000
@@ -119,7 +126,7 @@ def test_haproxy_route_tcp_requirements_for_integrator_mode_ipv6():
         "tcp-enforce-tls": True,
     }
 
-    requirements = HaproxyRouteTcpState.for_integrator_mode(charm)
+    requirements = _make_tcp_integrator_state(charm)
 
     assert [str(addr) for addr in requirements.backend_addresses] == ["2001:db8::1", "2001:db8::2"]
     assert requirements.port == 443
@@ -154,7 +161,7 @@ def test_haproxy_route_tcp_requirements_valid_wildcard_sni(hostname):
         "tcp-enforce-tls": True,
     }
 
-    requirements = HaproxyRouteTcpState.for_integrator_mode(charm)
+    requirements = _make_tcp_integrator_state(charm)
 
     assert requirements.hostname == hostname
 
@@ -189,7 +196,7 @@ def test_haproxy_route_tcp_requirements_invalid_wildcard_sni(invalid_hostname):
     }
 
     with pytest.raises(InvalidStateError) as exc_info:
-        HaproxyRouteTcpState.for_integrator_mode(charm)
+        _make_tcp_integrator_state(charm)
     assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
 
 
@@ -211,7 +218,7 @@ def test_haproxy_route_tcp_requirements_empty_backend_addresses():
     }
 
     with pytest.raises(InvalidStateError) as exc_info:
-        HaproxyRouteTcpState.for_integrator_mode(charm)
+        _make_tcp_integrator_state(charm)
     assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
 
 
@@ -240,7 +247,7 @@ def test_haproxy_route_tcp_requirements_invalid_backend_address(invalid_address)
     }
 
     with pytest.raises(InvalidStateError) as exc_info:
-        HaproxyRouteTcpState.for_integrator_mode(charm)
+        _make_tcp_integrator_state(charm)
     assert "Invalid load balancing algorithm" in str(exc_info.value)
 
 
@@ -271,7 +278,7 @@ def test_haproxy_route_tcp_requirements_invalid_frontend_port(invalid_port):
     }
 
     with pytest.raises(InvalidStateError) as exc_info:
-        HaproxyRouteTcpState.for_integrator_mode(charm)
+        _make_tcp_integrator_state(charm)
     assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
 
 
@@ -302,7 +309,7 @@ def test_haproxy_route_tcp_requirements_invalid_backend_port(invalid_port):
     }
 
     with pytest.raises(InvalidStateError) as exc_info:
-        HaproxyRouteTcpState.for_integrator_mode(charm)
+        _make_tcp_integrator_state(charm)
     assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
 
 
@@ -324,7 +331,7 @@ def test_haproxy_route_tcp_requirements_valid_port_boundaries():
         "tcp-enforce-tls": True,
     }
 
-    requirements = HaproxyRouteTcpState.for_integrator_mode(charm)
+    requirements = _make_tcp_integrator_state(charm)
 
     assert requirements.port == 1
     assert requirements.backend_port == 65535
@@ -348,7 +355,7 @@ def test_haproxy_route_tcp_requirements_multiple_backend_addresses():
         "tcp-enforce-tls": True,
     }
 
-    requirements = HaproxyRouteTcpState.for_integrator_mode(charm)
+    requirements = _make_tcp_integrator_state(charm)
 
     assert len(requirements.backend_addresses) == 3
     assert [str(addr) for addr in requirements.backend_addresses] == [
@@ -376,7 +383,7 @@ def test_haproxy_route_tcp_requirements_mixed_ip_versions():
         "tcp-enforce-tls": True,
     }
 
-    requirements = HaproxyRouteTcpState.for_integrator_mode(charm)
+    requirements = _make_tcp_integrator_state(charm)
 
     assert len(requirements.backend_addresses) == 2
     assert [str(addr) for addr in requirements.backend_addresses] == [
@@ -412,7 +419,7 @@ def test_haproxy_route_tcp_requirements_enforce_tls(
         "tcp-load-balancing-consistent-hashing": False,
     }
 
-    requirements = HaproxyRouteTcpState.for_integrator_mode(charm)
+    requirements = _make_tcp_integrator_state(charm)
 
     assert requirements.enforce_tls is expected_enforce_tls
     assert requirements.hostname == expected_hostname
@@ -456,7 +463,7 @@ def test_haproxy_route_tcp_requirements_health_check_presence(
         **health_check_config,
     }
 
-    requirements = HaproxyRouteTcpState.for_integrator_mode(charm)
+    requirements = _make_tcp_integrator_state(charm)
 
     assert requirements.health_check.interval == expected_interval
     assert requirements.health_check.rise == expected_rise
@@ -490,7 +497,7 @@ def test_haproxy_route_tcp_requirements_incomplete_health_check(missing_field):
     }
 
     with pytest.raises(InvalidStateError) as exc_info:
-        HaproxyRouteTcpState.for_integrator_mode(charm)
+        _make_tcp_integrator_state(charm)
     assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
 
 
@@ -521,7 +528,7 @@ def test_haproxy_route_tcp_requirements_invalid_health_check_values(invalid_valu
     }
 
     with pytest.raises(InvalidStateError) as exc_info:
-        HaproxyRouteTcpState.for_integrator_mode(charm)
+        _make_tcp_integrator_state(charm)
     assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
 
 
@@ -549,7 +556,7 @@ def test_haproxy_route_tcp_requirements_health_check_with_type_generic():
         "tcp-health-check-expect": "PONG",
     }
 
-    requirements = HaproxyRouteTcpState.for_integrator_mode(charm)
+    requirements = _make_tcp_integrator_state(charm)
 
     assert requirements.health_check.check_type is not None
     assert requirements.health_check.check_type.value == "generic"
@@ -581,7 +588,7 @@ def test_haproxy_route_tcp_requirements_health_check_with_type_mysql():
         "tcp-health-check-db-user": "health_checker",
     }
 
-    requirements = HaproxyRouteTcpState.for_integrator_mode(charm)
+    requirements = _make_tcp_integrator_state(charm)
 
     assert requirements.health_check.check_type is not None
     assert requirements.health_check.check_type.value == "mysql"
@@ -616,7 +623,7 @@ def test_haproxy_route_tcp_requirements_valid_health_check_types(check_type):
         "tcp-health-check-type": check_type,
     }
 
-    requirements = HaproxyRouteTcpState.for_integrator_mode(charm)
+    requirements = _make_tcp_integrator_state(charm)
 
     assert requirements.health_check.check_type is not None
     assert requirements.health_check.check_type.value == check_type
@@ -644,7 +651,7 @@ def test_haproxy_route_tcp_requirements_invalid_health_check_type():
     }
 
     with pytest.raises(InvalidStateError) as exc_info:
-        HaproxyRouteTcpState.for_integrator_mode(charm)
+        _make_tcp_integrator_state(charm)
     assert "Invalid health check type" in str(exc_info.value)
 
 
@@ -686,7 +693,7 @@ def test_haproxy_route_tcp_requirements_timeout_presence(
         **timeout_config,
     }
 
-    requirements = HaproxyRouteTcpState.for_integrator_mode(charm)
+    requirements = _make_tcp_integrator_state(charm)
 
     assert requirements.timeout.server == expected_server
     assert requirements.timeout.connect == expected_connect
@@ -720,7 +727,7 @@ def test_haproxy_route_tcp_requirements_invalid_timeout_values(invalid_value):
     }
 
     with pytest.raises(InvalidStateError) as exc_info:
-        HaproxyRouteTcpState.for_integrator_mode(charm)
+        _make_tcp_integrator_state(charm)
     assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
 
 
@@ -743,6 +750,6 @@ def test_haproxy_route_tcp_requirements_proxy_protocol_enabled():
         "tcp-enable-proxy-protocol": True,
     }
 
-    requirements = HaproxyRouteTcpState.for_integrator_mode(charm)
+    requirements = _make_tcp_integrator_state(charm)
 
     assert requirements.proxy_protocol is True

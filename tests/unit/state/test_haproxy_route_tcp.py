@@ -12,7 +12,7 @@ from ops import CharmBase
 from state.haproxy_route_tcp import (
     HaproxyRouteTcpBackendState,
     HaproxyRouteTcpState,
-    InvalidStateError,
+    InvalidHaproxyRouteTcpStateError,
 )
 
 
@@ -76,7 +76,7 @@ def test_haproxy_route_tcp_invalid_algorithm():
         "tcp-load-balancing-algorithm": "invalid",
     }
 
-    with pytest.raises(InvalidStateError) as exc_info:
+    with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
     assert "Invalid load balancing algorithm" in str(exc_info.value)
 
@@ -195,7 +195,7 @@ def test_haproxy_route_tcp_requirements_invalid_wildcard_sni(invalid_hostname):
         "tcp-enforce-tls": True,
     }
 
-    with pytest.raises(InvalidStateError) as exc_info:
+    with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
     assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
 
@@ -217,7 +217,7 @@ def test_haproxy_route_tcp_requirements_empty_backend_addresses():
         "tcp-load-balancing-consistent-hashing": False,
     }
 
-    with pytest.raises(InvalidStateError) as exc_info:
+    with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
     assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
 
@@ -246,7 +246,7 @@ def test_haproxy_route_tcp_requirements_invalid_backend_address(invalid_address)
         "tcp-hostname": None,
     }
 
-    with pytest.raises(InvalidStateError) as exc_info:
+    with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
     assert "Invalid load balancing algorithm" in str(exc_info.value)
 
@@ -277,7 +277,7 @@ def test_haproxy_route_tcp_requirements_invalid_frontend_port(invalid_port):
         "tcp-load-balancing-consistent-hashing": False,
     }
 
-    with pytest.raises(InvalidStateError) as exc_info:
+    with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
     assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
 
@@ -308,7 +308,7 @@ def test_haproxy_route_tcp_requirements_invalid_backend_port(invalid_port):
         "tcp-load-balancing-consistent-hashing": False,
     }
 
-    with pytest.raises(InvalidStateError) as exc_info:
+    with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
     assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
 
@@ -496,7 +496,7 @@ def test_haproxy_route_tcp_requirements_incomplete_health_check(missing_field):
         **missing_field,
     }
 
-    with pytest.raises(InvalidStateError) as exc_info:
+    with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
     assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
 
@@ -527,7 +527,7 @@ def test_haproxy_route_tcp_requirements_invalid_health_check_values(invalid_valu
         **invalid_value,
     }
 
-    with pytest.raises(InvalidStateError) as exc_info:
+    with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
     assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
 
@@ -650,7 +650,7 @@ def test_haproxy_route_tcp_requirements_invalid_health_check_type():
         "tcp-health-check-type": "invalid_type",
     }
 
-    with pytest.raises(InvalidStateError) as exc_info:
+    with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
     assert "Invalid health check type" in str(exc_info.value)
 
@@ -726,7 +726,7 @@ def test_haproxy_route_tcp_requirements_invalid_timeout_values(invalid_value):
         **invalid_value,
     }
 
-    with pytest.raises(InvalidStateError) as exc_info:
+    with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
     assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
 

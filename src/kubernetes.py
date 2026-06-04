@@ -11,10 +11,13 @@ from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Node, Service
 
-from state.common import InvalidStateError
 from state.kubernetes import NodePortState
 
 logger = logging.getLogger(__name__)
+
+
+class InvalidKubernetesPermissionError(Exception):
+    """Exception raised when the charm lacks the necessary permissions to perform a Kubernetes operation."""
 
 
 def get_nodes_ips(client: Client) -> list[str]:
@@ -69,7 +72,9 @@ def ensure_nodeport_service(
         return client.apply(service)
     except ApiError as e:
         if e.status.code == 403:
-            raise InvalidStateError("This charm needs --trust to run on k8s substrates") from e
+            raise InvalidKubernetesPermissionError(
+                "This charm needs --trust to run on k8s substrates"
+            ) from e
         raise
 
 

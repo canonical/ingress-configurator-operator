@@ -26,16 +26,15 @@ from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
 from helpers import get_invalid_config_fields
-from state.common import InvalidStateError
 
 logger = logging.getLogger(__name__)
 
 
-class InvalidHaproxyRouteTcpStateError(InvalidStateError):
+class InvalidHaproxyRouteTcpStateError(Exception):
     """Exception raised when HAProxy TCP route requirements are invalid."""
 
 
-class InvalidHaproxyRouteTcpBackendStateError(InvalidStateError):
+class InvalidHaproxyRouteTcpBackendStateError(Exception):
     """Exception raised when HAProxy TCP backend state is invalid."""
 
 
@@ -171,7 +170,7 @@ class TCPHealthCheck:
             try:
                 check_type = TCPHealthCheckType(check_type_str)
             except ValueError as exc:
-                raise InvalidStateError(
+                raise InvalidHaproxyRouteTcpStateError(
                     f"Invalid health check type: {check_type_str}. "
                     "Must be one of: generic, mysql, postgres, redis, smtp."
                 ) from exc

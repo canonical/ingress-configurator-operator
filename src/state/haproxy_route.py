@@ -25,7 +25,6 @@ from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
 from helpers import get_invalid_config_fields, value_has_valid_characters
-from state.common import InvalidStateError
 from state.kubernetes import NodePortState
 
 logger = logging.getLogger()
@@ -33,11 +32,11 @@ CHARM_CONFIG_DELIMITER = ","
 DEFAULT_PATH_REWRITE_EXPRESSION_DELIMITER = ";"
 
 
-class InvalidHaproxyRouteStateError(InvalidStateError):
+class InvalidHaproxyRouteStateError(Exception):
     """Exception raised when HAProxy route requirements are invalid."""
 
 
-class InvalidHaproxyRouteBackendStateError(InvalidStateError):
+class InvalidHaproxyRouteBackendStateError(Exception):
     """Exception raised when the HAProxy route backend configuration is invalid."""
 
 

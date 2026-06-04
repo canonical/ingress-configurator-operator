@@ -33,6 +33,7 @@ from kubernetes import (
 from state.haproxy_route import HaproxyRouteState
 from state.haproxy_route_tcp import (
     HaproxyRouteTcpState,
+    InvalidHaproxyRouteTcpStateError,
 )
 from state.helpers import InvalidStateError
 
@@ -206,7 +207,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             return
 
         try:
-            tcp_requirements = HaproxyRouteTcpState.from_charm(self)
+            tcp_requirements = HaproxyRouteTcpState.for_integrator_mode(self)
             self._haproxy_route_tcp.provide_haproxy_route_tcp_requirements(
                 hosts=tcp_requirements.backend_addresses,
                 port=tcp_requirements.port,
@@ -232,7 +233,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 queue_timeout=tcp_requirements.timeout.queue,
                 proxy_protocol=tcp_requirements.proxy_protocol,
             )
-        except (InvalidStateError, DataValidationError) as exc:
+        except (InvalidHaproxyRouteTcpStateError, DataValidationError) as exc:
             logger.exception("Error providing haproxy-route-tcp requirements.")
             self.unit.status = ops.BlockedStatus(str(exc))
             return

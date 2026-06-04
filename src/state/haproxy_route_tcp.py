@@ -148,7 +148,7 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
     proxy_protocol: bool
 
     @classmethod
-    def from_charm(cls, charm: ops.CharmBase) -> Self:
+    def for_integrator_mode(cls, charm: ops.CharmBase) -> Self:
         """Create HaproxyRouteTcpRequirements from charm and requirer.
 
         Args:

@@ -228,6 +228,12 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
         try:
             tcp_requirements = HaproxyRouteTcpState.for_integrator_mode(self)
+        except InvalidHaproxyRouteTcpStateError as exc:
+            logger.exception("Invalid haproxy-route-tcp configuration [integrator].")
+            self.unit.status = ops.BlockedStatus(str(exc))
+            return
+
+        try:
             self._haproxy_route_tcp.provide_haproxy_route_tcp_requirements(
                 hosts=tcp_requirements.backend_addresses,
                 port=tcp_requirements.port,
@@ -253,7 +259,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 queue_timeout=tcp_requirements.timeout.queue,
                 proxy_protocol=tcp_requirements.proxy_protocol,
             )
-        except (InvalidHaproxyRouteTcpStateError, DataValidationError) as exc:
+        except DataValidationError as exc:
             logger.exception("Error providing haproxy-route-tcp requirements.")
             self.unit.status = ops.BlockedStatus(str(exc))
             return

@@ -40,6 +40,7 @@ from state.haproxy_route import (
 from state.haproxy_route_tcp import (
     HaproxyRouteTcpBackendState,
     HaproxyRouteTcpState,
+    InvalidHaproxyRouteTcpBackendStateError,
     InvalidHaproxyRouteTcpStateError,
 )
 
@@ -253,7 +254,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
         try:
             backend_state = HaproxyRouteTcpBackendState.for_integrator_mode(self)
-        except InvalidHaproxyRouteTcpStateError as exc:
+        except InvalidHaproxyRouteTcpBackendStateError as exc:
             logger.exception("Invalid TCP backend configuration [integrator].")
             self.unit.status = ops.BlockedStatus(str(exc))
             return

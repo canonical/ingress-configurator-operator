@@ -48,21 +48,6 @@ class BackendState:
 
 
 @dataclass(frozen=True)
-class NodePortState:
-    """Charm state subset that contains Kubernetes-specific backend configuration.
-
-    Attributes:
-        backend_addresses: Addresses of worker nodes in the cluster.
-        backend_port: The nodePort from the NodePort service.
-        service_name: The name of the NodePort service.
-    """
-
-    backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
-    backend_port: Annotated[int, Field(gt=0, le=65535)]
-    service_name: str
-
-
-@dataclass(frozen=True)
 class HealthCheck:
     """Charm state that contains the health check configuration.
 
@@ -140,7 +125,6 @@ class HaproxyRouteState:
         header_rewrite_expressions: List of header rewrite expressions.
         allow_http: Whether to allow HTTP traffic to the service.
         external_grpc_port: Optional gRPC external port.
-        kubernetes_backend_state: Optional Kubernetes-specific backend configuration.
     """
 
     _backend_state: BackendState
@@ -163,7 +147,6 @@ class HaproxyRouteState:
     header_rewrite_expressions: list[tuple[str, str]] = Field(default=[])
     allow_http: bool = Field(default=False)
     external_grpc_port: int | None = Field(default=None, gt=0, le=65535)
-    _kubernetes_backend_state: NodePortState | None = None
 
     @property
     def backend_addresses(self) -> list[IPvAnyAddress]:
@@ -179,11 +162,6 @@ class HaproxyRouteState:
     def backend_protocol(self) -> Literal["http", "https"]:
         """The backend protocol."""
         return self._backend_state.backend_protocol
-
-    @property
-    def kubernetes_backend_state(self) -> NodePortState | None:
-        """Kubernetes-specific backend configuration."""
-        return self._kubernetes_backend_state
 
     @model_validator(mode="after")
     def validate_external_grpc_port_requires_https(self) -> Self:
@@ -216,25 +194,117 @@ class HaproxyRouteState:
         return self
 
     @classmethod
-    def from_charm(
+    def _build_from_config(
         cls,
         charm: ops.CharmBase,
-        ingress_data: IngressRequirerData | None,
-        kubernetes_data: NodePortState | None = None,
+        backend_state: BackendState,
+        service: str,
     ) -> Self:
-        """Create an HaproxyRouteState class from a charm instance.
+        """Build HaproxyRouteState from a resolved backend and charm config for all other fields.
 
         Args:
             charm: the ingress-configurator charm.
-            ingress_data: the ingress requirer relation data.
-            kubernetes_data: optional Kubernetes API data used to populate the
-                Kubernetes backend state.
-
-        Raises:
-            InvalidStateError: when the integrator mode config is invalid.
+            backend_state: pre-resolved backend configuration.
+            service: the service name.
 
         Returns:
-            State: instance of the state component.
+            HaproxyRouteState: instance of the state.
+        """
+        external_grpc_port = cast(int | None, charm.config.get("external-grpc-port"))
+        paths = (
+            cast(str, charm.config.get("paths")).split(CHARM_CONFIG_DELIMITER)
+            if charm.config.get("paths")
+            else []
+        )
+        hostname = cast(Optional[str], charm.config.get("hostname"))
+        additional_hostnames = (
+            cast(str, charm.config.get("additional-hostnames")).split(CHARM_CONFIG_DELIMITER)
+            if charm.config.get("additional-hostnames")
+            else []
+        )
+        http_server_close = cast(bool, charm.config.get("http-server-close", False))
+        load_balancing_algorithm = LoadBalancingAlgorithm(
+            cast(
+                Optional[str],
+                charm.config.get(
+                    "load-balancing-algorithm", LoadBalancingAlgorithm.LEASTCONN.value
+                ),
+            )
+        )
+        load_balancing_configuration = LoadBalancingConfiguration(
+            algorithm=load_balancing_algorithm,
+            cookie=cast(Optional[str], charm.config.get("load-balancing-cookie")),
+            consistent_hashing=cast(
+                bool, charm.config.get("load-balancing-consistent-hashing", False)
+            ),
+        )
+        path_rewrite_expressions = (
+            # The new line character ('\n') is escaped ('\\n') as set by the
+            # configuration option
+            cast(str, charm.config.get("path-rewrite-expressions")).split("\\n")
+            if charm.config.get("path-rewrite-expressions")
+            else []
+        )
+        header_rewrite_expressions = (
+            # The new line character ('\n') is escaped ('\\n') as set by the
+            # configuration option
+            [
+                cast(tuple[str, str], tuple(elem.split(":", 1)))
+                for elem in cast(str, charm.config.get("header-rewrite-expressions")).split("\\n")
+            ]
+            if charm.config.get("header-rewrite-expressions")
+            else []
+        )
+        retry_count = cast(int | None, charm.config.get("retry-count"))
+        retry = (
+            Retry(
+                count=retry_count,
+                redispatch=cast(bool, charm.config.get("retry-redispatch")),
+            )
+            if retry_count is not None
+            else None
+        )
+        timeout = TimeoutConfiguration(
+            **{
+                k: v
+                for k, v in {
+                    "server": cast(int | None, charm.config.get("timeout-server")),
+                    "connect": cast(int | None, charm.config.get("timeout-connect")),
+                    "queue": cast(int | None, charm.config.get("timeout-queue")),
+                }.items()
+                if v is not None
+            }
+        )
+        allow_http = cast(bool, charm.config.get("allow-http", False))
+        return cls(
+            _backend_state=backend_state,
+            paths=paths,
+            health_check=HealthCheck.from_charm(charm),
+            retry=retry,
+            timeout=timeout,
+            service=service,
+            hostname=hostname,
+            additional_hostnames=additional_hostnames,
+            load_balancing_configuration=load_balancing_configuration,
+            http_server_close=http_server_close,
+            path_rewrite_expressions=path_rewrite_expressions,
+            header_rewrite_expressions=header_rewrite_expressions,
+            allow_http=allow_http,
+            external_grpc_port=external_grpc_port,
+        )
+
+    @classmethod
+    def for_integrator_mode(cls, charm: ops.CharmBase) -> Self:
+        """Create HaproxyRouteState for integrator mode from charm config.
+
+        Args:
+            charm: the ingress-configurator charm.
+
+        Raises:
+            InvalidHaproxyRouteStateError: when backend config is missing or invalid.
+
+        Returns:
+            HaproxyRouteState: instance of the state.
         """
         try:
             config_backend_addresses = (
@@ -250,125 +320,114 @@ class HaproxyRouteState:
                 if charm.config.get("backend-ports")
                 else []
             )
+            if not config_backend_addresses or not config_backend_ports:
+                raise InvalidHaproxyRouteStateError("No valid mode detected.")
             # The value will be validated by the BackendState constructor
             backend_protocol = cast(
                 Literal["http", "https"],
                 (charm.config.get("backend-protocol") or "http"),
             )
-            external_grpc_port = cast(int | None, charm.config.get("external-grpc-port"))
-            ingress_backend_ports = [ingress_data.app.port] if ingress_data else []
-            ingress_backend_addresses = (
-                [cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units]
-                if ingress_data
-                else []
-            )
-            paths = (
-                cast(str, charm.config.get("paths")).split(CHARM_CONFIG_DELIMITER)
-                if charm.config.get("paths")
-                else []
-            )
-            hostname = cast(Optional[str], charm.config.get("hostname"))
-            additional_hostnames = (
-                cast(str, charm.config.get("additional-hostnames")).split(CHARM_CONFIG_DELIMITER)
-                if charm.config.get("additional-hostnames")
-                else []
-            )
-            http_server_close = cast(bool, charm.config.get("http-server-close", False))
-
-            config_backend = bool(config_backend_addresses or config_backend_ports)
-            ingress_backend = bool(ingress_backend_addresses or ingress_backend_ports)
-            # Only backend configuration from a single origin is supported.
-            # Skip this check when kubernetes_data is provided, since K8s mode
-            # supplies its own backend addresses and port at line 392.
-            if not kubernetes_data and config_backend == ingress_backend:
-                raise InvalidHaproxyRouteStateError("No valid mode detected.")
-            backend_addresses = config_backend_addresses or ingress_backend_addresses
-            backend_ports = config_backend_ports or ingress_backend_ports
-
-            load_balancing_algorithm = LoadBalancingAlgorithm(
-                cast(
-                    Optional[str],
-                    charm.config.get(
-                        "load-balancing-algorithm", LoadBalancingAlgorithm.LEASTCONN.value
-                    ),
-                )
-            )
-            load_balancing_configuration = LoadBalancingConfiguration(
-                algorithm=load_balancing_algorithm,
-                cookie=cast(Optional[str], charm.config.get("load-balancing-cookie")),
-                consistent_hashing=cast(
-                    bool, charm.config.get("load-balancing-consistent-hashing", False)
-                ),
-            )
-            path_rewrite_expressions = (
-                # The new line character ('\n') is escaped ('\\n') as set by the
-                # configuration option
-                cast(str, charm.config.get("path-rewrite-expressions")).split("\\n")
-                if charm.config.get("path-rewrite-expressions")
-                else []
-            )
-            header_rewrite_expressions = (
-                # The new line character ('\n') is escaped ('\\n') as set by the
-                # configuration option
-                [
-                    cast(tuple[str, str], tuple(elem.split(":", 1)))
-                    for elem in cast(str, charm.config.get("header-rewrite-expressions")).split(
-                        "\\n"
-                    )
-                ]
-                if charm.config.get("header-rewrite-expressions")
-                else []
-            )
-            retry_count = cast(int | None, charm.config.get("retry-count"))
-            retry = (
-                Retry(
-                    count=retry_count,
-                    redispatch=cast(bool, charm.config.get("retry-redispatch")),
-                )
-                if retry_count is not None
-                else None
-            )
-
-            timeout = TimeoutConfiguration(
-                **{
-                    k: v
-                    for k, v in {
-                        "server": cast(int | None, charm.config.get("timeout-server")),
-                        "connect": cast(int | None, charm.config.get("timeout-connect")),
-                        "queue": cast(int | None, charm.config.get("timeout-queue")),
-                    }.items()
-                    if v is not None
-                }
-            )
-            allow_http = cast(bool, charm.config.get("allow-http", False))
             service = f"{charm.model.name}-{charm.app.name}"
-            if kubernetes_data:
-                backend_addresses = kubernetes_data.backend_addresses
-                backend_ports = [kubernetes_data.backend_port]
-                service = kubernetes_data.service_name
-            return cls(
-                _backend_state=BackendState(backend_addresses, backend_ports, backend_protocol),
-                paths=paths,
-                health_check=HealthCheck.from_charm(charm),
-                retry=retry,
-                timeout=timeout,
-                service=service,
-                hostname=hostname,
-                additional_hostnames=additional_hostnames,
-                load_balancing_configuration=load_balancing_configuration,
-                http_server_close=http_server_close,
-                path_rewrite_expressions=path_rewrite_expressions,
-                header_rewrite_expressions=header_rewrite_expressions,
-                allow_http=allow_http,
-                external_grpc_port=external_grpc_port,
-                _kubernetes_backend_state=kubernetes_data,
+            return cls._build_from_config(
+                charm,
+                BackendState(config_backend_addresses, config_backend_ports, backend_protocol),
+                service,
             )
+        except InvalidHaproxyRouteStateError:
+            raise
         except ValidationError as exc:
             logger.error(str(exc))
             error_field_str = ",".join(f"{field}" for field in get_invalid_config_fields(exc))
-            raise InvalidStateError(
+            raise InvalidHaproxyRouteStateError(
                 f"Invalid integrator configuration: {error_field_str}"
             ) from exc
         except ValueError as exc:
             logger.error(str(exc))
-            raise InvalidStateError("State contains invalid value(s).") from exc
+            raise InvalidHaproxyRouteStateError("State contains invalid value(s).") from exc
+
+    @classmethod
+    def for_adapter_mode(
+        cls,
+        charm: ops.CharmBase,
+        ingress_data: IngressRequirerData,
+    ) -> Self:
+        """Create HaproxyRouteState for adapter mode from ingress requirer data.
+
+        Args:
+            charm: the ingress-configurator charm.
+            ingress_data: the ingress requirer relation data.
+
+        Raises:
+            InvalidHaproxyRouteStateError: when the configuration is invalid.
+
+        Returns:
+            HaproxyRouteState: instance of the state.
+        """
+        try:
+            backend_addresses = [cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units]
+            backend_ports = [ingress_data.app.port]
+            backend_protocol = cast(
+                Literal["http", "https"],
+                (charm.config.get("backend-protocol") or "http"),
+            )
+            service = f"{charm.model.name}-{charm.app.name}"
+            return cls._build_from_config(
+                charm,
+                BackendState(backend_addresses, backend_ports, backend_protocol),
+                service,
+            )
+        except ValidationError as exc:
+            logger.error(str(exc))
+            error_field_str = ",".join(f"{field}" for field in get_invalid_config_fields(exc))
+            raise InvalidHaproxyRouteStateError(
+                f"Invalid integrator configuration: {error_field_str}"
+            ) from exc
+        except ValueError as exc:
+            logger.error(str(exc))
+            raise InvalidHaproxyRouteStateError("State contains invalid value(s).") from exc
+
+    @classmethod
+    def for_kubernetes_adapter_mode(
+        cls,
+        charm: ops.CharmBase,
+        backend_addresses: list[IPvAnyAddress],
+        backend_ports: list[int],
+        service: str,
+    ) -> Self:
+        """Create HaproxyRouteState from pre-resolved backend addresses and ports.
+
+        This factory is used when the caller has already determined the backend
+        endpoints (e.g. from a Kubernetes NodePort service) and only needs the
+        charm config for the remaining HAProxy route fields.
+
+        Args:
+            charm: the ingress-configurator charm.
+            backend_addresses: resolved backend IP addresses.
+            backend_ports: resolved backend ports.
+            service: the service name to use in the HAProxy config.
+
+        Raises:
+            InvalidHaproxyRouteStateError: when the configuration is invalid.
+
+        Returns:
+            HaproxyRouteState: instance of the state.
+        """
+        try:
+            backend_protocol = cast(
+                Literal["http", "https"],
+                (charm.config.get("backend-protocol") or "http"),
+            )
+            return cls._build_from_config(
+                charm,
+                BackendState(backend_addresses, backend_ports, backend_protocol),
+                service,
+            )
+        except ValidationError as exc:
+            logger.error(str(exc))
+            error_field_str = ",".join(f"{field}" for field in get_invalid_config_fields(exc))
+            raise InvalidHaproxyRouteStateError(
+                f"Invalid configuration: {error_field_str}"
+            ) from exc
+        except ValueError as exc:
+            logger.error(str(exc))
+            raise InvalidHaproxyRouteStateError("State contains invalid value(s).") from exc

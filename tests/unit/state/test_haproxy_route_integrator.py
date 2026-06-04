@@ -1,80 +1,22 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Unit tests for the configurator module."""
+"""Unit tests for HaproxyRouteState in integrator mode (for_integrator_mode)."""
 
 from unittest.mock import Mock
 
 import pytest
 from charms.haproxy.v2.haproxy_route import LoadBalancingAlgorithm
-from charms.traefik_k8s.v2.ingress import (
-    IngressRequirerAppData,
-    IngressRequirerData,
-    IngressRequirerUnitData,
-)
 from ops import CharmBase
-from pydantic import ValidationError
 
-from state.haproxy_route import HaproxyRouteState, NodePortState
+from state.haproxy_route import HaproxyRouteState
 from state.helpers import InvalidStateError
-
-
-def test_adapter_state_from_charm():
-    """
-    arrange: mock a charm with an ingress relation
-    act: instantiate a State
-    assert: the data matches the charm configuration
-    """
-    charm = Mock(CharmBase)
-    charm.config = {
-        "health-check-interval": 20,
-        "health-check-rise": 3,
-        "health-check-fall": 4,
-        "health-check-path": "/health",
-        "health-check-port": 8080,
-        "retry-count": 1,
-        "retry-redispatch": True,
-        "timeout-server": 11,
-        "timeout-connect": 12,
-        "timeout-queue": 13,
-        "paths": "/api/v1,/api/v2",
-        "hostname": "api.example.com",
-        "additional-hostnames": "api2.example.com,api3.example.com",
-        "http-server-close": True,
-        "allow-http": True,
-    }
-    ingress_relation_data = IngressRequirerData(
-        app=IngressRequirerAppData(model="model", name="name", port=8080),
-        units=[IngressRequirerUnitData(host="sample.host", ip="127.0.0.1")],
-    )
-    charm_state = HaproxyRouteState.from_charm(charm, ingress_relation_data)
-
-    assert [str(address) for address in charm_state.backend_addresses] == [
-        ingress_relation_data.units[0].ip
-    ]
-    assert charm_state.backend_ports == [ingress_relation_data.app.port]
-    assert charm_state.backend_protocol == "http"
-    assert charm_state.health_check.interval == charm.config.get("health-check-interval")
-    assert charm_state.health_check.rise == charm.config.get("health-check-rise")
-    assert charm_state.health_check.fall == charm.config.get("health-check-fall")
-    assert charm_state.health_check.path == charm.config.get("health-check-path")
-    assert charm_state.health_check.port == charm.config.get("health-check-port")
-    assert charm_state.retry.count == charm.config.get("retry-count")
-    assert charm_state.retry.redispatch == charm.config.get("retry-redispatch")
-    assert charm_state.timeout.server == charm.config.get("timeout-server")
-    assert charm_state.timeout.connect == charm.config.get("timeout-connect")
-    assert charm_state.timeout.queue == charm.config.get("timeout-queue")
-    assert charm_state.paths == charm.config.get("paths").split(",")
-    assert charm_state.hostname == charm.config.get("hostname")
-    assert charm_state.additional_hostnames == charm.config.get("additional-hostnames").split(",")
-    assert charm_state.http_server_close == charm.config.get("http-server-close")
-    assert charm_state.allow_http == charm.config.get("allow-http")
 
 
 def test_integrator_state_from_charm():
     """
     arrange: mock a charm with backend configuration
-    act: instantiate a State
+    act: instantiate a State via for_integrator_mode
     assert: the data matches the charm configuration
     """
     charm = Mock(CharmBase)
@@ -85,7 +27,8 @@ def test_integrator_state_from_charm():
         "retry-redispatch": True,
         "http-server-close": True,
     }
-    charm_state = HaproxyRouteState.from_charm(charm, None)
+    charm_state = HaproxyRouteState.for_integrator_mode(charm)
+
     assert [str(address) for address in charm_state.backend_addresses] == charm.config.get(
         "backend-addresses"
     ).split(",")
@@ -99,20 +42,20 @@ def test_integrator_state_from_charm():
 
 def test_state_from_charm_no_backend():
     """
-    arrange: mock a charm with backend address and without backend configuration not ingress
-    act: instantiate a State
+    arrange: mock a charm with no backend configuration
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
     charm.config = {}
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_invalid_address():
     """
-    arrange: mock a charm with backend port and without address configuration
-    act: instantiate a State
+    arrange: mock a charm with an invalid backend address
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -121,13 +64,13 @@ def test_state_from_charm_invalid_address():
         "backend-ports": "8080",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_invalid_paths():
     """
-    arrange: mock a charm with backend addresses, ports configuration and invalid paths
-    act: instantiate a State
+    arrange: mock a charm with invalid paths configuration
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -137,13 +80,13 @@ def test_state_from_charm_invalid_paths():
         "paths": "invalid path",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_invalid_port():
     """
-    arrange: mock a charm with backend address and invalid port configuration
-    act: instantiate a State
+    arrange: mock a charm with an out-of-range backend port
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -152,7 +95,7 @@ def test_state_from_charm_invalid_port():
         "backend-ports": "99999",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_invalid_protocol():
@@ -164,13 +107,13 @@ def test_state_from_charm_invalid_protocol():
         "backend-protocol": "gopher",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_invalid_check_path():
     """
-    arrange: mock a charm with backend address and invalid health-check-path configuration
-    act: instantiate a State
+    arrange: mock a charm with an invalid health-check-path
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -180,13 +123,13 @@ def test_state_from_charm_invalid_check_path():
         "health-check-path": "invalid$path",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_invalid_check_port():
     """
-    arrange: mock a charm with backend address and invalid health-check-port configuration
-    act: instantiate a State
+    arrange: mock a charm with an out-of-range health-check-port
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -196,13 +139,13 @@ def test_state_from_charm_invalid_check_port():
         "health-check-port": 99999,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_invalid_check_interval():
     """
-    arrange: mock a charm with backend address and invalid health-check-interval configuration
-    act: instantiate a State
+    arrange: mock a charm with an invalid health-check-interval (zero)
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -212,13 +155,13 @@ def test_state_from_charm_invalid_check_interval():
         "health-check-interval": 0,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_invalid_check_rise():
     """
-    arrange: mock a charm with backend address and invalid health-check-rise configuration
-    act: instantiate a State
+    arrange: mock a charm with an invalid health-check-rise (zero)
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -228,13 +171,13 @@ def test_state_from_charm_invalid_check_rise():
         "health-check-rise": 0,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_invalid_check_fall():
     """
-    arrange: mock a charm with backend address and invalid health-check-fall configuration
-    act: instantiate a State
+    arrange: mock a charm with an invalid health-check-fall (zero)
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -244,13 +187,13 @@ def test_state_from_charm_invalid_check_fall():
         "health-check-fall": 0,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_invalid_missing_check_interval():
     """
-    arrange: mock a charm with backend address and unset health-check-interval configuration
-    act: instantiate a State
+    arrange: mock a charm with rise and fall set but interval missing
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -261,13 +204,13 @@ def test_state_from_charm_invalid_missing_check_interval():
         "health-check-fall": 4,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_invalid_missing_check_rise():
     """
-    arrange: mock a charm with backend address and unset health-check-rise configuration
-    act: instantiate a State
+    arrange: mock a charm with interval and fall set but rise missing
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -278,13 +221,13 @@ def test_state_from_charm_invalid_missing_check_rise():
         "health-check-fall": 4,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_invalid_missing_check_fall():
     """
-    arrange: mock a charm with backend address and unset health-check-fall configuration
-    act: instantiate a State
+    arrange: mock a charm with interval and rise set but fall missing
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -295,13 +238,13 @@ def test_state_from_charm_invalid_missing_check_fall():
         "health-check-rise": 3,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_invalid_retry_count():
     """
-    arrange: mock a charm with backend address and invalid retry-count configuration
-    act: instantiate a State
+    arrange: mock a charm with an invalid retry-count (zero)
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -311,13 +254,13 @@ def test_state_from_charm_invalid_retry_count():
         "retry-count": 0,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_invalid_timeout_server():
     """
-    arrange: mock a charm with backend address and invalid timeout-server configuration
-    act: instantiate a State
+    arrange: mock a charm with an invalid timeout-server (negative)
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -327,13 +270,13 @@ def test_state_from_charm_invalid_timeout_server():
         "timeout-server": -1,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_invalid_timeout_connect():
     """
-    arrange: mock a charm with backend address and invalid timeout-connect configuration
-    act: instantiate a State
+    arrange: mock a charm with an invalid timeout-connect (negative)
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -343,13 +286,13 @@ def test_state_from_charm_invalid_timeout_connect():
         "timeout-connect": -1,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_invalid_timeout_queue():
     """
-    arrange: mock a charm with backend address and invalid timeout-queue configuration
-    act: instantiate a State
+    arrange: mock a charm with an invalid timeout-queue (negative)
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -359,13 +302,13 @@ def test_state_from_charm_invalid_timeout_queue():
         "timeout-queue": -1,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_invalid_hostname():
     """
-    arrange: mock a charm with backend addresses, ports configuration and invalid hostname
-    act: instantiate a State
+    arrange: mock a charm with an invalid hostname
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -375,13 +318,13 @@ def test_state_from_charm_invalid_hostname():
         "hostname": "invalid$hostname",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_invalid_additional_hostnames():
     """
-    arrange: mock a charm with invalid additional-hostnames config
-    act: instantiate a State
+    arrange: mock a charm with invalid additional-hostnames
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -392,7 +335,7 @@ def test_state_from_charm_invalid_additional_hostnames():
         "additional-hostnames": "invalid$\\",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 @pytest.mark.parametrize(
@@ -409,7 +352,7 @@ def test_state_from_charm_valid_hostname_with_wildcard(hostname):
     """Test State creation with valid hostnames including wildcards.
 
     arrange: mock a charm with valid hostname including wildcards
-    act: instantiate a State
+    act: instantiate a State via for_integrator_mode
     assert: state is created successfully
     """
     charm = Mock(CharmBase)
@@ -418,7 +361,7 @@ def test_state_from_charm_valid_hostname_with_wildcard(hostname):
         "backend-ports": "8080",
         "hostname": hostname,
     }
-    charm_state = HaproxyRouteState.from_charm(charm, None)
+    charm_state = HaproxyRouteState.for_integrator_mode(charm)
     assert charm_state.hostname == hostname
 
 
@@ -437,7 +380,7 @@ def test_state_from_charm_invalid_hostname_wildcard(invalid_hostname):
     """Test State creation fails with invalid wildcard hostname.
 
     arrange: mock a charm with invalid wildcard hostname
-    act: instantiate a State
+    act: instantiate a State via for_integrator_mode
     assert: InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -447,7 +390,7 @@ def test_state_from_charm_invalid_hostname_wildcard(invalid_hostname):
         "hostname": invalid_hostname,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 @pytest.mark.parametrize(
@@ -462,7 +405,7 @@ def test_state_from_charm_valid_additional_hostnames_with_wildcard(additional_ho
     """Test State creation with valid additional hostnames including wildcards.
 
     arrange: mock a charm with valid additional hostnames including wildcards
-    act: instantiate a State
+    act: instantiate a State via for_integrator_mode
     assert: state is created successfully
     """
     charm = Mock(CharmBase)
@@ -471,7 +414,7 @@ def test_state_from_charm_valid_additional_hostnames_with_wildcard(additional_ho
         "backend-ports": "8080",
         "additional-hostnames": additional_hostnames,
     }
-    charm_state = HaproxyRouteState.from_charm(charm, None)
+    charm_state = HaproxyRouteState.for_integrator_mode(charm)
     assert charm_state.additional_hostnames == additional_hostnames.split(",")
 
 
@@ -487,7 +430,7 @@ def test_state_from_charm_invalid_additional_hostnames_wildcard(invalid_addition
     """Test State creation fails with invalid wildcard in additional hostnames.
 
     arrange: mock a charm with invalid wildcard in additional hostnames
-    act: instantiate a State
+    act: instantiate a State via for_integrator_mode
     assert: InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -497,13 +440,13 @@ def test_state_from_charm_invalid_additional_hostnames_wildcard(invalid_addition
         "additional-hostnames": invalid_additional_hostnames,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_port_invalid_int():
     """
-    arrange: mock a charm with invalid port config (not an integer)
-    act: instantiate a State
+    arrange: mock a charm with a non-integer backend port
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -512,13 +455,13 @@ def test_state_from_charm_port_invalid_int():
         "backend-ports": "invalid",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_invalid_load_balancing_algorithm():
     """
-    arrange: mock a charm with an invalid loadbalancing algorithm
-    act: instantiate a State
+    arrange: mock a charm with an invalid load-balancing-algorithm
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -528,14 +471,14 @@ def test_state_from_charm_invalid_load_balancing_algorithm():
         "load-balancing-algorithm": "invalid",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_invalid_load_balancing_configuration():
     """
-    arrange: mock a charm with invalid loadbalancing configurations
-    act: instantiate a State
-    assert: a InvalidStateError is raised
+    arrange: mock a charm with incompatible load-balancing configuration combinations
+    act: instantiate a State via for_integrator_mode
+    assert: a InvalidStateError is raised for each invalid combination
     """
     charm = Mock(CharmBase)
     charm.config = {
@@ -545,7 +488,7 @@ def test_state_from_charm_invalid_load_balancing_configuration():
         "load-balancing-cookie": "TEST",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
     charm.config = {
         "backend-addresses": "127.0.0.1",
@@ -554,21 +497,21 @@ def test_state_from_charm_invalid_load_balancing_configuration():
         "load-balancing-consistent-hashing": True,
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_load_balancing_default_value():
     """
-    arrange: mock a charm with invalid loadbalancing configurations
-    act: instantiate a State
-    assert: a InvalidStateError is raised
+    arrange: mock a charm with no load-balancing configuration
+    act: instantiate a State via for_integrator_mode
+    assert: the default algorithm is LEASTCONN
     """
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1",
         "backend-ports": "80",
     }
-    charm_state = HaproxyRouteState.from_charm(charm, None)
+    charm_state = HaproxyRouteState.for_integrator_mode(charm)
     assert charm_state.load_balancing_configuration.algorithm == LoadBalancingAlgorithm.LEASTCONN
 
 
@@ -590,7 +533,7 @@ def test_state_from_charm_load_balancing_default_value():
 def test_state_from_charm_path_rewrite(path_rewrite_expression: str, expected_result: list[str]):
     """
     arrange: mock a charm with valid HAProxy set-path grammar expressions
-    act: instantiate a State
+    act: instantiate a State via for_integrator_mode
     assert: the path_rewrite_expressions contains the expressions
     """
     charm = Mock(CharmBase)
@@ -599,7 +542,7 @@ def test_state_from_charm_path_rewrite(path_rewrite_expression: str, expected_re
         "backend-ports": "80",
         "path-rewrite-expressions": path_rewrite_expression,
     }
-    charm_state = HaproxyRouteState.from_charm(charm, None)
+    charm_state = HaproxyRouteState.for_integrator_mode(charm)
     assert charm_state.path_rewrite_expressions == expected_result
 
 
@@ -627,7 +570,7 @@ def test_state_from_charm_header_rewrite(
 ):
     """
     arrange: mock a charm with valid HAProxy set-header grammar expressions
-    act: instantiate a State
+    act: instantiate a State via for_integrator_mode
     assert: the header_rewrite_expressions contains the expressions
     """
     charm = Mock(CharmBase)
@@ -636,14 +579,14 @@ def test_state_from_charm_header_rewrite(
         "backend-ports": "80",
         "header-rewrite-expressions": header_rewrite_expression,
     }
-    charm_state = HaproxyRouteState.from_charm(charm, None)
+    charm_state = HaproxyRouteState.for_integrator_mode(charm)
     assert charm_state.header_rewrite_expressions == expected_result
 
 
 def test_state_from_charm_invalid_header_rewrite():
     """
-    arrange: mock a charm with invalid HAProxy set-header grammar expressions
-    act: instantiate a State
+    arrange: mock a charm with an invalid header-rewrite-expressions value (missing colon)
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -653,13 +596,13 @@ def test_state_from_charm_invalid_header_rewrite():
         "header-rewrite-expressions": "X-Forwarded-For",
     }
     with pytest.raises(InvalidStateError):
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
 
 
 def test_state_from_charm_external_grpc_port_nominal():
     """
-    arrange: mock a charm with valid external-grpc-port configuration
-    act: instantiate a State
+    arrange: mock a charm with valid external-grpc-port and https protocol
+    act: instantiate a State via for_integrator_mode
     assert: the external_grpc_port is set correctly
     """
     charm = Mock(CharmBase)
@@ -669,14 +612,14 @@ def test_state_from_charm_external_grpc_port_nominal():
         "backend-protocol": "https",
         "external-grpc-port": 50051,
     }
-    charm_state = HaproxyRouteState.from_charm(charm, None)
+    charm_state = HaproxyRouteState.for_integrator_mode(charm)
     assert charm_state.external_grpc_port == 50051
 
 
 def test_state_from_charm_invalid_external_grpc_port_and_http():
     """
     arrange: mock a charm with external-grpc-port but http protocol
-    act: instantiate a State
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised with ValueError as cause
     """
     charm = Mock(CharmBase)
@@ -687,7 +630,7 @@ def test_state_from_charm_invalid_external_grpc_port_and_http():
         "external-grpc-port": 50051,
     }
     with pytest.raises(InvalidStateError) as exc_info:
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
     assert isinstance(exc_info.value.__cause__, ValueError)
     assert "external_grpc_port can only be set when backend_protocol is 'https'" in str(
         exc_info.value.__cause__
@@ -697,7 +640,7 @@ def test_state_from_charm_invalid_external_grpc_port_and_http():
 def test_state_from_charm_invalid_external_grpc_port_invalid_and_allow_http():
     """
     arrange: mock a charm with external-grpc-port and allow-http both set
-    act: instantiate a State
+    act: instantiate a State via for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -709,163 +652,7 @@ def test_state_from_charm_invalid_external_grpc_port_invalid_and_allow_http():
         "allow-http": True,
     }
     with pytest.raises(InvalidStateError) as exc_info:
-        HaproxyRouteState.from_charm(charm, None)
+        HaproxyRouteState.for_integrator_mode(charm)
     assert "external_grpc_port cannot be set when allow_http is True." in str(
         exc_info.value.__cause__
     )
-
-
-def test_state_from_charm_with_kubernetes_backend():
-    """
-    arrange: mock a charm and provide a NodePortState value object
-    act: instantiate a State
-    assert: kubernetes_backend_state is populated with the values from NodePortState
-    """
-    charm = Mock(CharmBase)
-    charm.config = {
-        "backend-addresses": "127.0.0.1",
-        "backend-ports": "80",
-    }
-    kubernetes_data = NodePortState(
-        backend_addresses=["10.0.0.1", "10.0.0.2"],
-        service_name="my-service",
-        backend_port=8080,
-    )
-
-    charm_state = HaproxyRouteState.from_charm(charm, None, kubernetes_data=kubernetes_data)
-
-    assert isinstance(charm_state.kubernetes_backend_state, NodePortState)
-    assert charm_state.kubernetes_backend_state.backend_port == 8080
-    assert [str(a) for a in charm_state.kubernetes_backend_state.backend_addresses] == [
-        "10.0.0.1",
-        "10.0.0.2",
-    ]
-
-
-def test_state_from_charm_kubernetes_overrides_backend_addresses_and_ports():
-    """
-    arrange: mock a charm with config addresses/ports and provide NodePortState with node IPs
-        and a service port
-    act: instantiate a State
-    assert: backend_addresses and backend_port are taken from kubernetes, not charm config
-    """
-    charm = Mock(CharmBase)
-    charm.config = {
-        "backend-addresses": "127.0.0.1",
-        "backend-ports": "80",
-    }
-    kubernetes_data = NodePortState(
-        backend_addresses=["10.0.0.1", "10.0.0.2"],
-        service_name="my-service",
-        backend_port=8080,
-    )
-
-    charm_state = HaproxyRouteState.from_charm(charm, None, kubernetes_data=kubernetes_data)
-
-    assert [str(a) for a in charm_state.backend_addresses] == ["10.0.0.1", "10.0.0.2"]
-    assert charm_state.backend_ports == [8080]
-
-
-def test_state_from_charm_service_name():
-    """
-    arrange: mock a charm with and without NodePortState
-    act: instantiate a State in both cases
-    assert: service is kubernetes_data.service_name when kubernetes_data is provided,
-        and "{model}-{app}" otherwise
-    """
-    charm = Mock(CharmBase)
-    charm.model.name = "test-model"
-    charm.app.name = "test-app"
-    charm.config = {
-        "backend-addresses": "127.0.0.1",
-        "backend-ports": "80",
-    }
-    kubernetes_data = NodePortState(
-        backend_addresses=["10.0.0.1"],
-        service_name="my-k8s-service",
-        backend_port=8080,
-    )
-
-    with_kubernetes = HaproxyRouteState.from_charm(charm, None, kubernetes_data=kubernetes_data)
-    without_kubernetes = HaproxyRouteState.from_charm(charm, None, kubernetes_data=None)
-
-    assert with_kubernetes.service == "my-k8s-service"
-    assert without_kubernetes.service == "test-model-test-app"
-
-
-def test_state_from_charm_kubernetes_backend_protocol_from_config():
-    """
-    arrange: mock a charm with backend-protocol "https" and provide NodePortState
-    act: instantiate a State
-    assert: backend_protocol on State reflects charm config, not the kubernetes transport protocol
-    """
-    charm = Mock(CharmBase)
-    charm.config = {
-        "backend-addresses": "127.0.0.1",
-        "backend-ports": "80",
-        "backend-protocol": "https",
-    }
-    kubernetes_data = NodePortState(
-        backend_addresses=["10.0.0.1"],
-        service_name="my-service",
-        backend_port=8080,
-    )
-
-    charm_state = HaproxyRouteState.from_charm(charm, None, kubernetes_data=kubernetes_data)
-
-    assert charm_state.backend_protocol == "https"
-
-
-def test_state_from_charm_without_kubernetes_backend():
-    """
-    arrange: mock a charm without providing kubernetes_data
-    act: instantiate a State
-    assert: kubernetes_backend_state is None
-    """
-    charm = Mock(CharmBase)
-    charm.config = {
-        "backend-addresses": "127.0.0.1",
-        "backend-ports": "80",
-    }
-
-    charm_state = HaproxyRouteState.from_charm(charm, None, kubernetes_data=None)
-
-    assert charm_state.kubernetes_backend_state is None
-
-
-def test_state_from_charm_kubernetes_without_config_backend():
-    """
-    arrange: mock a charm with no backend config and provide kubernetes_data
-    act: instantiate a State
-    assert: State is created successfully using kubernetes_data for backend addresses and port,
-        without raising InvalidStateError despite no config or ingress backend being set
-    """
-    charm = Mock(CharmBase)
-    charm.model.name = "test-model"
-    charm.app.name = "test-app"
-    charm.config = {}
-    kubernetes_data = NodePortState(
-        backend_addresses=["10.0.0.1", "10.0.0.2"],
-        service_name="my-k8s-service",
-        backend_port=30080,
-    )
-
-    charm_state = HaproxyRouteState.from_charm(charm, None, kubernetes_data=kubernetes_data)
-
-    assert [str(a) for a in charm_state.backend_addresses] == ["10.0.0.1", "10.0.0.2"]
-    assert charm_state.backend_ports == [30080]
-    assert charm_state.service == "my-k8s-service"
-
-
-def test_state_from_charm_invalid_kubernetes_service_port():
-    """
-    arrange: mock a charm and provide a NodePortState with an out-of-range targetPort
-    act: instantiate a NodePortState
-    assert: ValidationError is raised
-    """
-    with pytest.raises(ValidationError):
-        NodePortState(
-            backend_addresses=["10.0.0.1"],
-            service_name="my-service",
-            backend_port=99999,
-        )

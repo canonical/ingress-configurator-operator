@@ -142,9 +142,17 @@ class IngressConfiguratorCharm(ops.CharmBase):
         elif self.is_kubernetes() and ingress_relation_data is None:
             delete_nodeport_services_owned_by(self.lightkube_client, self.app.name)
         try:
-            charm_state = HaproxyRouteState.from_charm(
-                self, ingress_relation_data, kubernetes_data
-            )
+            if kubernetes_data is not None:
+                charm_state = HaproxyRouteState.for_kubernetes_adapter_mode(
+                    self,
+                    backend_addresses=kubernetes_data.backend_addresses,
+                    backend_ports=[kubernetes_data.backend_port],
+                    service=kubernetes_data.service_name,
+                )
+            elif ingress_relation_data is not None:
+                charm_state = HaproxyRouteState.for_adapter_mode(self, ingress_relation_data)
+            else:
+                charm_state = HaproxyRouteState.for_integrator_mode(self)
         except InvalidStateError as exc:
             logger.exception("Invalid haproxy-route configuration.")
             self.unit.status = ops.BlockedStatus(str(exc))

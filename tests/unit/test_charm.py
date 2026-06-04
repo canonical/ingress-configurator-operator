@@ -27,7 +27,9 @@ def test_config_changed_invalid_state(
     act: trigger a config changed event.
     assert: status is blocked.
     """
-    monkeypatch.setattr(HaproxyRouteState, "from_charm", MagicMock(side_effect=InvalidStateError))
+    monkeypatch.setattr(
+        HaproxyRouteState, "for_integrator_mode", MagicMock(side_effect=InvalidStateError)
+    )
     charm_state = ops.testing.State(
         config={"backend-addresses": "10.0.0.1,invalid", "backend-ports": "8080"},
         relations=[ops.testing.Relation("haproxy-route")],

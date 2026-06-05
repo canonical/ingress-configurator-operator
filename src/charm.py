@@ -103,7 +103,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         haproxy_route_tcp_related = self._haproxy_route_tcp.relation is not None
 
         if sum([haproxy_route_related, haproxy_route_tcp_related]) > 1:
-            logger.error("Mulltiple route relations exist.")
+            logger.error("Multiple route relations exist.")
             self.unit.status = ops.BlockedStatus(
                 "Only one route relation type should exist (haproxy-route or haproxy-route-tcp)."
             )

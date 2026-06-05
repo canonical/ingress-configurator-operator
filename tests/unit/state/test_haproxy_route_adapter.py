@@ -1,7 +1,7 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Unit tests for HaproxyRouteState in adapter mode (for_adapter_mode)."""
+"""Unit tests for HaproxyRouteState in adapter mode (build_for_adapter_mode)."""
 
 from unittest.mock import Mock
 
@@ -17,13 +17,13 @@ from state.haproxy_route import HaproxyRouteState
 
 def _make_adapter_state(charm, ingress_data):
     """Build HaproxyRouteState for adapter mode."""
-    return HaproxyRouteState.for_adapter_mode(charm, ingress_data)
+    return HaproxyRouteState.build_for_adapter_mode(charm, ingress_data)
 
 
 def test_adapter_state_from_charm():
     """
     arrange: mock a charm with an ingress relation
-    act: instantiate a State via for_adapter_mode
+    act: instantiate a State via build_for_adapter_mode
     assert: the data matches the charm configuration
     """
     charm = Mock(CharmBase)

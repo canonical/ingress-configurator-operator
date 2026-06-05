@@ -175,7 +175,7 @@ class HaproxyRouteState:
 
         This is intentionally a presence check — it does not validate the values.
         Use it to detect ambiguous mode (ingress relation + backend config both
-        present) before attempting to parse the config with for_integrator_mode.
+        present) before attempting to parse the config with build_for_integrator_mode.
 
         Args:
             charm: the ingress-configurator charm.
@@ -191,7 +191,7 @@ class HaproxyRouteState:
         )
 
     @classmethod
-    def for_integrator_mode(cls, charm: ops.CharmBase) -> Self:
+    def build_for_integrator_mode(cls, charm: ops.CharmBase) -> Self:
         """Create HaproxyRouteState for integrator mode from charm config.
 
         Args:
@@ -230,7 +230,7 @@ class HaproxyRouteState:
         )
 
     @classmethod
-    def for_adapter_mode(
+    def build_for_adapter_mode(
         cls,
         charm: ops.CharmBase,
         ingress_data: IngressRequirerData,
@@ -260,7 +260,7 @@ class HaproxyRouteState:
         )
 
     @classmethod
-    def for_kubernetes_adapter_mode(
+    def build_for_kubernetes_adapter_mode(
         cls,
         charm: ops.CharmBase,
         kubernetes_data: NodePortState,

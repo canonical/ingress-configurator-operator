@@ -152,7 +152,7 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
 
         This is intentionally a presence check — it does not validate the values.
         Use it to detect the absence of backend configuration before attempting
-        to parse the config with for_integrator_mode.
+        to parse the config with build_for_integrator_mode.
 
         Args:
             charm: the ingress-configurator charm.
@@ -168,7 +168,7 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
         )
 
     @classmethod
-    def for_integrator_mode(cls, charm: ops.CharmBase) -> Self:
+    def build_for_integrator_mode(cls, charm: ops.CharmBase) -> Self:
         """Create HaproxyRouteTcpState for integrator mode from charm config.
 
         Args:

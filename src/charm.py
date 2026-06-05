@@ -173,7 +173,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                     return
                 kubernetes_data = get_kubernetes_data(self.lightkube_client, service_name)
                 try:
-                    charm_state = HaproxyRouteState.for_kubernetes_adapter_mode(
+                    charm_state = HaproxyRouteState.build_for_kubernetes_adapter_mode(
                         self, kubernetes_data
                     )
                 except InvalidHaproxyRouteStateError as exc:
@@ -182,14 +182,14 @@ class IngressConfiguratorCharm(ops.CharmBase):
                     return
             else:
                 try:
-                    charm_state = HaproxyRouteState.for_adapter_mode(self, ingress_data)
+                    charm_state = HaproxyRouteState.build_for_adapter_mode(self, ingress_data)
                 except InvalidHaproxyRouteStateError as exc:
                     logger.exception("Invalid backend configuration [adapter].")
                     self.unit.status = ops.BlockedStatus(str(exc))
                     return
         elif HaproxyRouteState.has_integrator_config(self):  # Integrator mode
             try:
-                charm_state = HaproxyRouteState.for_integrator_mode(self)
+                charm_state = HaproxyRouteState.build_for_integrator_mode(self)
             except InvalidHaproxyRouteStateError as exc:
                 logger.exception("Invalid haproxy-route configuration [integrator].")
                 self.unit.status = ops.BlockedStatus(str(exc))
@@ -247,7 +247,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             return
 
         try:
-            charm_state = HaproxyRouteTcpState.for_integrator_mode(self)
+            charm_state = HaproxyRouteTcpState.build_for_integrator_mode(self)
         except InvalidHaproxyRouteTcpStateError as exc:
             logger.exception("Invalid haproxy-route-tcp configuration [integrator].")
             self.unit.status = ops.BlockedStatus(str(exc))

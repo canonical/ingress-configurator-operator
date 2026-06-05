@@ -1,7 +1,7 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Unit tests for HaproxyRouteState in Kubernetes adapter mode (for_kubernetes_adapter_mode)."""
+"""Unit tests for HaproxyRouteState in Kubernetes adapter mode (build_for_kubernetes_adapter_mode)."""
 
 from unittest.mock import Mock
 
@@ -13,18 +13,18 @@ from state.kubernetes import NodePortState
 
 def _make_k8s_state(charm, kubernetes_data):
     """Build HaproxyRouteState for Kubernetes adapter mode."""
-    return HaproxyRouteState.for_kubernetes_adapter_mode(charm, kubernetes_data)
+    return HaproxyRouteState.build_for_kubernetes_adapter_mode(charm, kubernetes_data)
 
 
 def _make_integrator_state(charm):
     """Build HaproxyRouteState for integrator mode."""
-    return HaproxyRouteState.for_integrator_mode(charm)
+    return HaproxyRouteState.build_for_integrator_mode(charm)
 
 
 def test_state_from_charm_with_kubernetes_backend():
     """
     arrange: provide pre-resolved node IPs and a nodePort
-    act: instantiate a State via for_kubernetes_adapter_mode
+    act: instantiate a State via build_for_kubernetes_adapter_mode
     assert: backend_addresses and backend_ports reflect the supplied values
     """
     charm = Mock(CharmBase)
@@ -47,7 +47,7 @@ def test_state_from_charm_with_kubernetes_backend():
 def test_state_from_charm_kubernetes_overrides_backend_addresses_and_ports():
     """
     arrange: provide node IPs and a nodePort that differ from any config values
-    act: instantiate a State via for_kubernetes_adapter_mode
+    act: instantiate a State via build_for_kubernetes_adapter_mode
     assert: backend_addresses and backend_ports come from the supplied values, not config
     """
     charm = Mock(CharmBase)
@@ -72,8 +72,8 @@ def test_state_from_charm_kubernetes_overrides_backend_addresses_and_ports():
 def test_state_from_charm_service_name():
     """
     arrange: mock a charm with and without pre-resolved backend data
-    act: instantiate a State via for_kubernetes_adapter_mode and for_integrator_mode
-    assert: service is whatever is passed to for_kubernetes_adapter_mode;
+    act: instantiate a State via build_for_kubernetes_adapter_mode and build_for_integrator_mode
+    assert: service is whatever is passed to build_for_kubernetes_adapter_mode;
         for integrator mode it is "{model}-{app}"
     """
     charm = Mock(CharmBase)
@@ -101,7 +101,7 @@ def test_state_from_charm_service_name():
 def test_state_from_charm_kubernetes_backend_protocol_from_config():
     """
     arrange: mock a charm with backend-protocol "https" and pre-resolved backend data
-    act: instantiate a State via for_kubernetes_adapter_mode
+    act: instantiate a State via build_for_kubernetes_adapter_mode
     assert: backend_protocol on State reflects charm config
     """
     charm = Mock(CharmBase)
@@ -126,7 +126,7 @@ def test_state_from_charm_kubernetes_backend_protocol_from_config():
 def test_state_from_charm_without_kubernetes_backend():
     """
     arrange: mock a charm with integrator config and no kubernetes data
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: backend_addresses and backend_ports come from charm config
     """
     charm = Mock(CharmBase)
@@ -146,7 +146,7 @@ def test_state_from_charm_without_kubernetes_backend():
 def test_state_from_charm_kubernetes_without_config_backend():
     """
     arrange: mock a charm with no backend config and pre-resolved node IPs and nodePort
-    act: instantiate a State via for_kubernetes_adapter_mode
+    act: instantiate a State via build_for_kubernetes_adapter_mode
     assert: State is created successfully; no config backend is required
     """
     charm = Mock(CharmBase)

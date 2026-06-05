@@ -1,7 +1,7 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Unit tests for HaproxyRouteState in integrator mode (for_integrator_mode)."""
+"""Unit tests for HaproxyRouteState in integrator mode (build_for_integrator_mode)."""
 
 from unittest.mock import Mock
 
@@ -17,13 +17,13 @@ from state.haproxy_route import (
 
 def _make_integrator_state(charm):
     """Build HaproxyRouteState for integrator mode."""
-    return HaproxyRouteState.for_integrator_mode(charm)
+    return HaproxyRouteState.build_for_integrator_mode(charm)
 
 
 def test_integrator_state_from_charm():
     """
     arrange: mock a charm with backend configuration
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: the data matches the charm configuration
     """
     charm = Mock(CharmBase)
@@ -50,7 +50,7 @@ def test_integrator_state_from_charm():
 def test_state_from_charm_no_backend():
     """
     arrange: mock a charm with no backend configuration
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -62,7 +62,7 @@ def test_state_from_charm_no_backend():
 def test_state_from_charm_invalid_address():
     """
     arrange: mock a charm with an invalid backend address
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -77,7 +77,7 @@ def test_state_from_charm_invalid_address():
 def test_state_from_charm_invalid_paths():
     """
     arrange: mock a charm with invalid paths configuration
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -93,7 +93,7 @@ def test_state_from_charm_invalid_paths():
 def test_state_from_charm_invalid_port():
     """
     arrange: mock a charm with an out-of-range backend port
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -120,7 +120,7 @@ def test_state_from_charm_invalid_protocol():
 def test_state_from_charm_invalid_check_path():
     """
     arrange: mock a charm with an invalid health-check-path
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -136,7 +136,7 @@ def test_state_from_charm_invalid_check_path():
 def test_state_from_charm_invalid_check_port():
     """
     arrange: mock a charm with an out-of-range health-check-port
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -152,7 +152,7 @@ def test_state_from_charm_invalid_check_port():
 def test_state_from_charm_invalid_check_interval():
     """
     arrange: mock a charm with an invalid health-check-interval (zero)
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -168,7 +168,7 @@ def test_state_from_charm_invalid_check_interval():
 def test_state_from_charm_invalid_check_rise():
     """
     arrange: mock a charm with an invalid health-check-rise (zero)
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -184,7 +184,7 @@ def test_state_from_charm_invalid_check_rise():
 def test_state_from_charm_invalid_check_fall():
     """
     arrange: mock a charm with an invalid health-check-fall (zero)
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -200,7 +200,7 @@ def test_state_from_charm_invalid_check_fall():
 def test_state_from_charm_invalid_missing_check_interval():
     """
     arrange: mock a charm with rise and fall set but interval missing
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -217,7 +217,7 @@ def test_state_from_charm_invalid_missing_check_interval():
 def test_state_from_charm_invalid_missing_check_rise():
     """
     arrange: mock a charm with interval and fall set but rise missing
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -234,7 +234,7 @@ def test_state_from_charm_invalid_missing_check_rise():
 def test_state_from_charm_invalid_missing_check_fall():
     """
     arrange: mock a charm with interval and rise set but fall missing
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -251,7 +251,7 @@ def test_state_from_charm_invalid_missing_check_fall():
 def test_state_from_charm_invalid_retry_count():
     """
     arrange: mock a charm with an invalid retry-count (zero)
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -267,7 +267,7 @@ def test_state_from_charm_invalid_retry_count():
 def test_state_from_charm_invalid_timeout_server():
     """
     arrange: mock a charm with an invalid timeout-server (negative)
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -283,7 +283,7 @@ def test_state_from_charm_invalid_timeout_server():
 def test_state_from_charm_invalid_timeout_connect():
     """
     arrange: mock a charm with an invalid timeout-connect (negative)
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -299,7 +299,7 @@ def test_state_from_charm_invalid_timeout_connect():
 def test_state_from_charm_invalid_timeout_queue():
     """
     arrange: mock a charm with an invalid timeout-queue (negative)
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -315,7 +315,7 @@ def test_state_from_charm_invalid_timeout_queue():
 def test_state_from_charm_invalid_hostname():
     """
     arrange: mock a charm with an invalid hostname
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -331,7 +331,7 @@ def test_state_from_charm_invalid_hostname():
 def test_state_from_charm_invalid_additional_hostnames():
     """
     arrange: mock a charm with invalid additional-hostnames
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -359,7 +359,7 @@ def test_state_from_charm_valid_hostname_with_wildcard(hostname):
     """Test State creation with valid hostnames including wildcards.
 
     arrange: mock a charm with valid hostname including wildcards
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: state is created successfully
     """
     charm = Mock(CharmBase)
@@ -387,7 +387,7 @@ def test_state_from_charm_invalid_hostname_wildcard(invalid_hostname):
     """Test State creation fails with invalid wildcard hostname.
 
     arrange: mock a charm with invalid wildcard hostname
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -412,7 +412,7 @@ def test_state_from_charm_valid_additional_hostnames_with_wildcard(additional_ho
     """Test State creation with valid additional hostnames including wildcards.
 
     arrange: mock a charm with valid additional hostnames including wildcards
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: state is created successfully
     """
     charm = Mock(CharmBase)
@@ -437,7 +437,7 @@ def test_state_from_charm_invalid_additional_hostnames_wildcard(invalid_addition
     """Test State creation fails with invalid wildcard in additional hostnames.
 
     arrange: mock a charm with invalid wildcard in additional hostnames
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -453,7 +453,7 @@ def test_state_from_charm_invalid_additional_hostnames_wildcard(invalid_addition
 def test_state_from_charm_port_invalid_int():
     """
     arrange: mock a charm with a non-integer backend port
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -468,7 +468,7 @@ def test_state_from_charm_port_invalid_int():
 def test_state_from_charm_invalid_load_balancing_algorithm():
     """
     arrange: mock a charm with an invalid load-balancing-algorithm
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -484,7 +484,7 @@ def test_state_from_charm_invalid_load_balancing_algorithm():
 def test_state_from_charm_invalid_load_balancing_configuration():
     """
     arrange: mock a charm with incompatible load-balancing configuration combinations
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised for each invalid combination
     """
     charm = Mock(CharmBase)
@@ -510,7 +510,7 @@ def test_state_from_charm_invalid_load_balancing_configuration():
 def test_state_from_charm_load_balancing_default_value():
     """
     arrange: mock a charm with no load-balancing configuration
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: the default algorithm is LEASTCONN
     """
     charm = Mock(CharmBase)
@@ -540,7 +540,7 @@ def test_state_from_charm_load_balancing_default_value():
 def test_state_from_charm_path_rewrite(path_rewrite_expression: str, expected_result: list[str]):
     """
     arrange: mock a charm with valid HAProxy set-path grammar expressions
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: the path_rewrite_expressions contains the expressions
     """
     charm = Mock(CharmBase)
@@ -577,7 +577,7 @@ def test_state_from_charm_header_rewrite(
 ):
     """
     arrange: mock a charm with valid HAProxy set-header grammar expressions
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: the header_rewrite_expressions contains the expressions
     """
     charm = Mock(CharmBase)
@@ -593,7 +593,7 @@ def test_state_from_charm_header_rewrite(
 def test_state_from_charm_invalid_header_rewrite():
     """
     arrange: mock a charm with an invalid header-rewrite-expressions value (missing colon)
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)
@@ -609,7 +609,7 @@ def test_state_from_charm_invalid_header_rewrite():
 def test_state_from_charm_external_grpc_port_nominal():
     """
     arrange: mock a charm with valid external-grpc-port and https protocol
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: the external_grpc_port is set correctly
     """
     charm = Mock(CharmBase)
@@ -626,7 +626,7 @@ def test_state_from_charm_external_grpc_port_nominal():
 def test_state_from_charm_invalid_external_grpc_port_and_http():
     """
     arrange: mock a charm with external-grpc-port but http protocol
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised with ValueError as cause
     """
     charm = Mock(CharmBase)
@@ -647,7 +647,7 @@ def test_state_from_charm_invalid_external_grpc_port_and_http():
 def test_state_from_charm_invalid_external_grpc_port_invalid_and_allow_http():
     """
     arrange: mock a charm with external-grpc-port and allow-http both set
-    act: instantiate a State via for_integrator_mode
+    act: instantiate a State via build_for_integrator_mode
     assert: a InvalidStateError is raised
     """
     charm = Mock(CharmBase)

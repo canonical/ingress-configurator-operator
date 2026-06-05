@@ -17,7 +17,7 @@ from state.haproxy_route_tcp import (
 
 def _make_tcp_integrator_state(charm):
     """Build HaproxyRouteTcpState for integrator mode."""
-    return HaproxyRouteTcpState.for_integrator_mode(charm)
+    return HaproxyRouteTcpState.build_for_integrator_mode(charm)
 
 
 def test_haproxy_route_tcp_requirements_for_integrator_mode():

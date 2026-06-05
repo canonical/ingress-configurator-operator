@@ -160,12 +160,7 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
         Returns:
             True if tcp-backend-addresses or tcp-backend-port is set in config.
         """
-        return any(
-            [
-                charm.config.get("tcp-backend-addresses"),
-                charm.config.get("tcp-backend-port"),
-            ]
-        )
+        return bool(charm.config.get("backend-addresses") or charm.config.get("backend-ports"))
 
     @classmethod
     def build_for_integrator_mode(cls, charm: ops.CharmBase) -> Self:

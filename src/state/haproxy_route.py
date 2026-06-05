@@ -183,12 +183,7 @@ class HaproxyRouteState:
         Returns:
             True if backend-addresses, backend-ports is set in config.
         """
-        return any(
-            [
-                charm.config.get("backend-addresses"),
-                charm.config.get("backend-ports"),
-            ]
-        )
+        return bool(charm.config.get("backend-addresses") or charm.config.get("backend-ports"))
 
     @classmethod
     def build_for_integrator_mode(cls, charm: ops.CharmBase) -> Self:

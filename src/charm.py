@@ -23,7 +23,7 @@ from charms.haproxy.v1.haproxy_route_tcp import (
 from charms.haproxy.v2.haproxy_route import HAPROXY_ROUTE_RELATION_NAME as HAPROXY_ROUTE_RELATION
 from charms.haproxy.v2.haproxy_route import HaproxyRouteRequirer
 from charms.traefik_k8s.v2.ingress import DEFAULT_RELATION_NAME as INGRESS_RELATION
-from charms.traefik_k8s.v2.ingress import IngressPerAppProvider
+from charms.traefik_k8s.v2.ingress import IngressPerAppProvider, IngressRequirerData
 from lightkube import Client
 
 from kubernetes import (
@@ -117,7 +117,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         else:
             self.unit.status = ops.BlockedStatus("Route relation required.")
 
-    def _reconcile_haproxy_route(self) -> None:  # noqa: C901
+    def _reconcile_haproxy_route(self) -> None:
         """Reconcile haproxy-route (HTTP) requirer data.
 
         Mode selection:
@@ -154,52 +154,20 @@ class IngressConfiguratorCharm(ops.CharmBase):
             )
             return
 
-        if ingress_data is not None:  # Adapter mode
-            if self.is_kubernetes():
-                service_name = f"{self.model.name}-{self.app.name}-service"
-                try:
-                    ensure_nodeport_service(
-                        client=self.lightkube_client,
-                        port=ingress_data.app.port,
-                        service_name=service_name,
-                        remote_app_name=ingress_data.app.name,
-                        charm_name=self.app.name,
-                    )
-                except InvalidKubernetesPermissionError as exc:
-                    logger.exception("Kubernetes API permission error.")
-                    self.unit.status = ops.BlockedStatus(
-                        f"Kubernetes API permission error: {exc}. This charm needs --trust to run on k8s substrates."
-                    )
-                    return
-                kubernetes_data = get_kubernetes_data(self.lightkube_client, service_name)
-                try:
-                    charm_state = HaproxyRouteState.build_for_kubernetes_adapter_mode(
-                        self, kubernetes_data
-                    )
-                except InvalidHaproxyRouteStateError as exc:
-                    logger.exception("Invalid backend configuration [adapter with k8s backend].")
-                    self.unit.status = ops.BlockedStatus(str(exc))
-                    return
-            else:
-                try:
-                    charm_state = HaproxyRouteState.build_for_adapter_mode(self, ingress_data)
-                except InvalidHaproxyRouteStateError as exc:
-                    logger.exception("Invalid backend configuration [adapter].")
-                    self.unit.status = ops.BlockedStatus(str(exc))
-                    return
-        elif HaproxyRouteState.has_integrator_config(self):  # Integrator mode
-            try:
-                charm_state = HaproxyRouteState.build_for_integrator_mode(self)
-            except InvalidHaproxyRouteStateError as exc:
-                logger.exception("Invalid haproxy-route configuration [integrator].")
-                self.unit.status = ops.BlockedStatus(str(exc))
-                return
-        else:  # No valid mode
+        if ingress_data is not None:
+            charm_state = self._reconcile_haproxy_route_adapter(ingress_data)
+        elif has_integrator_config:
+            charm_state = self._reconcile_haproxy_route_integrator()
+        else:
             self.unit.status = ops.BlockedStatus(
                 "No valid mode: add an ingress relation or set backend configuration."
             )
             return
 
+        if charm_state is None:
+            return
+
+        # Provide relation data for haproxy-route based on the resolved state.
         params = {
             "hosts": [str(address) for address in charm_state.backend_addresses],
             "check_interval": charm_state.health_check.interval,
@@ -234,6 +202,49 @@ class IngressConfiguratorCharm(ops.CharmBase):
         if ingress_relation and (proxied_endpoints := self._haproxy_route.get_proxied_endpoints()):
             self._ingress.publish_url(ingress_relation, str(proxied_endpoints[0]))
         self.unit.status = ops.ActiveStatus("Ready")
+
+    def _reconcile_haproxy_route_adapter(
+        self, ingress_data: IngressRequirerData
+    ) -> HaproxyRouteState | None:
+        """Build haproxy-route state for adapter mode (machine or Kubernetes)."""
+        if self.is_kubernetes():
+            service_name = f"{self.model.name}-{self.app.name}-service"
+            try:
+                ensure_nodeport_service(
+                    client=self.lightkube_client,
+                    port=ingress_data.app.port,
+                    service_name=service_name,
+                    remote_app_name=ingress_data.app.name,
+                    charm_name=self.app.name,
+                )
+            except InvalidKubernetesPermissionError as exc:
+                logger.exception("Kubernetes API permission error.")
+                self.unit.status = ops.BlockedStatus(
+                    f"Kubernetes API permission error: {exc}. This charm needs --trust to run on k8s substrates."
+                )
+                return None
+            kubernetes_data = get_kubernetes_data(self.lightkube_client, service_name)
+            try:
+                return HaproxyRouteState.build_for_kubernetes_adapter_mode(self, kubernetes_data)
+            except InvalidHaproxyRouteStateError as exc:
+                logger.exception("Invalid backend configuration [adapter with k8s backend].")
+                self.unit.status = ops.BlockedStatus(str(exc))
+                return None
+        try:
+            return HaproxyRouteState.build_for_adapter_mode(self, ingress_data)
+        except InvalidHaproxyRouteStateError as exc:
+            logger.exception("Invalid backend configuration [adapter].")
+            self.unit.status = ops.BlockedStatus(str(exc))
+            return None
+
+    def _reconcile_haproxy_route_integrator(self) -> HaproxyRouteState | None:
+        """Build haproxy-route state for integrator mode."""
+        try:
+            return HaproxyRouteState.build_for_integrator_mode(self)
+        except InvalidHaproxyRouteStateError as exc:
+            logger.exception("Invalid haproxy-route configuration [integrator].")
+            self.unit.status = ops.BlockedStatus(str(exc))
+            return None
 
     def _reconcile_haproxy_route_tcp(self) -> None:
         """Reconcile haproxy-route-tcp requirer data."""

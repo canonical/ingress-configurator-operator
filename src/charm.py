@@ -27,6 +27,7 @@ from charms.traefik_k8s.v2.ingress import IngressPerAppProvider
 from lightkube import Client
 
 from kubernetes import (
+    InvalidKubernetesPermissionError,
     delete_nodeport_services_owned_by,
     ensure_nodeport_service,
     get_kubernetes_data,
@@ -156,13 +157,20 @@ class IngressConfiguratorCharm(ops.CharmBase):
         if ingress_data is not None:  # Adapter mode
             if self.is_kubernetes():
                 service_name = f"{self.model.name}-{self.app.name}-service"
-                ensure_nodeport_service(
-                    client=self.lightkube_client,
-                    port=ingress_data.app.port,
-                    service_name=service_name,
-                    remote_app_name=ingress_data.app.name,
-                    charm_name=self.app.name,
-                )
+                try:
+                    ensure_nodeport_service(
+                        client=self.lightkube_client,
+                        port=ingress_data.app.port,
+                        service_name=service_name,
+                        remote_app_name=ingress_data.app.name,
+                        charm_name=self.app.name,
+                    )
+                except InvalidKubernetesPermissionError as exc:
+                    logger.exception("Kubernetes API permission error.")
+                    self.unit.status = ops.BlockedStatus(
+                        f"Kubernetes API permission error: {exc}. This charm needs --trust to run on k8s substrates."
+                    )
+                    return
                 kubernetes_data = get_kubernetes_data(self.lightkube_client, service_name)
                 try:
                     charm_state = HaproxyRouteState.for_kubernetes_adapter_mode(

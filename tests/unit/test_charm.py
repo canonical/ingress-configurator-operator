@@ -296,7 +296,7 @@ class TestGetProxiedEndpointAction:
         )
         with pytest.raises(ops.testing.ActionFailed) as excinfo:
             context_machine.run(context_machine.on.action("get-proxied-endpoints"), charm_state)
-            assert str(excinfo.value) == "Missing haproxy-route relation."
+        assert str(excinfo.value) == "Missing haproxy-route relation."
 
 
 def test_is_kubernetes_returns_true_when_no_machine_id(

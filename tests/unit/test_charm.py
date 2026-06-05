@@ -94,7 +94,7 @@ def test_config_changed_adapter_with_backend_addresses_conflict(
     out = context.run(context.on.config_changed(), state)
 
     assert out.unit_status == ops.testing.BlockedStatus(
-        "No valid mode: remove backend configuration or the ingress relation."
+        "Remove backend config or the ingress relation - only one can be used at a time."
     )
 
 
@@ -116,7 +116,7 @@ def test_config_changed_no_valid_mode(
     out = context_machine.run(context_machine.on.config_changed(), state)
 
     assert out.unit_status == ops.testing.BlockedStatus(
-        "No valid mode: add an ingress relation or set backend configuration."
+        "Ingress relation or backend config required."
     )
 
 

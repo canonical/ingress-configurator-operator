@@ -18,7 +18,6 @@ INGRESS_REMOTE_APP_DATA = {
     "model": '"testing-model"',
     "name": '"testing-app"',
     "port": "8080",
-    "is_port_open": "true",
 }
 INGRESS_REMOTE_UNITS_DATA = {0: {"host": '"test.local"'}}
 
@@ -468,40 +467,3 @@ def test_gateway_route_blocked_on_machine_substrate(
         "ingress-configurator can only be deployed on Kubernetes when integrated with gateway-route."
     )
 
-
-@pytest.mark.usefixtures("mock_lightkube")
-@pytest.mark.parametrize("ports_open", ["false", "null"])
-def test_ports_open_false_blocks(
-    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
-    ports_open: str,
-):
-    """
-    arrange: workload reports ports_open=False.
-    act: trigger config-changed.
-    assert: status is BlockedStatus with a message about integrator mode not being implemented.
-    """
-    state = ops.testing.State(
-        config={"hostname": "example.com"},
-        relations=[
-            ops.testing.Relation(
-                endpoint="ingress",
-                remote_app_data={
-                    "model": '"testing-model"',
-                    "name": '"testing-app"',
-                    "port": "8080",
-                    "ports_open": ports_open,
-                },
-                remote_units_data=INGRESS_REMOTE_UNITS_DATA,
-            ),
-            ops.testing.Relation(
-                endpoint="gateway-route",
-                remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
-            ),
-        ],
-        leader=True,
-    )
-
-    out = context_k8s.run(context_k8s.on.config_changed(), state)
-
-    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
-    assert "Support for backends with closed ports not yet implemented" in out.unit_status.message

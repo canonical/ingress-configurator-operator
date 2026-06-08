@@ -6,20 +6,16 @@
 import json
 from itertools import combinations
 from typing import TYPE_CHECKING
-from unittest.mock import ANY, MagicMock
+from unittest.mock import ANY
 
 import ops.testing
 import pytest
-
-from state.charm_state import InvalidStateError
-from state.haproxy_route import HaproxyRouteState
 
 if TYPE_CHECKING:
     from charm import IngressConfiguratorCharm
 
 
 def test_config_changed_invalid_state(
-    monkeypatch: pytest.MonkeyPatch,
     context_machine: ops.testing.Context["IngressConfiguratorCharm"],
 ):
     """
@@ -27,7 +23,6 @@ def test_config_changed_invalid_state(
     act: trigger a config changed event.
     assert: status is blocked.
     """
-    monkeypatch.setattr(HaproxyRouteState, "from_charm", MagicMock(side_effect=InvalidStateError))
     charm_state = ops.testing.State(
         config={"backend-addresses": "10.0.0.1,invalid", "backend-ports": "8080"},
         relations=[ops.testing.Relation("haproxy-route")],
@@ -36,7 +31,7 @@ def test_config_changed_invalid_state(
 
     out = context_machine.run(context_machine.on.config_changed(), charm_state)
 
-    assert out.unit_status == ops.testing.BlockedStatus()
+    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
 
 
 def test_config_changed_ingress_relation_not_ready(
@@ -46,8 +41,7 @@ def test_config_changed_ingress_relation_not_ready(
     arrange: prepare state with haproxy-route and an ingress relation whose requirer
         hasn't populated the databag yet (empty remote app data).
     act: trigger a config-changed event.
-    assert: the hook succeeds (no exception) and the unit is blocked, not stuck in
-        error state.
+    assert: the unit is waiting, not blocked or erroring.
     """
     charm_state = ops.testing.State(
         relations=[
@@ -59,7 +53,92 @@ def test_config_changed_ingress_relation_not_ready(
 
     out = context_machine.run(context_machine.on.config_changed(), charm_state)
 
-    assert out.unit_status == ops.testing.BlockedStatus("No valid mode detected.")
+    assert out.unit_status == ops.testing.WaitingStatus("Waiting for ingress relation data.")
+
+
+@pytest.mark.parametrize(
+    "context_fixture",
+    [
+        pytest.param("context_machine", id="machine"),
+        pytest.param("context_k8s", id="k8s"),
+    ],
+)
+def test_config_changed_adapter_with_backend_addresses_conflict(
+    context_fixture: str,
+    request: pytest.FixtureRequest,
+):
+    """
+    arrange: ingress relation is ready (adapter mode trigger) and backend-addresses config is
+        also set (integrator mode trigger). Applies to both machine and Kubernetes substrates.
+    act: trigger config-changed.
+    assert: status is Blocked — no valid mode can be determined.
+    """
+    context = request.getfixturevalue(context_fixture)
+    state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation(
+                "ingress",
+                remote_app_data={
+                    "model": '"test-model"',
+                    "name": '"some-app"',
+                    "port": "8080",
+                },
+                remote_units_data={0: {"host": '"host.example"', "ip": '"10.1.0.1"'}},
+            ),
+        ],
+        leader=True,
+    )
+
+    out = context.run(context.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.BlockedStatus(
+        "Remove backend config or the ingress relation - only one can be used at a time."
+    )
+
+
+def test_config_changed_no_valid_mode(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: haproxy-route relation exists but neither an ingress relation nor backend-addresses
+        and backend-ports config are present (machine substrate).
+    act: trigger config-changed.
+    assert: status is Blocked — no valid mode can be determined.
+    """
+    state = ops.testing.State(
+        config={},
+        relations=[ops.testing.Relation("haproxy-route")],
+        leader=True,
+    )
+
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.BlockedStatus(
+        "Ingress relation or backend config required."
+    )
+
+
+@pytest.mark.usefixtures("mock_lightkube")
+def test_config_changed_kubernetes_without_ingress_relation(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: prepare state with haproxy-route but no ingress relation on a Kubernetes substrate.
+    act: trigger a config-changed event.
+    assert: the unit is blocked because adapter mode requires an ingress relation on Kubernetes.
+    """
+    charm_state = ops.testing.State(
+        relations=[ops.testing.Relation("haproxy-route")],
+        leader=True,
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), charm_state)
+
+    assert out.unit_status == ops.testing.BlockedStatus(
+        "Ingress relation required on Kubernetes substrate."
+    )
 
 
 def test_config_changed_integrator(
@@ -150,7 +229,7 @@ class TestGetProxiedEndpointAction:
     def test_nominal(
         self,
         endpoints: str,
-        context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+        context_machine: ops.testing.Context["IngressConfiguratorCharm"],
     ) -> None:
         """
         arrange: prepare state with haproxy relation
@@ -168,15 +247,15 @@ class TestGetProxiedEndpointAction:
             leader=True,
             unit_status=ops.testing.ActiveStatus(),
         )
-        context_k8s.run(context_k8s.on.action("get-proxied-endpoints"), charm_state)
+        context_machine.run(context_machine.on.action("get-proxied-endpoints"), charm_state)
 
-        out = context_k8s.action_results
+        out = context_machine.action_results
 
         assert out == {"endpoints": endpoints}, "Unexpected action results."
 
     def test_no_endpoints(
         self,
-        context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+        context_machine: ops.testing.Context["IngressConfiguratorCharm"],
     ) -> None:
         """
         arrange: prepare state with haproxy relation
@@ -194,15 +273,15 @@ class TestGetProxiedEndpointAction:
             leader=True,
             unit_status=ops.testing.ActiveStatus(),
         )
-        context_k8s.run(context_k8s.on.action("get-proxied-endpoints"), charm_state)
+        context_machine.run(context_machine.on.action("get-proxied-endpoints"), charm_state)
 
-        out = context_k8s.action_results
+        out = context_machine.action_results
 
         assert out == {"endpoints": {}}, "Unexpected action results."
 
     def test_no_haproxy_route_relation(
         self,
-        context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+        context_machine: ops.testing.Context["IngressConfiguratorCharm"],
     ) -> None:
         """
         arrange: prepare state with no haproxy relation.
@@ -216,8 +295,8 @@ class TestGetProxiedEndpointAction:
             unit_status=ops.testing.ActiveStatus(),
         )
         with pytest.raises(ops.testing.ActionFailed) as excinfo:
-            context_k8s.run(context_k8s.on.action("get-proxied-endpoints"), charm_state)
-            assert str(excinfo.value) == "Missing haproxy-route relation."
+            context_machine.run(context_machine.on.action("get-proxied-endpoints"), charm_state)
+        assert str(excinfo.value) == "Missing haproxy-route relation."
 
 
 def test_is_kubernetes_returns_true_when_no_machine_id(
@@ -324,7 +403,7 @@ def test_haproxy_route_tcp_blocked_with_ingress(
     ],
 )
 def test_routes_mutual_exclusivity(
-    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
     relation1: str,
     relation2: str,
 ):
@@ -342,7 +421,7 @@ def test_routes_mutual_exclusivity(
         leader=True,
     )
 
-    out = context_k8s.run(context_k8s.on.config_changed(), state)
+    out = context_machine.run(context_machine.on.config_changed(), state)
 
     assert isinstance(out.unit_status, ops.testing.BlockedStatus)
     assert (

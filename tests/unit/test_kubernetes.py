@@ -9,14 +9,14 @@ import pytest
 from lightkube import ApiError
 
 from kubernetes import (
+    InvalidKubernetesPermissionError,
     delete_nodeport_services_owned_by,
     ensure_nodeport_service,
     get_kubernetes_data,
     get_nodeport_service,
     get_nodes_ips,
 )
-from state.charm_state import InvalidStateError
-from state.haproxy_route import NodePortState
+from state.kubernetes import NodePortState
 
 
 def _make_node(*addresses: tuple[str, str]) -> MagicMock:
@@ -172,7 +172,7 @@ def test_ensure_nodeport_service_raises_invalid_state_error_on_403():
     client = MagicMock()
     client.apply.side_effect = _make_api_error(403)
 
-    with pytest.raises(InvalidStateError, match="--trust"):
+    with pytest.raises(InvalidKubernetesPermissionError, match="--trust"):
         ensure_nodeport_service(
             client,
             port=8080,

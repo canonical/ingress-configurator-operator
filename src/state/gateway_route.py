@@ -31,7 +31,7 @@ class GatewayRouteState:
         application_name: Name of the backend application (from ingress relation).
         model_name: Model the backend application is in (from ingress relation).
         port: Port the backend application listens on (from ingress relation).
-        hostname: Optional hostname to route traffic to.
+        hostname: The hostname to route traffic to.
         additional_hostnames: Additional hostnames to route traffic to.
         paths: URL path prefixes to route.
     """

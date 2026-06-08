@@ -11,6 +11,8 @@ from lightkube.exceptions import ApiError
 from lightkube.generic_resource import create_namespaced_resource
 from lightkube.models.meta_v1 import ObjectMeta
 
+from kubernetes import InvalidKubernetesPermissionError
+
 logger = logging.getLogger(__name__)
 
 CUSTOM_RESOURCE_GROUP_NAME = "gateway.networking.k8s.io"
@@ -47,10 +49,6 @@ class HTTPRouteConfig:
     backend_service_name: str
     backend_service_port: int
     redirect_https: bool = False
-
-
-class InsufficientPermissionError(Exception):
-    """Raised when the charm lacks K8s RBAC permissions to manage HTTPRoutes."""
 
 
 class HTTPRouteManager:
@@ -135,7 +133,7 @@ class HTTPRouteManager:
             config: The HTTPRoute configuration.
 
         Raises:
-            InsufficientPermissionError: When the charm lacks RBAC permissions (403).
+            InvalidKubernetesPermissionError: When the charm lacks RBAC permissions (403).
 
         Returns:
             The resource name.
@@ -153,7 +151,7 @@ class HTTPRouteManager:
             self.client.apply(resource, field_manager="ingress-configurator", force=True)
         except ApiError as e:
             if e.status.code == 403:
-                raise InsufficientPermissionError(
+                raise InvalidKubernetesPermissionError(
                     "This charm needs `juju trust` to manage HTTPRoute resources"
                 ) from e
             raise

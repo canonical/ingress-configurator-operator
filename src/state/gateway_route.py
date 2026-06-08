@@ -44,7 +44,9 @@ class GatewayRouteState:
     paths: list[str] = Field(default=["/"])
 
     @classmethod
-    def from_charm(cls, charm: ops.CharmBase, ingress_data: IngressRequirerData) -> Self:
+    def build_for_adapter_mode(
+        cls, charm: ops.CharmBase, ingress_data: IngressRequirerData
+    ) -> Self:
         """Create a GatewayRouteState from charm config and ingress relation data.
 
         Args:

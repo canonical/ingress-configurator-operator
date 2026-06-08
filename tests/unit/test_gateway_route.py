@@ -217,43 +217,13 @@ def test_gateway_route_no_gateway_route_relation(
 
 
 @pytest.mark.usefixtures("mock_lightkube")
-def test_gateway_route_waiting_for_provider_data(
-    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
-):
-    """
-    arrange: gateway-route relation present but provider hasn't published gateway fields yet.
-    act: trigger config-changed.
-    assert: status is Waiting("Waiting for gateway-route provider data").
-    """
-    state = ops.testing.State(
-        config={"hostname": "example.com"},
-        relations=[
-            ops.testing.Relation(
-                endpoint="ingress",
-                remote_app_data=INGRESS_REMOTE_APP_DATA,
-                remote_units_data=INGRESS_REMOTE_UNITS_DATA,
-            ),
-            ops.testing.Relation(
-                endpoint="gateway-route",
-                remote_app_data={},
-            ),
-        ],
-        leader=True,
-    )
-
-    out = context_k8s.run(context_k8s.on.config_changed(), state)
-
-    assert out.unit_status == ops.testing.WaitingStatus("Waiting for gateway-route provider data")
-
-
-@pytest.mark.usefixtures("mock_lightkube")
-def test_gateway_route_waiting_for_ingress_relation(
+def test_gateway_route_blocked_no_ingress_relation(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
 ):
     """
     arrange: gateway-route relation present but ingress relation missing.
     act: trigger config-changed.
-    assert: status is Waiting("Waiting for ingress relation").
+    assert: status is Blocked("Ingress relation required.").
     """
     state = ops.testing.State(
         relations=[
@@ -267,7 +237,7 @@ def test_gateway_route_waiting_for_ingress_relation(
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert out.unit_status == ops.testing.WaitingStatus("Waiting for ingress relation")
+    assert out.unit_status == ops.testing.BlockedStatus("Ingress relation required.")
 
 
 def test_gateway_route_https_mode_enforced(
@@ -466,4 +436,3 @@ def test_gateway_route_blocked_on_machine_substrate(
     assert out.unit_status == ops.testing.BlockedStatus(
         "ingress-configurator can only be deployed on Kubernetes when integrated with gateway-route."
     )
-

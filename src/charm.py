@@ -36,7 +36,6 @@ from lightkube import Client
 
 from http_route import (
     HTTPRouteManager,
-    InsufficientPermissionError,
     create_http_routes,
 )
 from kubernetes import (
@@ -283,31 +282,44 @@ class IngressConfiguratorCharm(ops.CharmBase):
         self._haproxy_route.provide_haproxy_route_requirements(**not_none_params)
 
     def _reconcile_gateway_route(self) -> None:
-        """Reconcile gateway-route: create HTTPRoute resources and update relation data."""
+        """Reconcile gateway-route: create HTTPRoute resources and update relation data.
+
+        Mode selection:
+        - Guard: not Kubernetes → blocked.
+        - Guard: no ingress relation → blocked.
+        - Guard: ingress relation present but requirer not ready → wait for data.
+        - Adapter: ingress data available on Kubernetes substrate.
+        """
         if not self.is_kubernetes():
+            logger.error("Gateway-route integration is only supported on Kubernetes substrates.")
             self.unit.status = ops.BlockedStatus(
                 "ingress-configurator can only be deployed on Kubernetes when integrated with gateway-route."
             )
             return
 
         ingress_relation = self.model.get_relation(self._ingress.relation_name)
-        # Only support through ingress relation for now,
-        # so if it's missing or not ready we can't proceed with gateway-route configuration
-        if not ingress_relation or not self._ingress.is_ready():
-            logger.info(
-                "gateway-route relation present but ingress relation is missing or not ready"
-            )
-            self.unit.status = ops.WaitingStatus("Waiting for ingress relation")
+        if ingress_relation is None:
+            logger.error("Ingress relation required.")
+            self.unit.status = ops.BlockedStatus("Ingress relation required.")
             return
 
-        try:
-            ingress_data = self._ingress.get_data(ingress_relation)
-        except DataValidationError:
-            self.unit.status = ops.BlockedStatus("Invalid ingress relation data")
+        if not self._ingress.is_ready():
+            logger.info("Ingress relation exists but is not ready. Waiting for ingress data.")
+            self.unit.status = ops.WaitingStatus("Waiting for ingress relation data.")
             return
 
+        self._reconcile_gateway_route_adapter(
+            self._ingress.get_data(ingress_relation), ingress_relation
+        )
+
+    def _reconcile_gateway_route_adapter(
+        self,
+        ingress_data: IngressRequirerData,
+        ingress_relation: ops.Relation,
+    ) -> None:
+        """Reconcile gateway-route in adapter mode: create HTTPRoute resources."""
         try:
-            state = GatewayRouteState.from_charm(self, ingress_data)
+            state = GatewayRouteState.build_for_adapter_mode(self, ingress_data)
         except InvalidGatewayRouteStateError as exc:
             self.unit.status = ops.BlockedStatus(str(exc))
             return
@@ -322,16 +334,12 @@ class IngressConfiguratorCharm(ops.CharmBase):
         except GatewayRouteInvalidRelationDataError as exc:
             logger.exception("Invalid gateway-route relation data.")
             self.unit.status = ops.BlockedStatus(str(exc))
-            return
 
-        provider_data = None
         try:
             provider_data = self._gateway_route.get_provider_data()
         except GatewayRouteInvalidRelationDataError:
             logger.exception("Invalid gateway-route provider data.")
             self.unit.status = ops.BlockedStatus("Invalid gateway-route provider data")
-        if provider_data is None:
-            self.unit.status = ops.WaitingStatus("Waiting for gateway-route provider data")
             return
 
         manager = HTTPRouteManager(
@@ -351,7 +359,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 backend_service_name=state.application_name,
                 backend_service_port=state.port,
             )
-        except InsufficientPermissionError as exc:
+        except InvalidKubernetesPermissionError as exc:
             self.unit.status = ops.BlockedStatus(str(exc))
             return
 

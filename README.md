@@ -41,13 +41,14 @@ You may also want to link to the `charmcraft.yaml` file here.
 The ingress-configurator charm supports adapter mode and integrator mode.
 
 - Adapter mode: a workload charm relates over `ingress`, and ingress-configurator forwards requirements to a route provider.
-- Integrator mode: non-charm workloads are described by config and routed through route-provider relations The following configurations must be configured:
+- Integrator mode: non-charm workloads are described by config and routed through route-provider relations.
+  The following configurations must be configured:
   - `backend-addresses`
   - `backend-ports`
 
 #### HAProxy
 
-HAPRoxy is supported through the `haproxy-route` or the `haproxy-route-tcp` relation.
+HAProxy is supported through the `haproxy-route` or the `haproxy-route-tcp` relation.
 
 - Supports both adapter and integrator workflows.
 - Supports a broad set of haproxy-route related configurations:

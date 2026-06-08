@@ -334,6 +334,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         except GatewayRouteInvalidRelationDataError as exc:
             logger.exception("Invalid gateway-route relation data.")
             self.unit.status = ops.BlockedStatus(str(exc))
+            return
 
         try:
             provider_data = self._gateway_route.get_provider_data()

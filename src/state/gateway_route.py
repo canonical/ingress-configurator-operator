@@ -40,8 +40,8 @@ class GatewayRouteState:
     model_name: str
     hostname: Annotated[str, BeforeValidator(valid_fqdn)]
     port: int = Field(gt=0, le=65535)
-    additional_hostnames: list[Annotated[str, BeforeValidator(valid_fqdn)]] = Field(default=[])
-    paths: list[str] = Field(default=["/"])
+    additional_hostnames: list[Annotated[str, BeforeValidator(valid_fqdn)]] = Field(default_factory=list)
+    paths: list[str] = Field(default_factory=lambda: ["/"])
 
     @classmethod
     def build_for_adapter_mode(

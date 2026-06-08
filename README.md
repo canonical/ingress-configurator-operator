@@ -47,7 +47,7 @@ The ingress-configurator charm supports adapter mode and integrator mode.
 
 #### HAProxy
 
-Supported through `haproxy-route` or `haproxy-route-tcp` relations.
+HAPRoxy is supported through the `haproxy-route` or the `haproxy-route-tcp` relation.
 
 - Supports both adapter and integrator workflows.
 - Supports a broad set of haproxy-route related configurations:
@@ -56,7 +56,7 @@ Supported through `haproxy-route` or `haproxy-route-tcp` relations.
 
 #### Gateway API
 
-Supported through the `gateway-route` relation.
+Gateway API is supported through the `gateway-route` relation.
 
 - Supports only adapter mode.
 - Requires that the backend related through `ingress` has opened its ports.

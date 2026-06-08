@@ -30,8 +30,10 @@ links:
 requires:
   haproxy-route:
     interface: haproxy-route
+    limit: 1
   haproxy-route-tcp:
     interface: haproxy-route-tcp
+    limit: 1
 
 provides:
   ingress:
@@ -82,12 +84,15 @@ config:
       description: Whether to redispatch failed requests to another server.
     timeout-server:
       type: int
+      default: 60
       description: Timeout for requests from haproxy to backend servers in seconds.
     timeout-connect:
       type: int
+      default: 60
       description: Timeout for client requests to haproxy in seconds.
     timeout-queue:
       type: int
+      default: 60
       description: Timeout for requests waiting in queue in seconds.
     hostname:
       type: string

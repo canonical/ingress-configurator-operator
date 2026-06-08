@@ -1,7 +1,11 @@
-# Copyright 2025 Canonical Ltd.
+# Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""ingress-configurator-operator integrator information."""
+"""HAProxy route state management module.
+
+This module provides state management functionality for HAProxy routes
+in the ingress configurator operator.
+"""
 
 import logging
 from typing import Annotated, Literal, Optional, Self, cast
@@ -11,6 +15,8 @@ from annotated_types import Len
 from charms.haproxy.v2.haproxy_route import (
     LoadBalancingAlgorithm,
     LoadBalancingConfiguration,
+    Retry,
+    TimeoutConfiguration,
     valid_domain_with_wildcard,
 )
 from charms.traefik_k8s.v2.ingress import IngressRequirerData
@@ -19,44 +25,15 @@ from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
 from helpers import get_invalid_config_fields, value_has_valid_characters
+from state.kubernetes import NodePortState
 
 logger = logging.getLogger()
 CHARM_CONFIG_DELIMITER = ","
 DEFAULT_PATH_REWRITE_EXPRESSION_DELIMITER = ";"
 
 
-class InvalidStateError(Exception):
-    """Exception raised when the state is invalid."""
-
-
-@dataclass(frozen=True)
-class BackendState:
-    """Charm state subset that contains the backend configuration.
-
-    Attributes:
-        backend_addresses: Configured list of backend ip addresses.
-        backend_ports: Configured list of backend ports.
-        backend_protocol: The configured protocol for the backend.
-    """
-
-    backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
-    backend_ports: Annotated[list[Annotated[int, Field(gt=0, le=65535)]], Len(min_length=1)]
-    backend_protocol: Literal["http", "https"]
-
-
-@dataclass(frozen=True)
-class NodePortState:
-    """Charm state subset that contains Kubernetes-specific backend configuration.
-
-    Attributes:
-        backend_addresses: Addresses of worker nodes in the cluster.
-        backend_port: The nodePort from the NodePort service.
-        service_name: The name of the NodePort service.
-    """
-
-    backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
-    backend_port: Annotated[int, Field(gt=0, le=65535)]
-    service_name: str
+class InvalidHaproxyRouteStateError(Exception):
+    """Exception raised when HAProxy route requirements are invalid."""
 
 
 @dataclass(frozen=True)
@@ -78,7 +55,7 @@ class HealthCheck:
     fall: Optional[int] = Field(gt=0)
 
     @model_validator(mode="after")
-    def validate_health_check_all_set(self) -> "HealthCheck":
+    def validate_health_check_all_set(self) -> Self:
         """Perform additional validations.
 
         Returns: this class instance.
@@ -97,7 +74,7 @@ class HealthCheck:
         return self
 
     @classmethod
-    def from_charm(cls, charm: ops.CharmBase) -> "HealthCheck":
+    def from_charm(cls, charm: ops.CharmBase) -> Self:
         """Create an HealthCheck class from a charm instance.
 
         Args:
@@ -115,80 +92,9 @@ class HealthCheck:
         )
 
 
-@dataclass(frozen=True)
-class Timeout:
-    """Charm state that contains the timeout configuration.
-
-    Attributes:
-        server: Timeout for requests from haproxy to backend servers in seconds.
-        connect: Timeout for client requests to haproxy in seconds.
-        queue: Timeout for requests waiting in queue in seconds.
-    """
-
-    server: int | None = Field(gt=0)
-    connect: int | None = Field(gt=0)
-    queue: int | None = Field(gt=0)
-
-    @classmethod
-    def from_charm(cls, charm: ops.CharmBase) -> "Timeout":
-        """Create an Timeout class from a charm instance.
-
-        Args:
-            charm: the ingress-configurator charm.
-
-        Returns:
-            Retry: instance of the timeout component.
-        """
-        server = (
-            cast(int, charm.config.get("timeout-server"))
-            if charm.config.get("timeout-server")
-            else None
-        )
-        connect = (
-            cast(int, charm.config.get("timeout-connect"))
-            if charm.config.get("timeout-connect")
-            else None
-        )
-        queue = (
-            cast(int, charm.config.get("timeout-queue"))
-            if charm.config.get("timeout-queue")
-            else None
-        )
-        return cls(server=server, connect=connect, queue=queue)
-
-
-@dataclass(frozen=True)
-class Retry:
-    """Charm state that contains the retry configuration.
-
-    Attributes:
-        count: Number of times to retry failed requests.
-        redispatch: Whether to redispatch failed requests to another server.
-    """
-
-    count: Optional[int] = Field(gt=0)
-    redispatch: Optional[bool] = None
-
-    @classmethod
-    def from_charm(cls, charm: ops.CharmBase, prefix: str = "") -> "Retry":
-        """Create an Retry class from a charm instance.
-
-        Args:
-            charm: the ingress-configurator charm.
-            prefix: prefix for the configuration option.
-
-        Returns:
-            Retry: instance of the retry component.
-        """
-        return cls(
-            count=cast(Optional[int], charm.config.get(f"{prefix}retry-count")),
-            redispatch=cast(Optional[bool], charm.config.get(f"{prefix}retry-redispatch")),
-        )
-
-
 # pylint: disable=too-many-instance-attributes,too-many-locals
 @dataclass(frozen=True)
-class State:
+class HaproxyRouteState:
     """Charm state that contains the configuration.
 
     Attributes:
@@ -208,13 +114,14 @@ class State:
         header_rewrite_expressions: List of header rewrite expressions.
         allow_http: Whether to allow HTTP traffic to the service.
         external_grpc_port: Optional gRPC external port.
-        kubernetes_backend_state: Optional Kubernetes-specific backend configuration.
     """
 
-    _backend_state: BackendState
+    backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
+    backend_ports: Annotated[list[Annotated[int, Field(gt=0, le=65535)]], Len(min_length=1)]
+    backend_protocol: Literal["http", "https"]
     health_check: HealthCheck
-    retry: Retry
-    timeout: Timeout
+    retry: Retry | None
+    timeout: TimeoutConfiguration
     service: str = Field(..., min_length=1)
     paths: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(default=[])
     hostname: Optional[Annotated[str, BeforeValidator(valid_domain_with_wildcard)]] = Field(
@@ -231,27 +138,6 @@ class State:
     header_rewrite_expressions: list[tuple[str, str]] = Field(default=[])
     allow_http: bool = Field(default=False)
     external_grpc_port: int | None = Field(default=None, gt=0, le=65535)
-    _kubernetes_backend_state: NodePortState | None = None
-
-    @property
-    def backend_addresses(self) -> list[IPvAnyAddress]:
-        """List of backend addresses."""
-        return self._backend_state.backend_addresses
-
-    @property
-    def backend_ports(self) -> list[int]:
-        """List of backend ports."""
-        return self._backend_state.backend_ports
-
-    @property
-    def backend_protocol(self) -> Literal["http", "https"]:
-        """The backend protocol."""
-        return self._backend_state.backend_protocol
-
-    @property
-    def kubernetes_backend_state(self) -> "NodePortState | None":
-        """Kubernetes-specific backend configuration."""
-        return self._kubernetes_backend_state
 
     @model_validator(mode="after")
     def validate_external_grpc_port_requires_https(self) -> Self:
@@ -283,26 +169,34 @@ class State:
 
         return self
 
-    @classmethod
-    def from_charm(
-        cls,
-        charm: ops.CharmBase,
-        ingress_data: IngressRequirerData | None,
-        kubernetes_data: NodePortState | None = None,
-    ) -> Self:
-        """Create an State class from a charm instance.
+    @staticmethod
+    def has_integrator_config(charm: ops.CharmBase) -> bool:
+        """Return True if any integrator backend config option is set.
+
+        This is intentionally a presence check — it does not validate the values.
+        Use it to detect ambiguous mode (ingress relation + backend config both
+        present) before attempting to parse the config with build_for_integrator_mode.
 
         Args:
             charm: the ingress-configurator charm.
-            ingress_data: the ingress requirer relation data.
-            kubernetes_data: optional Kubernetes API data used to populate the
-                Kubernetes backend state.
-
-        Raises:
-            InvalidStateError: when the integrator mode config is invalid.
 
         Returns:
-            State: instance of the state component.
+            True if backend-addresses, backend-ports is set in config.
+        """
+        return bool(charm.config.get("backend-addresses") or charm.config.get("backend-ports"))
+
+    @classmethod
+    def build_for_integrator_mode(cls, charm: ops.CharmBase) -> Self:
+        """Create HaproxyRouteState for integrator mode from charm config.
+
+        Args:
+            charm: the ingress-configurator charm.
+
+        Raises:
+            InvalidHaproxyRouteStateError: when the configuration is missing or invalid.
+
+        Returns:
+            HaproxyRouteState: instance of the state.
         """
         try:
             config_backend_addresses = (
@@ -318,18 +212,97 @@ class State:
                 if charm.config.get("backend-ports")
                 else []
             )
-            # The value will be validated by the BackendState constructor
-            backend_protocol = cast(
-                Literal["http", "https"],
-                (charm.config.get("backend-protocol") or "http"),
-            )
+        except ValueError as exc:
+            logger.error(str(exc))
+            raise InvalidHaproxyRouteStateError(
+                "HAProxy route state contains invalid value(s)."
+            ) from exc
+        return cls._build(
+            charm,
+            config_backend_addresses,
+            config_backend_ports,
+            f"{charm.model.name}-{charm.app.name}",
+        )
+
+    @classmethod
+    def build_for_adapter_mode(
+        cls,
+        charm: ops.CharmBase,
+        ingress_data: IngressRequirerData,
+    ) -> Self:
+        """Create HaproxyRouteState for adapter mode from ingress requirer data.
+
+        Args:
+            charm: the ingress-configurator charm.
+            ingress_data: the ingress requirer relation data.
+
+        Raises:
+            InvalidHaproxyRouteStateError: when the configuration is missing or invalid.
+
+        Returns:
+            HaproxyRouteState: instance of the state.
+        """
+        try:
+            backend_addresses = [cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units]
+            backend_ports = [ingress_data.app.port]
+        except ValueError as exc:
+            logger.error(str(exc))
+            raise InvalidHaproxyRouteStateError(
+                "HAProxy route state contains invalid value(s)."
+            ) from exc
+        return cls._build(
+            charm, backend_addresses, backend_ports, f"{charm.model.name}-{charm.app.name}"
+        )
+
+    @classmethod
+    def build_for_kubernetes_adapter_mode(
+        cls,
+        charm: ops.CharmBase,
+        kubernetes_data: NodePortState,
+    ) -> Self:
+        """Create HaproxyRouteState from pre-resolved Kubernetes NodePort data.
+
+        Args:
+            charm: the ingress-configurator charm.
+            kubernetes_data: resolved NodePort service data.
+
+        Raises:
+            InvalidHaproxyRouteStateError: when the configuration is invalid.
+
+        Returns:
+            HaproxyRouteState: instance of the state.
+        """
+        return cls._build(
+            charm,
+            kubernetes_data.backend_addresses,
+            [kubernetes_data.backend_port],
+            kubernetes_data.service_name,
+        )
+
+    @classmethod
+    def _build(
+        cls,
+        charm: ops.CharmBase,
+        backend_addresses: list[IPvAnyAddress],
+        backend_ports: list[int],
+        service: str,
+    ) -> Self:
+        """Build HaproxyRouteState from resolved backend fields and charm config.
+
+        Args:
+            charm: the ingress-configurator charm.
+            backend_addresses: list of resolved backend IP addresses.
+            backend_ports: list of resolved backend ports.
+            service: the service name.
+
+        Raises:
+            InvalidHaproxyRouteStateError: when the configuration is invalid.
+
+        Returns:
+            HaproxyRouteState: instance of the state.
+        """
+        try:
             external_grpc_port = cast(int | None, charm.config.get("external-grpc-port"))
-            ingress_backend_ports = [ingress_data.app.port] if ingress_data else []
-            ingress_backend_addresses = (
-                [cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units]
-                if ingress_data
-                else []
-            )
             paths = (
                 cast(str, charm.config.get("paths")).split(CHARM_CONFIG_DELIMITER)
                 if charm.config.get("paths")
@@ -342,17 +315,6 @@ class State:
                 else []
             )
             http_server_close = cast(bool, charm.config.get("http-server-close", False))
-
-            config_backend = bool(config_backend_addresses or config_backend_ports)
-            ingress_backend = bool(ingress_backend_addresses or ingress_backend_ports)
-            # Only backend configuration from a single origin is supported.
-            # Skip this check when kubernetes_data is provided, since K8s mode
-            # supplies its own backend addresses and port at line 392.
-            if not kubernetes_data and config_backend == ingress_backend:
-                raise InvalidStateError("No valid mode detected.")
-            backend_addresses = config_backend_addresses or ingress_backend_addresses
-            backend_ports = config_backend_ports or ingress_backend_ports
-
             load_balancing_algorithm = LoadBalancingAlgorithm(
                 cast(
                     Optional[str],
@@ -387,18 +349,39 @@ class State:
                 if charm.config.get("header-rewrite-expressions")
                 else []
             )
+            retry_count = cast(int | None, charm.config.get("retry-count"))
+            retry = (
+                Retry(
+                    count=retry_count,
+                    redispatch=cast(bool, charm.config.get("retry-redispatch")),
+                )
+                if retry_count is not None
+                else None
+            )
+            timeout = TimeoutConfiguration(
+                **{
+                    k: v
+                    for k, v in {
+                        "server": cast(int | None, charm.config.get("timeout-server")),
+                        "connect": cast(int | None, charm.config.get("timeout-connect")),
+                        "queue": cast(int | None, charm.config.get("timeout-queue")),
+                    }.items()
+                    if v is not None
+                }
+            )
             allow_http = cast(bool, charm.config.get("allow-http", False))
-            service = f"{charm.model.name}-{charm.app.name}"
-            if kubernetes_data:
-                backend_addresses = kubernetes_data.backend_addresses
-                backend_ports = [kubernetes_data.backend_port]
-                service = kubernetes_data.service_name
+            backend_protocol = cast(
+                Literal["http", "https"],
+                charm.config.get("backend-protocol", "http"),
+            )
             return cls(
-                _backend_state=BackendState(backend_addresses, backend_ports, backend_protocol),
+                backend_addresses=backend_addresses,
+                backend_ports=backend_ports,
+                backend_protocol=backend_protocol,
                 paths=paths,
                 health_check=HealthCheck.from_charm(charm),
-                retry=Retry.from_charm(charm),
-                timeout=Timeout.from_charm(charm),
+                retry=retry,
+                timeout=timeout,
                 service=service,
                 hostname=hostname,
                 additional_hostnames=additional_hostnames,
@@ -408,14 +391,13 @@ class State:
                 header_rewrite_expressions=header_rewrite_expressions,
                 allow_http=allow_http,
                 external_grpc_port=external_grpc_port,
-                _kubernetes_backend_state=kubernetes_data,
             )
         except ValidationError as exc:
             logger.error(str(exc))
             error_field_str = ",".join(f"{field}" for field in get_invalid_config_fields(exc))
-            raise InvalidStateError(
-                f"Invalid integrator configuration: {error_field_str}"
+            raise InvalidHaproxyRouteStateError(
+                f"Invalid configuration: {error_field_str}"
             ) from exc
         except ValueError as exc:
             logger.error(str(exc))
-            raise InvalidStateError("State contains invalid value(s).") from exc
+            raise InvalidHaproxyRouteStateError("State contains invalid value(s).") from exc

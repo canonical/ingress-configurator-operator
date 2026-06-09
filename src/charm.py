@@ -318,13 +318,14 @@ class IngressConfiguratorCharm(ops.CharmBase):
         ingress_relation: ops.Relation,
     ) -> None:
         """Reconcile gateway-route in adapter mode: create HTTPRoute resources."""
+        self.unit.status = ops.MaintenanceStatus("Configuring gateway route")
+
         try:
             state = GatewayRouteState.build_for_adapter_mode(self, ingress_data)
         except InvalidGatewayRouteStateError as exc:
+            logger.exception("Invalid gateway-route config.")
             self.unit.status = ops.BlockedStatus(str(exc))
             return
-
-        self.unit.status = ops.MaintenanceStatus("Configuring gateway route")
 
         try:
             self._gateway_route.publish_requirer_data(
@@ -340,7 +341,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             provider_data = self._gateway_route.get_provider_data()
         except GatewayRouteInvalidRelationDataError:
             logger.exception("Invalid gateway-route provider data.")
-            self.unit.status = ops.BlockedStatus("Invalid gateway-route provider data")
+            self.unit.status = ops.WaitingStatus("Invalid gateway-route provider data")
             return
 
         manager = HTTPRouteManager(

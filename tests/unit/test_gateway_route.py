@@ -436,3 +436,48 @@ def test_gateway_route_blocked_on_machine_substrate(
     assert out.unit_status == ops.testing.BlockedStatus(
         "ingress-configurator can only be deployed on Kubernetes when integrated with gateway-route."
     )
+
+
+@pytest.mark.usefixtures("mock_lightkube")
+@pytest.mark.parametrize(
+    "provider_app_data",
+    [
+        pytest.param({}, id="empty-databag"),
+        pytest.param(
+            {
+                "gateway_name": '"my-gateway"',
+                "gateway_model": '"gateway-model"',
+                "https_mode": '"not-a-valid-mode"',
+            },
+            id="invalid-https-mode",
+        ),
+    ],
+)
+def test_gateway_route_waiting_for_invalid_provider_data(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    provider_app_data: dict,
+):
+    """
+    arrange: gateway-route relation present with an empty or invalid provider databag.
+    act: trigger config-changed.
+    assert: status is Waiting("Invalid gateway-route provider data").
+    """
+    state = ops.testing.State(
+        config={"hostname": "example.com"},
+        relations=[
+            ops.testing.Relation(
+                endpoint="ingress",
+                remote_app_data=INGRESS_REMOTE_APP_DATA,
+                remote_units_data=INGRESS_REMOTE_UNITS_DATA,
+            ),
+            ops.testing.Relation(
+                endpoint="gateway-route",
+                remote_app_data=provider_app_data,
+            ),
+        ],
+        leader=True,
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.WaitingStatus("Invalid gateway-route provider data")

@@ -29,7 +29,8 @@ class HTTPRouteConfig:
     """Configuration for an HTTPRoute resource.
 
     Attributes:
-        name: Resource name.
+        app_name: The name of the application.
+        scheme: The scheme of the HTTPRoute ("http" or "https").
         gateway_name: parentRef gateway name.
         gateway_namespace: parentRef namespace.
         listener_name: sectionName (e.g. "<gateway_name>-http-listener").
@@ -40,7 +41,8 @@ class HTTPRouteConfig:
         redirect_https: If True, this route issues a 301 HTTPS redirect.
     """
 
-    name: str
+    app_name: str
+    scheme: str
     gateway_name: str
     gateway_namespace: str
     listener_name: str
@@ -139,24 +141,25 @@ class HTTPRouteManager:
             The resource name.
         """
         spec = self._build_spec(config)
+        resource_name = f"{config.app_name}-{config.backend_service_name}-{config.scheme}"
         resource = HTTPRouteResource(
             metadata=ObjectMeta(
-                name=config.name,
+                name=resource_name,
                 namespace=self.namespace,
                 labels=self.labels,
             ),
             spec=spec,
         )
         try:
-            self.client.apply(resource, field_manager="ingress-configurator", force=True)
+            self.client.apply(resource, field_manager=config.app_name, force=True)
         except ApiError as e:
             if e.status.code == 403:
                 raise InvalidKubernetesPermissionError(
                     "This charm needs `juju trust` to manage HTTPRoute resources"
                 ) from e
             raise
-        logger.info("Applied HTTPRoute %s", config.name)
-        return config.name
+        logger.info("Applied HTTPRoute %s", resource_name)
+        return resource_name
 
     def delete_stale(self, exclude: list[str] | None = None) -> None:
         """Delete all managed HTTPRoute resources except those in exclude.
@@ -204,7 +207,6 @@ def create_http_routes(
         backend_service_port: Port of the backend Service.
     """
     managed_names = []
-    route_base_name = f"{app_name}-{backend_service_name}"
 
     route_specs: list[str] = ["http"]
     if https_mode in ("enabled", "enforced"):
@@ -212,7 +214,8 @@ def create_http_routes(
 
     for scheme in route_specs:
         config = HTTPRouteConfig(
-            name=f"{route_base_name}-{scheme}",
+            app_name=app_name,
+            scheme=scheme,
             gateway_name=gateway_name,
             gateway_namespace=gateway_model,
             listener_name=f"{gateway_name}-{scheme}",

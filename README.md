@@ -1,7 +1,12 @@
 # Ingress configurator operator
 <!-- Use this space for badges -->
 
-A [Juju](https://juju.is/) [charm](https://documentation.ubuntu.com/juju/3.6/reference/charm/) that serves as a translation layer between the ingress interface and the haproxy-route interface. It provides more control on the haproxy-route interface through configurations including paths, subdomains and many more.
+A [Juju](https://juju.is/) [charm](https://documentation.ubuntu.com/juju/3.6/reference/charm/) that serves as a translation layer between the ingress interface and route-provider interfaces.
+
+It currently supports:
+
+- `haproxy-route` and `haproxy-route-tcp`
+- `gateway-route` (adapter mode on Kubernetes)
 
 Like any Juju charm, this charm supports one-line deployment, configuration, integration, scaling, and more.
 
@@ -33,16 +38,30 @@ Use this section to link the Charmhub documentation for actions and configuratio
 
 You may also want to link to the `charmcraft.yaml` file here.
 -->
-The ingress-configurator charm will be able to work both as an adapter and as an integrator. The integrator mode is used to support non-charm workloads that want to use the haproxy charm as a load balancer.
-The following configurations must be configured for integrator mode:
+The ingress-configurator charm supports adapter mode and integrator mode.
 
-- `backend-addresses`
-- `backend-ports`
+- Adapter mode: a workload charm relates over `ingress`, and ingress-configurator forwards requirements to a route provider.
+- Integrator mode: non-charm workloads are described by config and routed through route-provider relations.
+  The following configurations must be configured:
+  - `backend-addresses`
+  - `backend-ports`
 
-Apart from these, the ingress-configurator also supports a wide range of haproxy-route-related configurations:
+#### HAProxy
 
-- paths
-- subdomains
+HAProxy is supported through the `haproxy-route` or the `haproxy-route-tcp` relation.
+
+- Supports both adapter and integrator workflows.
+- Supports a broad set of haproxy-route related configurations:
+  - paths
+  - subdomains
+
+#### Gateway API
+
+Gateway API is supported through the `gateway-route` relation.
+
+- Supports only adapter mode.
+- Requires that the backend related through `ingress` has opened its ports.
+- `https` option for `backend-protocol` is not supported.
 
 To obtain the full list of configurations, see the official [CharmHub documentation](https://charmhub.io/ingress-configurator).
 

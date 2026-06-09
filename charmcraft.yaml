@@ -34,6 +34,9 @@ requires:
   haproxy-route-tcp:
     interface: haproxy-route-tcp
     limit: 1
+  gateway-route:
+    interface: gateway-route
+    limit: 1
 
 provides:
   ingress:
@@ -237,6 +240,8 @@ charm-libs:
     version: "1"
   - lib: traefik_k8s.ingress
     version: "2"
+  - lib: gateway_api_integrator.gateway_route
+    version: "1"
 
 actions:
   get-proxied-endpoints:

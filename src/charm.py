@@ -13,6 +13,14 @@ import typing
 from functools import cached_property
 
 import ops
+from charms.gateway_api_integrator.v1.gateway_route import (
+    GATEWAY_ROUTE_RELATION_NAME as GATEWAY_ROUTE_RELATION,
+)
+from charms.gateway_api_integrator.v1.gateway_route import (
+    GatewayRouteInvalidRelationDataError,
+    GatewayRouteRequirer,
+    HttpsMode,
+)
 from charms.haproxy.v1.haproxy_route_tcp import (
     HAPROXY_ROUTE_TCP_RELATION_NAME as HAPROXY_ROUTE_TCP_RELATION,
 )
@@ -26,12 +34,17 @@ from charms.traefik_k8s.v2.ingress import DEFAULT_RELATION_NAME as INGRESS_RELAT
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider, IngressRequirerData
 from lightkube import Client
 
+from http_route import (
+    HTTPRouteManager,
+    create_http_routes,
+)
 from kubernetes import (
     InvalidKubernetesPermissionError,
     delete_nodeport_services_owned_by,
     ensure_nodeport_service,
     get_kubernetes_data,
 )
+from state.gateway_route import GatewayRouteState, InvalidGatewayRouteStateError
 from state.haproxy_route import (
     HaproxyRouteState,
     InvalidHaproxyRouteStateError,
@@ -58,6 +71,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         self._lightkube_field_manager = self.app.name
         self._haproxy_route = HaproxyRouteRequirer(self, HAPROXY_ROUTE_RELATION)
         self._haproxy_route_tcp = HaproxyRouteTcpRequirer(self, HAPROXY_ROUTE_TCP_RELATION)
+        self._gateway_route = GatewayRouteRequirer(self)
 
         self._ingress = IngressPerAppProvider(self)
         self.framework.observe(self.on.config_changed, self._reconcile)
@@ -76,6 +90,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
         self.framework.observe(self.on[INGRESS_RELATION].relation_broken, self._reconcile)
         self.framework.observe(self.on[INGRESS_RELATION].relation_departed, self._reconcile)
         self.framework.observe(self.on[INGRESS_RELATION].relation_changed, self._reconcile)
+        self.framework.observe(self.on[GATEWAY_ROUTE_RELATION].relation_changed, self._reconcile)
+        self.framework.observe(self.on[GATEWAY_ROUTE_RELATION].relation_broken, self._reconcile)
+        self.framework.observe(self.on[GATEWAY_ROUTE_RELATION].relation_departed, self._reconcile)
         self.framework.observe(self.on.update_status, self._on_update_status)
 
         # Action handlers
@@ -102,15 +119,17 @@ class IngressConfiguratorCharm(ops.CharmBase):
         """Dispatch to the appropriate reconcile method based on active relations."""
         haproxy_route_related = self._haproxy_route.relation is not None
         haproxy_route_tcp_related = self._haproxy_route_tcp.relation is not None
+        gateway_route_related = self._gateway_route.relation is not None
 
-        if sum([haproxy_route_related, haproxy_route_tcp_related]) > 1:
-            logger.error("Multiple route relations exist.")
+        if sum([haproxy_route_related, haproxy_route_tcp_related, gateway_route_related]) > 1:
             self.unit.status = ops.BlockedStatus(
-                "Only one route relation type should exist (haproxy-route or haproxy-route-tcp)."
+                "Only one route relation type should exist (haproxy-route, haproxy-route-tcp, or gateway-route)."
             )
             return
 
-        if haproxy_route_related:
+        if gateway_route_related:
+            self._reconcile_gateway_route()
+        elif haproxy_route_related:
             self._reconcile_haproxy_route()
         elif haproxy_route_tcp_related:
             self._reconcile_haproxy_route_tcp()
@@ -261,6 +280,103 @@ class IngressConfiguratorCharm(ops.CharmBase):
         }
         not_none_params = {k: v for k, v in params.items() if v is not None}
         self._haproxy_route.provide_haproxy_route_requirements(**not_none_params)
+
+    def _reconcile_gateway_route(self) -> None:
+        """Reconcile gateway-route: create HTTPRoute resources and update relation data.
+
+        Mode selection:
+        - Guard: not Kubernetes → blocked.
+        - Guard: no ingress relation → blocked.
+        - Guard: ingress relation present but requirer not ready → wait for data.
+        - Adapter: ingress data available on Kubernetes substrate.
+        """
+        if not self.is_kubernetes():
+            logger.error("Gateway-route integration is only supported on Kubernetes substrates.")
+            self.unit.status = ops.BlockedStatus(
+                "ingress-configurator can only be deployed on Kubernetes when integrated with gateway-route."
+            )
+            return
+
+        ingress_relation = self.model.get_relation(self._ingress.relation_name)
+        if ingress_relation is None:
+            logger.error("Ingress relation required.")
+            self.unit.status = ops.BlockedStatus("Ingress relation required.")
+            return
+
+        if not self._ingress.is_ready():
+            logger.info("Ingress relation exists but is not ready. Waiting for ingress data.")
+            self.unit.status = ops.WaitingStatus("Waiting for ingress relation data.")
+            return
+
+        self._reconcile_gateway_route_adapter(
+            self._ingress.get_data(ingress_relation), ingress_relation
+        )
+
+    def _reconcile_gateway_route_adapter(
+        self,
+        ingress_data: IngressRequirerData,
+        ingress_relation: ops.Relation,
+    ) -> None:
+        """Reconcile gateway-route in adapter mode: create HTTPRoute resources."""
+        self.unit.status = ops.MaintenanceStatus("Configuring gateway route")
+
+        try:
+            state = GatewayRouteState.build_for_adapter_mode(self, ingress_data)
+        except InvalidGatewayRouteStateError as exc:
+            logger.exception("Invalid gateway-route config.")
+            self.unit.status = ops.BlockedStatus(str(exc))
+            return
+
+        try:
+            self._gateway_route.publish_requirer_data(
+                hostname=state.hostname,
+                additional_hostnames=list(state.additional_hostnames),
+            )
+        except GatewayRouteInvalidRelationDataError as exc:
+            logger.exception("Invalid gateway-route relation data.")
+            self.unit.status = ops.BlockedStatus(str(exc))
+            return
+
+        try:
+            provider_data = self._gateway_route.get_provider_data()
+        except GatewayRouteInvalidRelationDataError:
+            logger.exception("Invalid gateway-route provider data.")
+            self.unit.status = ops.WaitingStatus("Invalid gateway-route provider data")
+            return
+
+        manager = HTTPRouteManager(
+            client=self.lightkube_client,
+            namespace=self.model.name,
+            labels={CREATED_BY_LABEL: self.app.name},
+        )
+        try:
+            create_http_routes(
+                http_route_manager=manager,
+                app_name=self.app.name,
+                gateway_name=provider_data.gateway_name,
+                gateway_model=provider_data.gateway_model,
+                https_mode=provider_data.https_mode,
+                hostnames=state.hostnames,
+                paths=state.paths,
+                backend_service_name=state.application_name,
+                backend_service_port=state.port,
+            )
+        except InvalidKubernetesPermissionError as exc:
+            self.unit.status = ops.BlockedStatus(str(exc))
+            return
+
+        if state.hostname:
+            scheme = (
+                "https"
+                if provider_data.https_mode in (HttpsMode.ENABLED, HttpsMode.ENFORCED)
+                else "http"
+            )
+            path = state.paths[0].lstrip("/")
+            endpoint = (
+                f"{scheme}://{state.hostname}/{path}" if path else f"{scheme}://{state.hostname}"
+            )
+            self._ingress.publish_url(ingress_relation, url=endpoint)
+        self.unit.status = ops.ActiveStatus("Ready")
 
     def _reconcile_haproxy_route_tcp(self) -> None:
         """Reconcile haproxy-route-tcp requirer data."""

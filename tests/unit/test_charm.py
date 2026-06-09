@@ -399,7 +399,7 @@ def test_haproxy_route_tcp_blocked_with_ingress(
     ("relation1", "relation2"),
     [
         pytest.param(r1, r2, id=f"{r1} and {r2}")
-        for r1, r2 in combinations(["haproxy-route", "haproxy-route-tcp"], 2)
+        for r1, r2 in combinations(["haproxy-route", "haproxy-route-tcp", "gateway-route"], 2)
     ],
 )
 def test_routes_mutual_exclusivity(
@@ -426,5 +426,5 @@ def test_routes_mutual_exclusivity(
     assert isinstance(out.unit_status, ops.testing.BlockedStatus)
     assert (
         out.unit_status.message
-        == "Only one route relation type should exist (haproxy-route or haproxy-route-tcp)."
+        == "Only one route relation type should exist (haproxy-route, haproxy-route-tcp, or gateway-route)."
     )

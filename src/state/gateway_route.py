@@ -31,14 +31,14 @@ class GatewayRouteState:
         application_name: Name of the backend application (from ingress relation).
         model_name: Model the backend application is in (from ingress relation).
         port: Port the backend application listens on (from ingress relation).
-        hostname: The hostname to route traffic to.
+        hostname: Optional hostname to route traffic to.
         additional_hostnames: Additional hostnames to route traffic to.
         paths: URL path prefixes to route.
     """
 
     application_name: str
     model_name: str
-    hostname: Annotated[str, BeforeValidator(valid_fqdn)]
+    hostname: Annotated[str, BeforeValidator(valid_fqdn)] | None
     port: int = Field(gt=0, le=65535)
     additional_hostnames: list[Annotated[str, BeforeValidator(valid_fqdn)]] = Field(
         default_factory=list
@@ -102,4 +102,5 @@ class GatewayRouteState:
         Returns:
             List of all hostnames, including the primary and additional hostnames.
         """
-        return [self.hostname, *self.additional_hostnames]
+        primary = [self.hostname] if self.hostname else []
+        return primary + self.additional_hostnames

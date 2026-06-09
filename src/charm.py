@@ -365,16 +365,17 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self.unit.status = ops.BlockedStatus(str(exc))
             return
 
-        scheme = (
-            "https"
-            if provider_data.https_mode in (HttpsMode.ENABLED, HttpsMode.ENFORCED)
-            else "http"
-        )
-        path = state.paths[0].lstrip("/")
-        endpoint = (
-            f"{scheme}://{state.hostname}/{path}" if path else f"{scheme}://{state.hostname}"
-        )
-        self._ingress.publish_url(ingress_relation, url=endpoint)
+        if state.hostname:
+            scheme = (
+                "https"
+                if provider_data.https_mode in (HttpsMode.ENABLED, HttpsMode.ENFORCED)
+                else "http"
+            )
+            path = state.paths[0].lstrip("/")
+            endpoint = (
+                f"{scheme}://{state.hostname}/{path}" if path else f"{scheme}://{state.hostname}"
+            )
+            self._ingress.publish_url(ingress_relation, url=endpoint)
         self.unit.status = ops.ActiveStatus("Ready")
 
     def _reconcile_haproxy_route_tcp(self) -> None:

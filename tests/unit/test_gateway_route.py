@@ -73,7 +73,7 @@ def test_gateway_route_no_hostname(
     """
     arrange: gateway-route with no hostname configured.
     act: trigger config-changed.
-    assert: status is Blocked because hostname is required.
+    assert: status is Active — hostname is optional so routing uses additional-hostnames only.
     """
     state = ops.testing.State(
         config={"paths": "/"},
@@ -93,8 +93,7 @@ def test_gateway_route_no_hostname(
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
-    assert "Invalid gateway-route configuration: hostname" in out.unit_status.message
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
 
 
 @pytest.mark.usefixtures("mock_lightkube")
@@ -104,7 +103,7 @@ def test_gateway_route_additional_hostnames_only(
     """
     arrange: gateway-route with no primary hostname but with additional hostnames.
     act: trigger config-changed.
-    assert: status is Blocked because primary hostname is required.
+    assert: status is Active — routes are created using additional hostnames only.
     """
     state = ops.testing.State(
         config={"additional-hostnames": "app.example.com,api.example.com", "paths": "/"},
@@ -124,8 +123,7 @@ def test_gateway_route_additional_hostnames_only(
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
-    assert "Invalid gateway-route configuration: hostname" in out.unit_status.message
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
 
 
 @pytest.mark.usefixtures("mock_lightkube")

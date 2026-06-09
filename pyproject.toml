@@ -4,7 +4,7 @@
 [project]
 name = "ingress-configurator-operator"
 version = "0.0.0"
-description = "Translation layer between ingress and haproxy-route."
+description = "Translation layer between ingress and haproxy-route/haproxy-route-tcp/gateway-api."
 readme = "README.md"
 requires-python = ">=3.12"
 classifiers = [

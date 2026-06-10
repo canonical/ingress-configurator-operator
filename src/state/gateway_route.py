@@ -62,7 +62,7 @@ class GatewayRouteState:
             ValueError: If the value is 'https'.
         """
         if value == "https":
-            raise ValueError("backend-protocol cannot be 'https' in gateway-route mode")
+            raise ValueError("backend-protocol cannot be 'https' when related through the 'gateway-route' relation")
         return value
 
     @model_validator(mode="after")

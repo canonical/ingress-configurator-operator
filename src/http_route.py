@@ -39,14 +39,14 @@ def apply_headless_backend(
 ) -> None:
     """Create or update a headless Service and its associated EndpointSlice.
 
-    Both resources share ``name`` and are labelled with :data:`HEADLESS_LABEL`
+    Both resources share ``name`` and are labelled with :data:`CREATED_BY_LABEL`
     so they can be found and cleaned up later.
 
     Args:
         client: The lightkube Client instance.
         namespace: The Kubernetes namespace to create resources in.
         name: Name for both the Service and the EndpointSlice.
-        addresses: FQDNs or IP addresses for the endpoints.
+        addresses: FQDNs for the endpoints.
         port: The port to expose.
         app_name: Owning charm name, used as the value of the :data:`CREATED_BY_LABEL` label.
 

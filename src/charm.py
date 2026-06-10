@@ -35,7 +35,7 @@ from charms.traefik_k8s.v2.ingress import IngressPerAppProvider, IngressRequirer
 from lightkube import Client
 
 from http_route import (
-    CREATED_BY_LABEL,
+    MANAGED_BY_LABEL,
     HTTPRouteManager,
     create_http_routes,
     delete_headless_backends_owned_by,
@@ -354,7 +354,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         route_manager = HTTPRouteManager(
             client=self.lightkube_client,
             namespace=self.model.name,
-            labels={CREATED_BY_LABEL: self.app.name},
+            labels={MANAGED_BY_LABEL: self.app.name},
         )
         try:
             create_http_routes(

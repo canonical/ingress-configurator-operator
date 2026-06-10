@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 from lightkube import ApiError
 
-from http_route import CREATED_BY_LABEL, apply_headless_backend, delete_headless_backends_owned_by
+from http_route import MANAGED_BY_LABEL, apply_headless_backend, delete_headless_backends_owned_by
 from kubernetes import InvalidKubernetesPermissionError
 
 
@@ -63,7 +63,7 @@ def test_apply_headless_backend_creates_correct_resources():
     assert svc.metadata is not None
     assert svc.metadata.name == "my-app-headless"
     assert svc.metadata.labels is not None
-    assert svc.metadata.labels.get(CREATED_BY_LABEL) == "my-charm"
+    assert svc.metadata.labels.get(MANAGED_BY_LABEL) == "my-charm"
     assert svc.spec is not None
     assert svc.spec.clusterIP == "None"
     assert svc.spec.ports is not None
@@ -78,7 +78,7 @@ def test_apply_headless_backend_creates_correct_resources():
     assert es.metadata is not None
     assert es.metadata.labels is not None
     assert es.metadata.labels.get("kubernetes.io/service-name") == "my-app-headless"
-    assert es.metadata.labels.get(CREATED_BY_LABEL) == "my-charm"
+    assert es.metadata.labels.get(MANAGED_BY_LABEL) == "my-charm"
 
 
 def test_apply_headless_backend_raises_on_service_403():
@@ -168,7 +168,7 @@ def test_delete_headless_backends_owned_by_skips_other_charms():
     """
     arrange: mock a client that returns empty lists (K8s filters by label selector server-side)
     act: call delete_headless_backends_owned_by with "my-charm"
-    assert: list is called with CREATED_BY_LABEL="my-charm" so other charms' resources are
+    assert: list is called with MANAGED_BY_LABEL="my-charm" so other charms' resources are
         never returned, and no deletes happen
     """
     client = MagicMock()
@@ -177,7 +177,7 @@ def test_delete_headless_backends_owned_by_skips_other_charms():
     delete_headless_backends_owned_by(client, "testing-model", "my-charm")
 
     for call in client.list.call_args_list:
-        assert call.kwargs.get("labels", {}).get(CREATED_BY_LABEL) == "my-charm"
+        assert call.kwargs.get("labels", {}).get(MANAGED_BY_LABEL) == "my-charm"
     client.delete.assert_not_called()
 
 

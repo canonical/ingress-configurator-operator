@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 CUSTOM_RESOURCE_GROUP_NAME = "gateway.networking.k8s.io"
 HTTP_ROUTE_RESOURCE_NAME = "HTTPRoute"
 HTTP_ROUTE_PLURAL = "httproutes"
-CREATED_BY_LABEL = "ingress-configurator.charm.juju.is/managed-by"
+MANAGED_BY_LABEL = "ingress-configurator.charm.juju.is/managed-by"
 
 
 HTTPRouteResource = create_namespaced_resource(
@@ -39,7 +39,7 @@ def apply_headless_backend(
 ) -> None:
     """Create or update a headless Service and its associated EndpointSlice.
 
-    Both resources share ``name`` and are labelled with :data:`CREATED_BY_LABEL`
+    Both resources share ``name`` and are labelled with :data:`MANAGED_BY_LABEL`
     so they can be found and cleaned up later.
 
     Args:
@@ -48,7 +48,7 @@ def apply_headless_backend(
         name: Name for both the Service and the EndpointSlice.
         addresses: FQDNs for the endpoints.
         port: The port to expose.
-        app_name: Owning charm name, used as the value of the :data:`CREATED_BY_LABEL` label.
+        app_name: Owning charm name, used as the value of the :data:`MANAGED_BY_LABEL` label.
 
     Raises:
         InvalidKubernetesPermissionError: When the charm lacks RBAC permissions.
@@ -57,7 +57,7 @@ def apply_headless_backend(
         metadata=ObjectMeta(
             name=name,
             namespace=namespace,
-            labels={CREATED_BY_LABEL: app_name},
+            labels={MANAGED_BY_LABEL: app_name},
         ),
         spec=ServiceSpec(
             clusterIP="None",
@@ -83,7 +83,7 @@ def apply_headless_backend(
             namespace=namespace,
             labels={
                 "kubernetes.io/service-name": name,
-                CREATED_BY_LABEL: app_name,
+                MANAGED_BY_LABEL: app_name,
             },
         ),
         endpoints=[Endpoint(addresses=[addr]) for addr in addresses],
@@ -106,7 +106,7 @@ def delete_headless_backends_owned_by(
 ) -> None:
     """Delete all headless EndpointSlices and Services owned by ``app_name``.
 
-    Resources are identified by a :data:`CREATED_BY_LABEL` label matching ``app_name``.
+    Resources are identified by a :data:`MANAGED_BY_LABEL` label matching ``app_name``.
 
     Args:
         client: The lightkube Client instance.
@@ -118,12 +118,12 @@ def delete_headless_backends_owned_by(
     """
     try:
         for es in client.list(
-            EndpointSlice, namespace=namespace, labels={CREATED_BY_LABEL: app_name}
+            EndpointSlice, namespace=namespace, labels={MANAGED_BY_LABEL: app_name}
         ):
             if es.metadata and es.metadata.name:
                 client.delete(EndpointSlice, name=es.metadata.name, namespace=namespace)
         for service in client.list(
-            Service, namespace=namespace, labels={CREATED_BY_LABEL: app_name}
+            Service, namespace=namespace, labels={MANAGED_BY_LABEL: app_name}
         ):
             if service.metadata and service.metadata.name:
                 client.delete(Service, name=service.metadata.name, namespace=namespace)
@@ -314,7 +314,7 @@ def create_http_routes(
     Args:
         http_route_manager: The HTTPRouteManager to apply and clean up resources.
         app_name: Charm application name used in managed HTTPRoute resource names
-            and as the value of the :data:`CREATED_BY_LABEL` label on headless resources.
+            and as the value of the :data:`MANAGED_BY_LABEL` label on headless resources.
         backend_app_name: Backend workload application name, used to resolve the
             backend Service (its Kubernetes Service name matches this when the port
             is open).

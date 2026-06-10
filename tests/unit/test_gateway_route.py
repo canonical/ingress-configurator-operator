@@ -555,12 +555,12 @@ def test_gateway_route_fallback_headless_service_has_correct_attributes(
     """
     arrange: ingress relation with is_port_open=False and a valid unit IP.
     act: trigger config-changed.
-    assert: the headless Service has clusterIP=None and the CREATED_BY_LABEL label
+    assert: the headless Service has clusterIP=None and the MANAGED_BY_LABEL label
         set to the charm app name.
     """
     from lightkube.resources.core_v1 import Service
 
-    from http_route import CREATED_BY_LABEL
+    from http_route import MANAGED_BY_LABEL
 
     state = ops.testing.State(
         config={"hostname": "example.com"},
@@ -588,7 +588,7 @@ def test_gateway_route_fallback_headless_service_has_correct_attributes(
     assert svc_calls, "no Service was applied"
     svc = svc_calls[0].args[0]
     assert svc.spec.clusterIP == "None"
-    assert svc.metadata.labels.get(CREATED_BY_LABEL) == "ingress-configurator"
+    assert svc.metadata.labels.get(MANAGED_BY_LABEL) == "ingress-configurator"
 
 
 def test_gateway_route_fallback_endpoint_slice_has_correct_attributes(
@@ -599,11 +599,11 @@ def test_gateway_route_fallback_endpoint_slice_has_correct_attributes(
     arrange: ingress relation with is_port_open=False and a unit host of test.local.
     act: trigger config-changed.
     assert: the EndpointSlice has addressType=FQDN, one Endpoint for test.local,
-        the correct service-name label, and the CREATED_BY_LABEL label set to the charm app name.
+        the correct service-name label, and the MANAGED_BY_LABEL label set to the charm app name.
     """
     from lightkube.resources.discovery_v1 import EndpointSlice
 
-    from http_route import CREATED_BY_LABEL
+    from http_route import MANAGED_BY_LABEL
 
     state = ops.testing.State(
         config={"hostname": "example.com"},
@@ -634,7 +634,7 @@ def test_gateway_route_fallback_endpoint_slice_has_correct_attributes(
     assert es.addressType == "FQDN"
     assert es.endpoints[0].addresses == ["test.local"]
     assert es.metadata.labels.get("kubernetes.io/service-name") == headless_name
-    assert es.metadata.labels.get(CREATED_BY_LABEL) == "ingress-configurator"
+    assert es.metadata.labels.get(MANAGED_BY_LABEL) == "ingress-configurator"
 
 
 def test_gateway_route_port_open_cleans_up_stale_headless_resources(
@@ -651,7 +651,7 @@ def test_gateway_route_port_open_cleans_up_stale_headless_resources(
 
     from lightkube.resources.core_v1 import Service
 
-    from http_route import CREATED_BY_LABEL
+    from http_route import MANAGED_BY_LABEL
 
     stale_svc = MagicMock()
     stale_svc.metadata.name = "ingress-configurator-testing-app-headless"
@@ -660,7 +660,7 @@ def test_gateway_route_port_open_cleans_up_stale_headless_resources(
         if (
             resource_type is Service
             and labels
-            and labels.get(CREATED_BY_LABEL) == "ingress-configurator"
+            and labels.get(MANAGED_BY_LABEL) == "ingress-configurator"
         ):
             return [stale_svc]
         return []

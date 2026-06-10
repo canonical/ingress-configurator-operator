@@ -35,8 +35,10 @@ from charms.traefik_k8s.v2.ingress import IngressPerAppProvider, IngressRequirer
 from lightkube import Client
 
 from http_route import (
+    CREATED_BY_LABEL,
     HTTPRouteManager,
     create_http_routes,
+    delete_headless_backends_owned_by,
 )
 from kubernetes import (
     InvalidKubernetesPermissionError,
@@ -55,7 +57,6 @@ from state.haproxy_route_tcp import (
 )
 
 logger = logging.getLogger(__name__)
-CREATED_BY_LABEL = "ingress-configurator.charm.juju.is/managed-by"
 
 
 class IngressConfiguratorCharm(ops.CharmBase):
@@ -300,6 +301,12 @@ class IngressConfiguratorCharm(ops.CharmBase):
         ingress_relation = self.model.get_relation(self._ingress.relation_name)
         if ingress_relation is None:
             logger.error("Ingress relation required.")
+            try:
+                delete_headless_backends_owned_by(
+                    self.lightkube_client, self.model.name, self.app.name
+                )
+            except InvalidKubernetesPermissionError:
+                logger.exception("Failed to clean up headless resources.")
             self.unit.status = ops.BlockedStatus("Ingress relation required.")
             return
 
@@ -344,22 +351,24 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self.unit.status = ops.WaitingStatus("Invalid gateway-route provider data")
             return
 
-        manager = HTTPRouteManager(
+        route_manager = HTTPRouteManager(
             client=self.lightkube_client,
             namespace=self.model.name,
             labels={CREATED_BY_LABEL: self.app.name},
         )
         try:
             create_http_routes(
-                http_route_manager=manager,
+                http_route_manager=route_manager,
                 app_name=self.app.name,
                 gateway_name=provider_data.gateway_name,
                 gateway_model=provider_data.gateway_model,
                 https_mode=provider_data.https_mode,
                 hostnames=state.hostnames,
                 paths=state.paths,
-                backend_service_name=state.application_name,
-                backend_service_port=state.port,
+                backend_app_name=state.application_name,
+                backend_service_port=state.backend_port,
+                is_port_open=state.is_port_open,
+                backend_addresses=state.backend_addresses,
             )
         except InvalidKubernetesPermissionError as exc:
             self.unit.status = ops.BlockedStatus(str(exc))

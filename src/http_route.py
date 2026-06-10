@@ -6,10 +6,13 @@
 import dataclasses
 import logging
 
-from lightkube import Client
-from lightkube.exceptions import ApiError
+from lightkube import ApiError, Client
 from lightkube.generic_resource import create_namespaced_resource
+from lightkube.models.core_v1 import ServicePort, ServiceSpec
+from lightkube.models.discovery_v1 import Endpoint, EndpointPort
 from lightkube.models.meta_v1 import ObjectMeta
+from lightkube.resources.core_v1 import Service
+from lightkube.resources.discovery_v1 import EndpointSlice
 
 from kubernetes import InvalidKubernetesPermissionError
 
@@ -18,10 +21,104 @@ logger = logging.getLogger(__name__)
 CUSTOM_RESOURCE_GROUP_NAME = "gateway.networking.k8s.io"
 HTTP_ROUTE_RESOURCE_NAME = "HTTPRoute"
 HTTP_ROUTE_PLURAL = "httproutes"
+CREATED_BY_LABEL = "ingress-configurator.charm.juju.is/managed-by"
+
 
 HTTPRouteResource = create_namespaced_resource(
     CUSTOM_RESOURCE_GROUP_NAME, "v1", HTTP_ROUTE_RESOURCE_NAME, HTTP_ROUTE_PLURAL
 )
+
+
+def apply_headless_backend(
+    client: Client,
+    namespace: str,
+    name: str,
+    addresses: list[str],
+    port: int,
+    app_name: str,
+) -> None:
+    """Create or update a headless Service and its associated EndpointSlice.
+
+    Both resources share ``name`` and are labelled with :data:`HEADLESS_LABEL`
+    so they can be found and cleaned up later.
+
+    Args:
+        client: The lightkube Client instance.
+        namespace: The Kubernetes namespace to create resources in.
+        name: Name for both the Service and the EndpointSlice.
+        addresses: FQDNs or IP addresses for the endpoints.
+        port: The port to expose.
+        app_name: Owning charm name, used as the value of the :data:`CREATED_BY_LABEL` label.
+
+    Raises:
+        InvalidKubernetesPermissionError: When the charm lacks RBAC permissions.
+    """
+    service = Service(
+        metadata=ObjectMeta(
+            name=name,
+            namespace=namespace,
+            labels={CREATED_BY_LABEL: app_name},
+        ),
+        spec=ServiceSpec(
+            clusterIP="None",
+            ports=[ServicePort(port=port)],
+        ),
+    )
+    try:
+        client.apply(service, field_manager=app_name, force=True)
+    except ApiError as e:
+        if e.status.code == 403:
+            raise InvalidKubernetesPermissionError(
+                "This charm needs --trust to run on k8s substrates"
+            ) from e
+        raise
+
+    if not addresses:
+        return
+
+    endpoint_slice = EndpointSlice(
+        addressType="FQDN",
+        metadata=ObjectMeta(
+            name=name,
+            namespace=namespace,
+            labels={
+                "kubernetes.io/service-name": name,
+                CREATED_BY_LABEL: app_name,
+            },
+        ),
+        endpoints=[Endpoint(addresses=[addr]) for addr in addresses],
+        ports=[EndpointPort(port=port)],
+    )
+    try:
+        client.apply(endpoint_slice, field_manager=app_name, force=True)
+    except ApiError as e:
+        if e.status.code == 403:
+            raise InvalidKubernetesPermissionError(
+                "This charm needs --trust to run on k8s substrates"
+            ) from e
+        raise
+
+
+def delete_headless_backends_owned_by(
+    client: Client,
+    namespace: str,
+    app_name: str,
+) -> None:
+    """Delete all headless EndpointSlices and Services owned by ``app_name``.
+
+    Resources are identified by a :data:`CREATED_BY_LABEL` label matching ``app_name``.
+
+    Args:
+        client: The lightkube Client instance.
+        namespace: The Kubernetes namespace to search in.
+        app_name: The owning charm name to match.
+    """
+    for es in client.list(EndpointSlice, namespace=namespace, labels={CREATED_BY_LABEL: app_name}):
+        if es.metadata and es.metadata.name:
+            client.delete(EndpointSlice, name=es.metadata.name, namespace=namespace)
+    for service in client.list(Service, namespace=namespace, labels={CREATED_BY_LABEL: app_name}):
+        if service.metadata and service.metadata.name:
+            client.delete(Service, name=service.metadata.name, namespace=namespace)
 
 
 @dataclasses.dataclass
@@ -185,27 +282,56 @@ class HTTPRouteManager:
 def create_http_routes(
     http_route_manager: HTTPRouteManager,
     app_name: str,
+    backend_app_name: str,
     gateway_name: str,
     gateway_model: str,
     https_mode: str,
     hostnames: list[str],
     paths: list[str],
-    backend_service_name: str,
     backend_service_port: int,
+    is_port_open: bool,
+    backend_addresses: list[str],
 ) -> None:
     """Create HTTPRoute K8s resources based on https_mode.
 
+    Resolves the backend Service name (creating a headless Service/EndpointSlice
+    when the workload port is not yet open) before applying the HTTPRoute resources.
+
     Args:
         http_route_manager: The HTTPRouteManager to apply and clean up resources.
-        app_name: Application name used in managed HTTPRoute resource names.
+        app_name: Charm application name used in managed HTTPRoute resource names
+            and as the ``owning-charm`` annotation on headless resources.
+        backend_app_name: Backend workload application name, used to resolve the
+            backend Service (its Kubernetes Service name matches this when the port
+            is open).
         gateway_name: Name of the Gateway K8s resource.
         gateway_model: Name of the model running the Gateway.
         https_mode: One of "disabled", "enabled", "enforced".
         hostnames: List of hostnames for the HTTPRoute.
         paths: List of path prefixes.
-        backend_service_name: Name of the backend K8s Service.
         backend_service_port: Port of the backend Service.
+        is_port_open: Whether the backend workload has opened the ingress port.
+        backend_addresses: Unit hosts used when falling back to a headless Service.
+
+    Raises:
+        InvalidKubernetesPermissionError: When the charm lacks RBAC permissions.
     """
+    if is_port_open:
+        delete_headless_backends_owned_by(
+            http_route_manager.client, http_route_manager.namespace, app_name
+        )
+        backend_service_name = backend_app_name
+    else:
+        headless_name = f"{app_name}-{backend_app_name}-headless"
+        apply_headless_backend(
+            http_route_manager.client,
+            http_route_manager.namespace,
+            headless_name,
+            backend_addresses,
+            backend_service_port,
+            app_name,
+        )
+        backend_service_name = headless_name
     managed_names = []
 
     route_specs: list[str] = ["http"]
@@ -218,7 +344,7 @@ def create_http_routes(
             scheme=scheme,
             gateway_name=gateway_name,
             gateway_namespace=gateway_model,
-            listener_name=f"{gateway_name}-{scheme}",
+            listener_name=f"{gateway_name}-{scheme}-listener",
             hostnames=hostnames,
             paths=paths,
             backend_service_name=backend_service_name,

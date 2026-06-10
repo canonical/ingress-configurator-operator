@@ -5,6 +5,7 @@
 
 import json
 from typing import TYPE_CHECKING
+from unittest.mock import ANY
 
 import ops.testing
 import pytest
@@ -18,8 +19,9 @@ INGRESS_REMOTE_APP_DATA = {
     "model": '"testing-model"',
     "name": '"testing-app"',
     "port": "8080",
+    "is_port_open": "true",
 }
-INGRESS_REMOTE_UNITS_DATA = {0: {"host": '"test.local"'}}
+INGRESS_REMOTE_UNITS_DATA = {0: {"host": '"test.local"', "ip": '"10.0.0.1"'}}
 
 GATEWAY_ROUTE_PROVIDER_DATA = {
     "gateway_name": '"my-gateway"',
@@ -185,7 +187,7 @@ def test_gateway_route_https_backend_protocol_blocked(
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
     assert isinstance(out.unit_status, ops.testing.BlockedStatus)
-    assert "https" in out.unit_status.message
+    assert "backend_protocol" in out.unit_status.message
 
 
 @pytest.mark.usefixtures("mock_lightkube")
@@ -276,7 +278,7 @@ def test_gateway_route_https_mode_enforced(
 
     # HTTP route: 301 redirect to HTTPS, http-listener
     assert http_resource.metadata.name == "ingress-configurator-testing-app-http"
-    assert http_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http"
+    assert http_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http-listener"
     http_rule = http_resource.spec["rules"][0]
     assert http_rule["filters"][0]["type"] == "RequestRedirect"
     assert http_rule["filters"][0]["requestRedirect"]["scheme"] == "https"
@@ -285,7 +287,7 @@ def test_gateway_route_https_mode_enforced(
 
     # HTTPS route: forwards to backend, https-listener
     assert https_resource.metadata.name == "ingress-configurator-testing-app-https"
-    assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https"
+    assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https-listener"
     https_rule = https_resource.spec["rules"][0]
     assert https_rule["backendRefs"][0]["port"] == 8080
     assert "filters" not in https_rule
@@ -358,7 +360,7 @@ def test_gateway_route_https_mode_disabled(
     resource = single_call.args[0]
 
     assert resource.metadata.name == "ingress-configurator-testing-app-http"
-    assert resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http"
+    assert resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http-listener"
     rule = resource.spec["rules"][0]
     assert rule["backendRefs"][0]["port"] == 8080
     assert "filters" not in rule
@@ -403,13 +405,13 @@ def test_gateway_route_https_mode_enabled(
 
     # Both routes forward to the backend
     assert http_resource.metadata.name == "ingress-configurator-testing-app-http"
-    assert http_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http"
+    assert http_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http-listener"
     http_rule = http_resource.spec["rules"][0]
     assert http_rule["backendRefs"][0]["port"] == 8080
     assert "filters" not in http_rule
 
     assert https_resource.metadata.name == "ingress-configurator-testing-app-https"
-    assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https"
+    assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https-listener"
     https_rule = https_resource.spec["rules"][0]
     assert https_rule["backendRefs"][0]["port"] == 8080
     assert "filters" not in https_rule
@@ -479,3 +481,242 @@ def test_gateway_route_waiting_for_invalid_provider_data(
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
     assert out.unit_status == ops.testing.WaitingStatus("Invalid gateway-route provider data")
+
+
+# ---------------------------------------------------------------------------
+# Fallback (ports not open) tests
+# ---------------------------------------------------------------------------
+
+INGRESS_PORT_CLOSED_APP_DATA = {
+    "model": '"testing-model"',
+    "name": '"testing-app"',
+    "port": "8080",
+    "is_port_open": "false",
+}
+INGRESS_PORT_CLOSED_UNITS_DATA = {0: {"host": '"test.local"', "ip": '"10.0.0.1"'}}
+
+
+def test_gateway_route_fallback_creates_headless_service_and_endpoint_slice(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    mock_lightkube: "LightkubeClient",
+) -> None:
+    """
+    arrange: ingress relation with is_port_open=False and a valid unit IP.
+    act: trigger config-changed.
+    assert: status is Active; headless Service and EndpointSlice are applied;
+        HTTPRoute backend references the headless Service.
+    """
+    from lightkube.resources.core_v1 import Service
+    from lightkube.resources.discovery_v1 import EndpointSlice
+
+    state = ops.testing.State(
+        config={"hostname": "example.com"},
+        relations=[
+            ops.testing.Relation(
+                endpoint="ingress",
+                remote_app_data=INGRESS_PORT_CLOSED_APP_DATA,
+                remote_units_data=INGRESS_PORT_CLOSED_UNITS_DATA,
+            ),
+            ops.testing.Relation(
+                endpoint="gateway-route",
+                remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
+            ),
+        ],
+        leader=True,
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
+
+    apply_calls = mock_lightkube.apply.call_args_list  # type: ignore[attr-defined]
+    applied_types = [type(call.args[0]) for call in apply_calls]
+
+    assert Service in applied_types, "headless Service was not applied"
+    assert EndpointSlice in applied_types, "EndpointSlice was not applied"
+
+    # Verify the HTTPRoute backend references the headless Service, not the workload Service.
+    headless_name = "ingress-configurator-testing-app-headless"
+    http_route_calls = [
+        call for call in apply_calls if type(call.args[0]) not in (Service, EndpointSlice)
+    ]
+    assert http_route_calls, "no HTTPRoute was applied"
+    for call in http_route_calls:
+        resource = call.args[0]
+        backend_ref = resource.spec["rules"][0].get("backendRefs")
+        if backend_ref is not None:
+            assert backend_ref[0]["name"] == headless_name
+
+
+def test_gateway_route_fallback_headless_service_has_correct_attributes(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    mock_lightkube: "LightkubeClient",
+) -> None:
+    """
+    arrange: ingress relation with is_port_open=False and a valid unit IP.
+    act: trigger config-changed.
+    assert: the headless Service has clusterIP=None and the CREATED_BY_LABEL label
+        set to the charm app name.
+    """
+    from lightkube.resources.core_v1 import Service
+
+    from http_route import CREATED_BY_LABEL
+
+    state = ops.testing.State(
+        config={"hostname": "example.com"},
+        relations=[
+            ops.testing.Relation(
+                endpoint="ingress",
+                remote_app_data=INGRESS_PORT_CLOSED_APP_DATA,
+                remote_units_data=INGRESS_PORT_CLOSED_UNITS_DATA,
+            ),
+            ops.testing.Relation(
+                endpoint="gateway-route",
+                remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
+            ),
+        ],
+        leader=True,
+    )
+
+    context_k8s.run(context_k8s.on.config_changed(), state)
+
+    svc_calls = [
+        call
+        for call in mock_lightkube.apply.call_args_list  # type: ignore[attr-defined]
+        if isinstance(call.args[0], Service)
+    ]
+    assert svc_calls, "no Service was applied"
+    svc = svc_calls[0].args[0]
+    assert svc.spec.clusterIP == "None"
+    assert svc.metadata.labels.get(CREATED_BY_LABEL) == "ingress-configurator"
+
+
+def test_gateway_route_fallback_endpoint_slice_has_correct_attributes(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    mock_lightkube: "LightkubeClient",
+) -> None:
+    """
+    arrange: ingress relation with is_port_open=False and a unit host of test.local.
+    act: trigger config-changed.
+    assert: the EndpointSlice has addressType=FQDN, one Endpoint for test.local,
+        the correct service-name label, and the CREATED_BY_LABEL label set to the charm app name.
+    """
+    from lightkube.resources.discovery_v1 import EndpointSlice
+
+    from http_route import CREATED_BY_LABEL
+
+    state = ops.testing.State(
+        config={"hostname": "example.com"},
+        relations=[
+            ops.testing.Relation(
+                endpoint="ingress",
+                remote_app_data=INGRESS_PORT_CLOSED_APP_DATA,
+                remote_units_data=INGRESS_PORT_CLOSED_UNITS_DATA,
+            ),
+            ops.testing.Relation(
+                endpoint="gateway-route",
+                remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
+            ),
+        ],
+        leader=True,
+    )
+
+    context_k8s.run(context_k8s.on.config_changed(), state)
+
+    es_calls = [
+        call
+        for call in mock_lightkube.apply.call_args_list  # type: ignore[attr-defined]
+        if isinstance(call.args[0], EndpointSlice)
+    ]
+    assert es_calls, "no EndpointSlice was applied"
+    es = es_calls[0].args[0]
+    headless_name = "ingress-configurator-testing-app-headless"
+    assert es.addressType == "FQDN"
+    assert es.endpoints[0].addresses == ["test.local"]
+    assert es.metadata.labels.get("kubernetes.io/service-name") == headless_name
+    assert es.metadata.labels.get(CREATED_BY_LABEL) == "ingress-configurator"
+
+
+def test_gateway_route_port_open_cleans_up_stale_headless_resources(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    mock_lightkube: "LightkubeClient",
+) -> None:
+    """
+    arrange: ingress relation with is_port_open=True; mock client.list returns a
+        stale headless Service from a previous run.
+    act: trigger config-changed.
+    assert: status is Active; the stale headless Service is deleted.
+    """
+    from unittest.mock import MagicMock
+
+    from lightkube.resources.core_v1 import Service
+
+    from http_route import CREATED_BY_LABEL
+
+    stale_svc = MagicMock()
+    stale_svc.metadata.name = "ingress-configurator-testing-app-headless"
+
+    def list_side_effect(resource_type: type, labels: dict | None = None, **_: object) -> list:
+        if (
+            resource_type is Service
+            and labels
+            and labels.get(CREATED_BY_LABEL) == "ingress-configurator"
+        ):
+            return [stale_svc]
+        return []
+
+    mock_lightkube.list.side_effect = list_side_effect  # type: ignore[attr-defined]
+
+    state = ops.testing.State(
+        config={"hostname": "example.com"},
+        relations=[
+            ops.testing.Relation(
+                endpoint="ingress",
+                remote_app_data=INGRESS_REMOTE_APP_DATA,
+                remote_units_data=INGRESS_REMOTE_UNITS_DATA,
+            ),
+            ops.testing.Relation(
+                endpoint="gateway-route",
+                remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
+            ),
+        ],
+        leader=True,
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
+    mock_lightkube.delete.assert_called_once_with(  # type: ignore[attr-defined]
+        Service, name="ingress-configurator-testing-app-headless", namespace=ANY
+    )
+
+
+def test_gateway_route_fallback_blocked_when_no_units(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    mock_lightkube: "LightkubeClient",
+) -> None:
+    """
+    arrange: ingress relation with is_port_open=False and no units.
+    act: trigger config-changed.
+    assert: status is Blocked because there are no backend addresses.
+    """
+    state = ops.testing.State(
+        config={"hostname": "example.com"},
+        relations=[
+            ops.testing.Relation(
+                endpoint="ingress",
+                remote_app_data=INGRESS_PORT_CLOSED_APP_DATA,
+                remote_units_data={},
+            ),
+            ops.testing.Relation(
+                endpoint="gateway-route",
+                remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
+            ),
+        ],
+        leader=True,
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+
+    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
+    assert "Invalid gateway-route configuration" in out.unit_status.message

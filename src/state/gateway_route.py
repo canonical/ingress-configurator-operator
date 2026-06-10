@@ -30,9 +30,9 @@ class GatewayRouteState:
     Attributes:
         application_name: Name of the backend application (from ingress relation).
         model_name: Model the backend application is in (from ingress relation).
-        port: Port the backend application listens on (from ingress relation).
+        backend_port: Port the backend application listens on (from ingress relation).
         is_port_open: Whether the backend application has opened the required port.
-        backend_addresses: Unit IP addresses to use when is_port_open is False.
+        backend_addresses: Unit hostnames (FQDNs) to use when is_port_open is False.
         backend_protocol: Protocol used to reach the backend (must not be 'https').
         hostname: Optional hostname to route traffic to.
         additional_hostnames: Additional hostnames to route traffic to.

@@ -193,3 +193,29 @@ def test_delete_headless_backends_owned_by_no_resources():
     delete_headless_backends_owned_by(client, "testing-model", "my-charm")
 
     client.delete.assert_not_called()
+
+
+def test_delete_headless_backends_owned_by_raises_on_403():
+    """
+    arrange: client raises ApiError 403 on list
+    act: call delete_headless_backends_owned_by
+    assert: InvalidKubernetesPermissionError is raised
+    """
+    client = MagicMock()
+    client.list.side_effect = _make_api_error(403)
+
+    with pytest.raises(InvalidKubernetesPermissionError, match="--trust"):
+        delete_headless_backends_owned_by(client, "testing-model", "my-charm")
+
+
+def test_delete_headless_backends_owned_by_reraises_other_api_errors():
+    """
+    arrange: client raises ApiError 500 on list
+    act: call delete_headless_backends_owned_by
+    assert: the ApiError is re-raised
+    """
+    client = MagicMock()
+    client.list.side_effect = _make_api_error(500)
+
+    with pytest.raises(ApiError):
+        delete_headless_backends_owned_by(client, "testing-model", "my-charm")

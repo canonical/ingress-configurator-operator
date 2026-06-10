@@ -112,13 +112,27 @@ def delete_headless_backends_owned_by(
         client: The lightkube Client instance.
         namespace: The Kubernetes namespace to search in.
         app_name: The owning charm name to match.
+
+    Raises:
+        InvalidKubernetesPermissionError: When the charm lacks RBAC permissions.
     """
-    for es in client.list(EndpointSlice, namespace=namespace, labels={CREATED_BY_LABEL: app_name}):
-        if es.metadata and es.metadata.name:
-            client.delete(EndpointSlice, name=es.metadata.name, namespace=namespace)
-    for service in client.list(Service, namespace=namespace, labels={CREATED_BY_LABEL: app_name}):
-        if service.metadata and service.metadata.name:
-            client.delete(Service, name=service.metadata.name, namespace=namespace)
+    try:
+        for es in client.list(
+            EndpointSlice, namespace=namespace, labels={CREATED_BY_LABEL: app_name}
+        ):
+            if es.metadata and es.metadata.name:
+                client.delete(EndpointSlice, name=es.metadata.name, namespace=namespace)
+        for service in client.list(
+            Service, namespace=namespace, labels={CREATED_BY_LABEL: app_name}
+        ):
+            if service.metadata and service.metadata.name:
+                client.delete(Service, name=service.metadata.name, namespace=namespace)
+    except ApiError as e:
+        if e.status.code == 403:
+            raise InvalidKubernetesPermissionError(
+                "This charm needs --trust to run on k8s substrates"
+            ) from e
+        raise
 
 
 @dataclasses.dataclass

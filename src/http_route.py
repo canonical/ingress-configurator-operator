@@ -314,7 +314,7 @@ def create_http_routes(
     Args:
         http_route_manager: The HTTPRouteManager to apply and clean up resources.
         app_name: Charm application name used in managed HTTPRoute resource names
-            and as the ``owning-charm`` annotation on headless resources.
+            and as the value of the :data:`CREATED_BY_LABEL` label on headless resources.
         backend_app_name: Backend workload application name, used to resolve the
             backend Service (its Kubernetes Service name matches this when the port
             is open).

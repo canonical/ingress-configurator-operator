@@ -1,3 +1,4 @@
+(how_to_upgrade)=
 # How to upgrade
 
 Upgrade the `ingress-configurator` charm with the `refresh` command:

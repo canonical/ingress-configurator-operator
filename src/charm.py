@@ -318,7 +318,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
         if ingress_relation:
             try:
-                delete_headless_backends_owned_by(self.lightkube_client, self.model.name, self.app.name)
+                delete_headless_backends_owned_by(
+                    self.lightkube_client, self.model.name, self.app.name
+                )
             except InvalidKubernetesPermissionError as exc:
                 self.unit.status = ops.BlockedStatus(str(exc))
                 return

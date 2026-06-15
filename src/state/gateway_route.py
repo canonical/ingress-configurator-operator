@@ -194,7 +194,7 @@ class GatewayRouteIntegratorState(GatewayRouteState):
         port_values = [p.strip() for p in raw_ports.split(CHARM_CONFIG_DELIMITER) if p.strip()]
         if len(port_values) != 1:
             raise InvalidGatewayRouteStateError(
-                "gateway-route integrator mode requires exactly one port in backend-ports."
+                "gateway-route requires exactly one port in backend-ports."
             )
         try:
             backend_port = int(port_values[0])

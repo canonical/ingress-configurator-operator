@@ -5,6 +5,7 @@ myst:
 ---
 
 (how_to_haproxy_integrate_tcp_non_charm_workload)=
+
 # How to route TCP traffic to a non-charmed workload through HAProxy
 
 This guide shows how to use the `ingress-configurator` charm to route raw TCP

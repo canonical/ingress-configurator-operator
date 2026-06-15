@@ -317,6 +317,11 @@ class IngressConfiguratorCharm(ops.CharmBase):
             return
 
         if ingress_relation:
+            try:
+                delete_headless_backends_owned_by(self.lightkube_client, self.model.name, self.app.name)
+            except InvalidKubernetesPermissionError as exc:
+                self.unit.status = ops.BlockedStatus(str(exc))
+                return
             if not self._ingress.is_ready():
                 logger.info("Ingress relation exists but is not ready. Waiting for ingress data.")
                 self.unit.status = ops.WaitingStatus("Waiting for ingress relation data.")
@@ -331,8 +336,14 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 delete_headless_backends_owned_by(
                     self.lightkube_client, self.model.name, self.app.name
                 )
-            except InvalidKubernetesPermissionError:
-                logger.exception("Failed to clean up headless resources.")
+                HTTPRouteManager(
+                    client=self.lightkube_client,
+                    namespace=self.model.name,
+                    labels={MANAGED_BY_LABEL: self.app.name},
+                ).delete_stale()
+            except InvalidKubernetesPermissionError as exc:
+                self.unit.status = ops.BlockedStatus(str(exc))
+                return
             self.unit.status = ops.BlockedStatus("Ingress relation or backend config required.")
 
     def _reconcile_gateway_route_adapter(
@@ -351,12 +362,6 @@ class IngressConfiguratorCharm(ops.CharmBase):
             return
 
         if not state.is_port_open:
-            try:
-                delete_headless_backends_owned_by(
-                    self.lightkube_client, self.model.name, self.app.name
-                )
-            except InvalidKubernetesPermissionError:
-                logger.exception("Failed to clean up headless resources.")
             self.unit.status = ops.BlockedStatus(
                 "Workload port is not open. Gateway-route adapter mode requires the port to be open."
             )
@@ -378,13 +383,6 @@ class IngressConfiguratorCharm(ops.CharmBase):
             logger.exception("Invalid gateway-route provider data.")
             self.unit.status = ops.WaitingStatus("Invalid gateway-route provider data")
             return
-
-        try:
-            delete_headless_backends_owned_by(
-                self.lightkube_client, self.model.name, self.app.name
-            )
-        except InvalidKubernetesPermissionError:
-            logger.exception("Failed to clean up headless resources.")
 
         route_manager = HTTPRouteManager(
             client=self.lightkube_client,

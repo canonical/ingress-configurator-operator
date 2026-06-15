@@ -4,7 +4,9 @@
 """HTTPRoute resource management for gateway-route mode."""
 
 import dataclasses
+import ipaddress
 import logging
+from typing import Literal
 
 from lightkube import ApiError, Client
 from lightkube.generic_resource import create_namespaced_resource
@@ -33,9 +35,10 @@ def apply_headless_backend(
     client: Client,
     namespace: str,
     name: str,
-    addresses: list[str],
+    backend_addresses: list[ipaddress.IPv4Address] | list[ipaddress.IPv6Address],
     port: int,
     app_name: str,
+    address_type: Literal["IPv4", "IPv6"],
 ) -> None:
     """Create or update a headless Service and its associated EndpointSlice.
 
@@ -46,9 +49,10 @@ def apply_headless_backend(
         client: The lightkube Client instance.
         namespace: The Kubernetes namespace to create resources in.
         name: Name for both the Service and the EndpointSlice.
-        addresses: FQDNs for the endpoints.
+        backend_addresses: IP addresses for the endpoints. Must be non-empty.
         port: The port to expose.
         app_name: Owning charm name, used as the value of the :data:`MANAGED_BY_LABEL` label.
+        address_type: EndpointSlice addressType — ``"IPv4"`` or ``"IPv6"``.
 
     Raises:
         InvalidKubernetesPermissionError: When the charm lacks RBAC permissions.
@@ -73,11 +77,8 @@ def apply_headless_backend(
             ) from e
         raise
 
-    if not addresses:
-        return
-
     endpoint_slice = EndpointSlice(
-        addressType="FQDN",
+        addressType=address_type,
         metadata=ObjectMeta(
             name=name,
             namespace=namespace,
@@ -86,7 +87,7 @@ def apply_headless_backend(
                 MANAGED_BY_LABEL: app_name,
             },
         ),
-        endpoints=[Endpoint(addresses=[addr]) for addr in addresses],
+        endpoints=[Endpoint(addresses=[str(addr)]) for addr in backend_addresses],
         ports=[EndpointPort(port=port)],
     )
     try:
@@ -296,56 +297,30 @@ class HTTPRouteManager:
 def create_http_routes(
     http_route_manager: HTTPRouteManager,
     app_name: str,
-    backend_app_name: str,
     gateway_name: str,
     gateway_model: str,
     https_mode: str,
     hostnames: list[str],
     paths: list[str],
+    backend_service_name: str,
     backend_service_port: int,
-    is_port_open: bool,
-    backend_addresses: list[str],
 ) -> None:
     """Create HTTPRoute K8s resources based on https_mode.
 
-    Resolves the backend Service name (creating a headless Service/EndpointSlice
-    when the workload port is not yet open) before applying the HTTPRoute resources.
-
     Args:
         http_route_manager: The HTTPRouteManager to apply and clean up resources.
-        app_name: Charm application name used in managed HTTPRoute resource names
-            and as the value of the :data:`MANAGED_BY_LABEL` label on headless resources.
-        backend_app_name: Backend workload application name, used to resolve the
-            backend Service (its Kubernetes Service name matches this when the port
-            is open).
+        app_name: Charm application name used in managed HTTPRoute resource names.
         gateway_name: Name of the Gateway K8s resource.
         gateway_model: Name of the model running the Gateway.
         https_mode: One of "disabled", "enabled", "enforced".
         hostnames: List of hostnames for the HTTPRoute.
         paths: List of path prefixes.
+        backend_service_name: Name of the K8s Service to route traffic to.
         backend_service_port: Port of the backend Service.
-        is_port_open: Whether the backend workload has opened the ingress port.
-        backend_addresses: Unit hosts used when falling back to a headless Service.
 
     Raises:
         InvalidKubernetesPermissionError: When the charm lacks RBAC permissions.
     """
-    if is_port_open:
-        delete_headless_backends_owned_by(
-            http_route_manager.client, http_route_manager.namespace, app_name
-        )
-        backend_service_name = backend_app_name
-    else:
-        headless_name = f"{app_name}-{backend_app_name}-headless"
-        apply_headless_backend(
-            http_route_manager.client,
-            http_route_manager.namespace,
-            headless_name,
-            backend_addresses,
-            backend_service_port,
-            app_name,
-        )
-        backend_service_name = headless_name
     managed_names = []
 
     route_specs: list[str] = ["http"]

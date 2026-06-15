@@ -34,10 +34,10 @@ def _make_endpoint_slice(name: str) -> MagicMock:
 def test_apply_headless_backend_creates_correct_resources():
     """
     arrange: mock a lightkube client
-    act: call apply_headless_backend with name "my-app-headless", FQDN addresses,
-        port 8080, and charm_name "my-charm"
+    act: call apply_headless_backend with name "my-app-headless", IPv4 addresses,
+        port 8080, charm_name "my-charm", and address_type "IPv4"
     assert: client.apply is called twice — first with a headless Service (clusterIP=None,
-        correct labels/annotations/port), then with an EndpointSlice (addressType=FQDN,
+        correct labels/annotations/port), then with an EndpointSlice (addressType=IPv4,
         correct endpoints, service-name label, owning-charm annotation)
     """
     from lightkube.resources.core_v1 import Service
@@ -49,9 +49,10 @@ def test_apply_headless_backend_creates_correct_resources():
         client,
         "testing-model",
         "my-app-headless",
-        ["backend-a.example.com", "backend-b.example.com"],
+        ["10.0.0.1", "10.0.0.2"],
         8080,
         "my-charm",
+        "IPv4",
     )
 
     assert client.apply.call_count == 2
@@ -69,10 +70,10 @@ def test_apply_headless_backend_creates_correct_resources():
     assert svc.spec.ports is not None
     assert svc.spec.ports[0].port == 8080
 
-    assert es.addressType == "FQDN"
+    assert es.addressType == "IPv4"
     assert len(es.endpoints) == 2
-    assert es.endpoints[0].addresses == ["backend-a.example.com"]
-    assert es.endpoints[1].addresses == ["backend-b.example.com"]
+    assert es.endpoints[0].addresses == ["10.0.0.1"]
+    assert es.endpoints[1].addresses == ["10.0.0.2"]
     assert es.ports is not None
     assert es.ports[0].port == 8080
     assert es.metadata is not None
@@ -92,7 +93,7 @@ def test_apply_headless_backend_raises_on_service_403():
 
     with pytest.raises(InvalidKubernetesPermissionError, match="--trust"):
         apply_headless_backend(
-            client, "testing-model", "my-app-headless", ["10.0.0.1"], 8080, "my-charm"
+            client, "testing-model", "my-app-headless", ["10.0.0.1"], 8080, "my-charm", "IPv4"
         )
 
     assert client.apply.call_count == 1
@@ -117,7 +118,7 @@ def test_apply_headless_backend_raises_on_endpoint_slice_403():
 
     with pytest.raises(InvalidKubernetesPermissionError, match="--trust"):
         apply_headless_backend(
-            client, "testing-model", "my-app-headless", ["10.0.0.1"], 8080, "my-charm"
+            client, "testing-model", "my-app-headless", ["10.0.0.1"], 8080, "my-charm", "IPv4"
         )
 
 
@@ -132,7 +133,7 @@ def test_apply_headless_backend_reraises_other_api_errors():
 
     with pytest.raises(ApiError):
         apply_headless_backend(
-            client, "testing-model", "my-app-headless", ["10.0.0.1"], 8080, "my-charm"
+            client, "testing-model", "my-app-headless", ["10.0.0.1"], 8080, "my-charm", "IPv4"
         )
 
 

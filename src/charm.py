@@ -37,6 +37,7 @@ from lightkube import Client
 from http_route import (
     MANAGED_BY_LABEL,
     HTTPRouteManager,
+    apply_headless_backend,
     create_http_routes,
     delete_headless_backends_owned_by,
 )
@@ -46,7 +47,11 @@ from kubernetes import (
     ensure_nodeport_service,
     get_kubernetes_data,
 )
-from state.gateway_route import GatewayRouteState, InvalidGatewayRouteStateError
+from state.gateway_route import (
+    GatewayRouteAdapterState,
+    GatewayRouteIntegratorState,
+    InvalidGatewayRouteStateError,
+)
 from state.haproxy_route import (
     HaproxyRouteState,
     InvalidHaproxyRouteStateError,
@@ -287,10 +292,14 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
         Mode selection:
         - Guard: not Kubernetes → blocked.
-        - Guard: no ingress relation → blocked.
+        - Guard: ingress relation AND integrator config both set → ambiguous, blocked.
         - Guard: ingress relation present but requirer not ready → wait for data.
         - Adapter: ingress data available on Kubernetes substrate.
+        - Integrator: no ingress relation; backend-addresses (IPs) and a single backend-ports
+            value set in config.
+        - Blocked: neither ingress relation nor backend config is present.
         """
+        self.unit.status = ops.MaintenanceStatus("Configuring gateway route")
         if not self.is_kubernetes():
             logger.error("Gateway-route integration is only supported on Kubernetes substrates.")
             self.unit.status = ops.BlockedStatus(
@@ -299,25 +308,32 @@ class IngressConfiguratorCharm(ops.CharmBase):
             return
 
         ingress_relation = self.model.get_relation(self._ingress.relation_name)
-        if ingress_relation is None:
-            logger.error("Ingress relation required.")
+        has_integrator_config = GatewayRouteIntegratorState.has_integrator_config(self)
+
+        if ingress_relation and has_integrator_config:
+            self.unit.status = ops.BlockedStatus(
+                "Remove backend config or the ingress relation - only one can be used at a time."
+            )
+            return
+
+        if ingress_relation:
+            if not self._ingress.is_ready():
+                logger.info("Ingress relation exists but is not ready. Waiting for ingress data.")
+                self.unit.status = ops.WaitingStatus("Waiting for ingress relation data.")
+                return
+            self._reconcile_gateway_route_adapter(
+                self._ingress.get_data(ingress_relation), ingress_relation
+            )
+        elif has_integrator_config:
+            self._reconcile_gateway_route_integrator()
+        else:
             try:
                 delete_headless_backends_owned_by(
                     self.lightkube_client, self.model.name, self.app.name
                 )
             except InvalidKubernetesPermissionError:
                 logger.exception("Failed to clean up headless resources.")
-            self.unit.status = ops.BlockedStatus("Ingress relation required.")
-            return
-
-        if not self._ingress.is_ready():
-            logger.info("Ingress relation exists but is not ready. Waiting for ingress data.")
-            self.unit.status = ops.WaitingStatus("Waiting for ingress relation data.")
-            return
-
-        self._reconcile_gateway_route_adapter(
-            self._ingress.get_data(ingress_relation), ingress_relation
-        )
+            self.unit.status = ops.BlockedStatus("Ingress relation or backend config required.")
 
     def _reconcile_gateway_route_adapter(
         self,
@@ -328,9 +344,93 @@ class IngressConfiguratorCharm(ops.CharmBase):
         self.unit.status = ops.MaintenanceStatus("Configuring gateway route")
 
         try:
-            state = GatewayRouteState.build_for_adapter_mode(self, ingress_data)
+            state = GatewayRouteAdapterState.build_from_charm(self, ingress_data)
         except InvalidGatewayRouteStateError as exc:
             logger.exception("Invalid gateway-route config.")
+            self.unit.status = ops.BlockedStatus(str(exc))
+            return
+
+        if not state.is_port_open:
+            try:
+                delete_headless_backends_owned_by(
+                    self.lightkube_client, self.model.name, self.app.name
+                )
+            except InvalidKubernetesPermissionError:
+                logger.exception("Failed to clean up headless resources.")
+            self.unit.status = ops.BlockedStatus(
+                "Workload port is not open. Gateway-route adapter mode requires the port to be open."
+            )
+            return
+
+        try:
+            self._gateway_route.publish_requirer_data(
+                hostname=state.hostname,
+                additional_hostnames=list(state.additional_hostnames),
+            )
+        except GatewayRouteInvalidRelationDataError as exc:
+            logger.exception("Invalid gateway-route relation data.")
+            self.unit.status = ops.BlockedStatus(str(exc))
+            return
+
+        try:
+            provider_data = self._gateway_route.get_provider_data()
+        except GatewayRouteInvalidRelationDataError:
+            logger.exception("Invalid gateway-route provider data.")
+            self.unit.status = ops.WaitingStatus("Invalid gateway-route provider data")
+            return
+
+        try:
+            delete_headless_backends_owned_by(
+                self.lightkube_client, self.model.name, self.app.name
+            )
+        except InvalidKubernetesPermissionError:
+            logger.exception("Failed to clean up headless resources.")
+
+        route_manager = HTTPRouteManager(
+            client=self.lightkube_client,
+            namespace=self.model.name,
+            labels={MANAGED_BY_LABEL: self.app.name},
+        )
+        try:
+            create_http_routes(
+                http_route_manager=route_manager,
+                app_name=self.app.name,
+                gateway_name=provider_data.gateway_name,
+                gateway_model=provider_data.gateway_model,
+                https_mode=provider_data.https_mode,
+                hostnames=state.hostnames,
+                paths=state.paths,
+                backend_service_name=state.application_name,
+                backend_service_port=state.backend_port,
+            )
+        except InvalidKubernetesPermissionError as exc:
+            self.unit.status = ops.BlockedStatus(str(exc))
+            return
+
+        if state.hostname:
+            scheme = (
+                "https"
+                if provider_data.https_mode in (HttpsMode.ENABLED, HttpsMode.ENFORCED)
+                else "http"
+            )
+            path = state.paths[0].lstrip("/")
+            endpoint = (
+                f"{scheme}://{state.hostname}/{path}" if path else f"{scheme}://{state.hostname}"
+            )
+            self._ingress.publish_url(ingress_relation, url=endpoint)
+        self.unit.status = ops.ActiveStatus("Ready")
+
+    def _reconcile_gateway_route_integrator(self) -> None:
+        """Reconcile gateway-route in integrator mode.
+
+        Traffic is routed to external backend IPs via a headless Service and
+        EndpointSlice.  There is no ingress relation; backend-addresses (IPs) and
+        a single backend-ports value must be set in config.
+        """
+        try:
+            state = GatewayRouteIntegratorState.build_from_charm(self)
+        except InvalidGatewayRouteStateError as exc:
+            logger.exception("Invalid gateway-route integrator config.")
             self.unit.status = ops.BlockedStatus(str(exc))
             return
 
@@ -351,6 +451,21 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self.unit.status = ops.WaitingStatus("Invalid gateway-route provider data")
             return
 
+        headless_svc_name = f"{self.app.name}-headless"
+        try:
+            apply_headless_backend(
+                self.lightkube_client,
+                self.model.name,
+                headless_svc_name,
+                state.backend_addresses,
+                state.backend_port,
+                self.app.name,
+                state.address_type,
+            )
+        except InvalidKubernetesPermissionError as exc:
+            self.unit.status = ops.BlockedStatus(str(exc))
+            return
+
         route_manager = HTTPRouteManager(
             client=self.lightkube_client,
             namespace=self.model.name,
@@ -365,26 +480,13 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 https_mode=provider_data.https_mode,
                 hostnames=state.hostnames,
                 paths=state.paths,
-                backend_app_name=state.application_name,
+                backend_service_name=headless_svc_name,
                 backend_service_port=state.backend_port,
-                is_port_open=state.is_port_open,
-                backend_addresses=state.backend_addresses,
             )
         except InvalidKubernetesPermissionError as exc:
             self.unit.status = ops.BlockedStatus(str(exc))
             return
 
-        if state.hostname:
-            scheme = (
-                "https"
-                if provider_data.https_mode in (HttpsMode.ENABLED, HttpsMode.ENFORCED)
-                else "http"
-            )
-            path = state.paths[0].lstrip("/")
-            endpoint = (
-                f"{scheme}://{state.hostname}/{path}" if path else f"{scheme}://{state.hostname}"
-            )
-            self._ingress.publish_url(ingress_relation, url=endpoint)
         self.unit.status = ops.ActiveStatus("Ready")
 
     def _reconcile_haproxy_route_tcp(self) -> None:

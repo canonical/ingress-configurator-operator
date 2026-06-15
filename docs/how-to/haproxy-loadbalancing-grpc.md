@@ -5,7 +5,7 @@ myst:
 ---
 
 (how_to_haproxy_loadbalancing_grpc)=
-# How to load balance a gRPC server with HAProxy
+# How to load balance a gRPC server through HAProxy
 
 This guide shows how to configure the `ingress-configurator` charm to expose a
 gRPC backend through HAProxy.

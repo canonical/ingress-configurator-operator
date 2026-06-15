@@ -5,7 +5,7 @@ myst:
 ---
 
 (how_to_add_haproxy_features_to_ingress_requirer)=
-# How to provide HAProxy configuration to ingress requirers
+# How to add HAProxy features to an ingress requirer charm
 
 This guide shows how a charm implementing only the `ingress` relation can
 leverage the additional features of the `haproxy-route` relation with the help

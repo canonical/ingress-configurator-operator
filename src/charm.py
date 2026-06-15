@@ -338,14 +338,14 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 delete_headless_backends_owned_by(
                     self.lightkube_client, self.model.name, self.app.name
                 )
-                HTTPRouteManager(
-                    client=self.lightkube_client,
-                    namespace=self.model.name,
-                    labels={MANAGED_BY_LABEL: self.app.name},
-                ).delete_stale()
             except InvalidKubernetesPermissionError as exc:
                 self.unit.status = ops.BlockedStatus(str(exc))
                 return
+            HTTPRouteManager(
+                client=self.lightkube_client,
+                namespace=self.model.name,
+                labels={MANAGED_BY_LABEL: self.app.name},
+            ).delete_stale()
             self.unit.status = ops.BlockedStatus("Ingress relation or backend config required.")
 
     def _reconcile_gateway_route_adapter(

@@ -10,7 +10,7 @@ Each revision is versioned by the date of the revision.
 
 ### Added
 
-- Added support for `gateway-route` in integration mode for external backends.
+- Added support for `gateway-route` in integrator mode for external backends.
 
 ## 2026-06-01
 

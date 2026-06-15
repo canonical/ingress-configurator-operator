@@ -6,11 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Each revision is versioned by the date of the revision.
 
-## 2026-06-10
+## 2026-06-15
 
 ### Added
 
-- Added support for `gateway-route` in adapter mode for backend with closed ports.
+- Added support for `gateway-route` in integration mode for external backends.
 
 ## 2026-06-01
 

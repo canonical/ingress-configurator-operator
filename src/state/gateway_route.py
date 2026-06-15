@@ -208,7 +208,7 @@ class GatewayRouteIntegratorState(GatewayRouteState):
                 application_name=charm.app.name,
                 model_name=charm.model.name,
                 backend_port=backend_port,
-                backend_addresses=addr_strings,
+                backend_addresses=addr_strings,  # type: ignore[arg-type] # Cast by pydantic
                 backend_protocol=cast(Literal["http"], charm.config.get("backend-protocol")),
                 hostname=hostname,
                 additional_hostnames=additional_hostnames,

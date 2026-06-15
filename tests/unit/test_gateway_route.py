@@ -588,7 +588,7 @@ def test_gateway_route_port_open_cleans_up_stale_headless_resources(
 # Integrator mode tests
 # ---------------------------------------------------------------------------
 
-GATEWAY_ROUTE_INTEGRATOR_CONFIG = {
+GATEWAY_ROUTE_INTEGRATOR_CONFIG: dict[str, str | int | float | bool] = {
     "hostname": "example.com",
     "backend-addresses": "10.0.0.1,10.0.0.2",
     "backend-ports": "8080",
@@ -633,8 +633,11 @@ def test_gateway_route_integrator_happy_path(
     assert EndpointSlice in applied_types, "EndpointSlice was not applied"
 
     svc = next(call.args[0] for call in apply_calls if isinstance(call.args[0], Service))
+    assert svc.metadata is not None
+    assert svc.spec is not None
     assert svc.metadata.name == "ingress-configurator-headless"
     assert svc.spec.clusterIP == "None"
+    assert svc.metadata.labels is not None
     assert svc.metadata.labels.get(MANAGED_BY_LABEL) == "ingress-configurator"
 
     es = next(call.args[0] for call in apply_calls if isinstance(call.args[0], EndpointSlice))
@@ -642,6 +645,8 @@ def test_gateway_route_integrator_happy_path(
     endpoint_addrs = [ep.addresses[0] for ep in es.endpoints]
     assert "10.0.0.1" in endpoint_addrs
     assert "10.0.0.2" in endpoint_addrs
+    assert es.metadata is not None
+    assert es.metadata.labels is not None
     assert es.metadata.labels.get("kubernetes.io/service-name") == "ingress-configurator-headless"
 
     headless_name = "ingress-configurator-headless"

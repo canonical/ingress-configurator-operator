@@ -67,7 +67,7 @@ class GatewayRouteState(ABC):
 
         This is intentionally a presence check — it does not validate the values.
         Use it to detect the absence of backend configuration before attempting
-        to parse the config with build_for_integrator_mode.
+        to parse the config with `build_from_charm`.
 
         Args:
             charm: the ingress-configurator charm.

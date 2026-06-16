@@ -25,13 +25,11 @@ port configured via `external-grpc-port`.
   [gRPC load balancing guide](https://canonical.com/juju/docs/haproxy-charm/latest/how-to/loadbalancing-for-a-grpc-server/)
   for instructions on setting up a gRPC backend (the `flagd` section).
 
-## Deploy the `ingress-configurator` charm
+## Deploy and configure the `ingress-configurator` charm
 
 ```sh
 juju deploy ingress-configurator grpc-configurator --channel=latest/edge
 ```
-
-## Configure the charm
 
 Set the backend address, port, protocol, and hostname. The `backend-protocol`
 must be `https` for gRPC backends:

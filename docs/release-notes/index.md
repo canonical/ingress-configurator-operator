@@ -1,7 +1,7 @@
 ---
 myst:
   html_meta:
-    "description lang=en": "History of stable releases for the Ingress Configurator charm."
+    "description lang=en": "Release process and history of stable releases for the Ingress Configurator charm."
 ---
 
 (release_notes_index)=

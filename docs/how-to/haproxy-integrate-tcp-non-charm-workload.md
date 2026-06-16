@@ -8,7 +8,7 @@ myst:
 
 # How to route TCP traffic to a non-charmed workload through HAProxy
 
-This guide shows how to use the `ingress-configurator` charm to route raw TCP
+You can use the `ingress-configurator` charm to route raw TCP
 traffic from HAProxy to a backend that is not managed by a Juju charm.
 
 Use this approach for protocols other than HTTP/HTTPS/gRPC (for example SSH,

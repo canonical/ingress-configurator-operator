@@ -19,7 +19,7 @@ Deploy an ingress requirer charm:
 juju deploy <ingress-requirer-charm>
 ```
 
-If your charm has a separate action or config step to start the workload,
+If your charm has a separate action or configuration step to start the workload,
 run it now and wait until the unit is `active`.
 
 This guide assumes the ingress requirer charm already works correctly. In this

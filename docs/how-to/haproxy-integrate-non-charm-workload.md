@@ -7,8 +7,7 @@ myst:
 (how_to_haproxy_integrate_non_charm_workload)=
 # How to route HTTP traffic to a non-charmed workload through HAProxy
 
-This guide shows how to use the `ingress-configurator` charm to route traffic
-from HAProxy to a backend application that is not managed by a Juju charm.
+You can use the `ingress-configurator` charm to route traffic from HAProxy to a backend application that is not managed by a Juju charm.
 
 ## Prerequisites
 

@@ -18,11 +18,11 @@ port configured via `external-grpc-port`.
 ## Prerequisites
 
 - A HAProxy deployment with TLS configured. See the
-  [HAProxy getting started tutorial](https://charmhub.io/haproxy/docs) for setup
+  [HAProxy getting started tutorial](https://canonical.com/juju/docs/haproxy-charm/latest/tutorial/getting-started/) for setup
   instructions.
 - A gRPC backend reachable from the Juju model with TLS enabled. See the HAProxy
   operator's
-  [gRPC load balancing guide](https://canonical-haproxy-operator.readthedocs-hosted.com/en/latest/how-to/loadbalancing-for-a-grpc-server.html)
+  [gRPC load balancing guide](https://canonical.com/juju/docs/haproxy-charm/latest/how-to/loadbalancing-for-a-grpc-server/)
   for instructions on setting up a gRPC backend (the `flagd` section).
 
 ## Deploy the `ingress-configurator` charm

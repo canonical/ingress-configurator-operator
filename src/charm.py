@@ -48,8 +48,7 @@ from kubernetes import (
     get_kubernetes_data,
 )
 from state.gateway_route import (
-    GatewayRouteAdapterState,
-    GatewayRouteIntegratorState,
+    GatewayRouteState,
     InvalidGatewayRouteStateError,
 )
 from state.haproxy_route import (
@@ -315,7 +314,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             return
 
         ingress_relation = self.model.get_relation(self._ingress.relation_name)
-        has_integrator_config = GatewayRouteIntegratorState.has_integrator_config(self)
+        has_integrator_config = GatewayRouteState.has_integrator_config(self)
 
         if ingress_relation and has_integrator_config:
             self.unit.status = ops.BlockedStatus(
@@ -364,16 +363,24 @@ class IngressConfiguratorCharm(ops.CharmBase):
         self.unit.status = ops.MaintenanceStatus("Configuring gateway route")
 
         try:
-            state = GatewayRouteAdapterState.build_from_charm(self, ingress_data)
+            state = GatewayRouteState.build_for_adapter_mode(self, ingress_data)
         except InvalidGatewayRouteStateError as exc:
             logger.exception("Invalid gateway-route config.")
             self.unit.status = ops.BlockedStatus(str(exc))
             return
 
-        if not state.is_port_open:
+        if not state.adapter.is_port_open:
             self.unit.status = ops.BlockedStatus(
                 "Workload port is not open. Gateway-route adapter mode requires the port to be open."
             )
+            return
+
+        try:
+            delete_headless_backends_owned_by(
+                self.lightkube_client, self.model.name, self.app.name
+            )
+        except InvalidKubernetesPermissionError as exc:
+            self.unit.status = ops.BlockedStatus(str(exc))
             return
 
         try:
@@ -435,7 +442,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         a single backend-ports value must be set in config.
         """
         try:
-            state = GatewayRouteIntegratorState.build_from_charm(self)
+            state = GatewayRouteState.build_for_integrator_mode(self)
         except InvalidGatewayRouteStateError as exc:
             logger.exception("Invalid gateway-route integrator config.")
             self.unit.status = ops.BlockedStatus(str(exc))
@@ -464,10 +471,10 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 self.lightkube_client,
                 self.model.name,
                 headless_svc_name,
-                state.backend_addresses,
+                state.integrator.backend_addresses,
                 state.backend_port,
                 self.app.name,
-                state.address_type,
+                state.integrator.address_type,
             )
         except InvalidKubernetesPermissionError as exc:
             self.unit.status = ops.BlockedStatus(str(exc))

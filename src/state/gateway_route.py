@@ -45,7 +45,7 @@ class GatewayRouteState(ABC):
     model_name: str
     hostname: Annotated[str, BeforeValidator(valid_fqdn)] | None
     backend_port: int = Field(gt=0, le=65535)
-    backend_protocol: Annotated[Literal["http"], BeforeValidator(lambda v: v or "http")] = "http"
+    backend_protocol: Literal["http"] | None
     additional_hostnames: list[Annotated[str, BeforeValidator(valid_fqdn)]] = Field(
         default_factory=lambda: []
     )

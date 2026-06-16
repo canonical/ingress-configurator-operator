@@ -58,8 +58,7 @@ class GatewayRouteState(ABC):
         Returns:
             List of all hostnames, including the primary and additional hostnames.
         """
-        primary = [self.hostname] if self.hostname else []
-        return primary + self.additional_hostnames
+        return [self.hostname, *self.additional_hostnames] if self.hostname else []
 
     @staticmethod
     def has_integrator_config(charm: ops.CharmBase) -> bool:

@@ -5,6 +5,7 @@ myst:
 ---
 
 (how_to_haproxy_integrate_non_charm_workload)=
+
 # How to route HTTP traffic to a non-charmed workload through HAProxy
 
 You can use the `ingress-configurator` charm to route traffic from HAProxy to a backend application that is not managed by a Juju charm.
@@ -28,8 +29,11 @@ juju deploy ingress-configurator --channel=edge
 ## Confirm the backend is reachable
 
 This guide assumes you already have a backend workload running and accessible
-from the Juju model. Set its IP address in a variable (note: `backend-addresses`
-accepts IP addresses only, not FQDNs):
+from the Juju model. Set its IP address in a variable:
+
+```{note}
+`backend-addresses` accepts IP addresses only, not FQDNs.
+```
 
 ```sh
 BACKEND_IP=<backend-ip>

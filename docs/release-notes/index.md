@@ -19,7 +19,7 @@ For any given track, we implement three different risk levels: `edge`, `candidat
 2. On Monday of every week, the current revision on `candidate` will be automatically promoted to `stable`.
 3. On Monday of every week, the current revision on `edge` will be automatically promoted to `candidate`.
 
-Both the `candidate` and `stable` promotions require approval from the maintainers. If issues are identified that might break upgrades, manual approval can be enforced to block the automatic promotion until the issues are resolved.
+Both the `candidate` and `stable` promotions happens automatically. If issues are identified that might break upgrades, manual approval can be enforced to block the automatic promotion until the issues are resolved.
 
 In special cases where an urgent fix is needed on `stable`, changes can be pushed directly to that risk level without going through the regular process.
 

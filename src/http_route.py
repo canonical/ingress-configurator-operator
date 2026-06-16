@@ -290,8 +290,12 @@ class HTTPRouteManager:
                 if name not in exclude_set:
                     self.client.delete(HTTPRouteResource, name=name, namespace=self.namespace)
                     logger.info("Deleted stale HTTPRoute %s", name)
-        except ApiError:
-            logger.exception("Error cleaning up stale HTTPRoutes")
+        except ApiError as e:
+            if e.status.code == 403:
+                raise InvalidKubernetesPermissionError(
+                    "This charm needs `juju trust` to manage HTTPRoute resources"
+                ) from e
+            raise
 
 
 def create_http_routes(

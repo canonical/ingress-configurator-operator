@@ -293,12 +293,19 @@ class IngressConfiguratorCharm(ops.CharmBase):
         Mode selection:
         - Guard: not Kubernetes → blocked.
         - Guard: ingress relation AND integrator config both set → ambiguous, blocked.
-        - Guard: ingress relation present but requirer not ready → wait for data.
+        - Guard: ingress relation present but requirer not ready → clean up stale headless
+            backends and HTTPRoutes, then wait for data.
         - Adapter: ingress data available on Kubernetes substrate.
         - Integrator: no ingress relation; backend-addresses (IPs) and a single backend-ports
             value set in config.
-        - Blocked: neither ingress relation nor backend config is present.
+        - Blocked: neither ingress relation nor backend config is present; cleans up stale
+            resources before blocking.
         """
+        http_route_manager = HTTPRouteManager(
+            client=self.lightkube_client,
+            namespace=self.model.name,
+            labels={MANAGED_BY_LABEL: self.app.name},
+        )
         self.unit.status = ops.MaintenanceStatus("Configuring gateway route")
         if not self.is_kubernetes():
             logger.error("Gateway-route integration is only supported on Kubernetes substrates.")
@@ -316,37 +323,37 @@ class IngressConfiguratorCharm(ops.CharmBase):
             )
             return
 
-        if ingress_relation:
+        if ingress_relation and not self._ingress.is_ready():
+            logger.info("Ingress relation exists but is not ready. Waiting for ingress data.")
+            self.unit.status = ops.WaitingStatus("Waiting for ingress relation data.")
             try:
                 delete_headless_backends_owned_by(
                     self.lightkube_client, self.model.name, self.app.name
                 )
+                http_route_manager.delete_stale()
+                return
             except InvalidKubernetesPermissionError as exc:
                 self.unit.status = ops.BlockedStatus(str(exc))
                 return
-            if not self._ingress.is_ready():
-                logger.info("Ingress relation exists but is not ready. Waiting for ingress data.")
-                self.unit.status = ops.WaitingStatus("Waiting for ingress relation data.")
-                return
+
+        if ingress_relation:
             self._reconcile_gateway_route_adapter(
                 self._ingress.get_data(ingress_relation), ingress_relation
             )
-        elif has_integrator_config:
+            return
+        if has_integrator_config:
             self._reconcile_gateway_route_integrator()
-        else:
-            try:
-                delete_headless_backends_owned_by(
-                    self.lightkube_client, self.model.name, self.app.name
-                )
-            except InvalidKubernetesPermissionError as exc:
-                self.unit.status = ops.BlockedStatus(str(exc))
-                return
-            HTTPRouteManager(
-                client=self.lightkube_client,
-                namespace=self.model.name,
-                labels={MANAGED_BY_LABEL: self.app.name},
-            ).delete_stale()
-            self.unit.status = ops.BlockedStatus("Ingress relation or backend config required.")
+            return
+
+        try:
+            delete_headless_backends_owned_by(
+                self.lightkube_client, self.model.name, self.app.name
+            )
+            http_route_manager.delete_stale()
+        except InvalidKubernetesPermissionError as exc:
+            self.unit.status = ops.BlockedStatus(str(exc))
+            return
+        self.unit.status = ops.BlockedStatus("Ingress relation or backend config required.")
 
     def _reconcile_gateway_route_adapter(
         self,

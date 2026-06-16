@@ -5,6 +5,7 @@ myst:
 ---
 
 (how_to_add_haproxy_features_to_ingress_requirer)=
+
 # How to add HAProxy features to an ingress requirer charm
 
 Charms that implement only the `ingress` relation can
@@ -22,10 +23,7 @@ juju deploy <ingress-requirer-charm>
 If your charm has a separate action or configuration step to start the workload,
 run it now and wait until the unit is `active`.
 
-This guide assumes the ingress requirer charm already works correctly. In this
-case, `ingress-configurator` will expose the workload on the configured
-`hostname` and any configured `additional-hostnames`. Optional path-based
-routing is configured via `ingress-configurator`.
+This guide assumes the ingress requirer charm already works correctly.
 
 ## Deploy and configure the `haproxy` charm
 
@@ -62,6 +60,22 @@ juju config ingress-configurator hostname=${HOSTNAME}
 
 If `hostname` is not set, the endpoint hostname is provided by the
 `haproxy-route` side.
+
+### (Optional) Configure additional hostnames
+
+To expose the workload on additional hostnames, configure `additional-hostnames`:
+
+```sh
+juju config ingress-configurator additional-hostnames=<hostname1>,<hostname2>
+```
+
+### (Optional) Configure path-based routing
+
+To restrict routing to specific URL paths, configure `paths`:
+
+```sh
+juju config ingress-configurator paths=<path1>,<path2>
+```
 
 ## Verify proxied endpoints
 

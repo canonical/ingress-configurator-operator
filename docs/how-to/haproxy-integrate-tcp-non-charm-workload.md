@@ -36,15 +36,10 @@ juju deploy self-signed-certificates
 juju integrate haproxy:certificates self-signed-certificates
 ```
 
-## Deploy the `ingress-configurator` charm
+## Deploy and integrate the `ingress-configurator` charm
 
 ```sh
 juju deploy ingress-configurator --channel=edge
-```
-
-## Integrate with HAProxy using the TCP endpoint
-
-```sh
 juju integrate haproxy:haproxy-route-tcp ingress-configurator:haproxy-route-tcp
 ```
 

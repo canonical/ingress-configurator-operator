@@ -12,9 +12,9 @@ Charms that implement only the `ingress` relation can
 leverage the additional features of the `haproxy-route` relation with the help
 of the `ingress-configurator` charm.
 
-## Deploy an ingress requirer charm
+## Deploy the charms
 
-Deploy an ingress requirer charm:
+Deploy the ingress requirer charm:
 
 ```sh
 juju deploy <ingress-requirer-charm>
@@ -25,8 +25,6 @@ run it now and wait until the unit is `active`.
 
 This guide assumes the ingress requirer charm already works correctly.
 
-## Deploy and configure the `haproxy` charm
-
 Deploy the `haproxy` and `self-signed-certificates` charms:
 
 ```sh
@@ -35,7 +33,7 @@ juju deploy self-signed-certificates
 juju integrate haproxy:certificates self-signed-certificates
 ```
 
-## Deploy the `ingress-configurator` charm
+Deploy the `ingress-configurator` charm:
 
 ```sh
 juju deploy ingress-configurator --channel=edge

@@ -13,13 +13,15 @@ Release notes for the `latest/stable` track of the Ingress Configurator charm, s
 
 This section covers the release policy and schedule for the `ingress-configurator` charm.
 
-For any given track, we'll implement three different risk levels `edge`, `candidate`, and `stable`. The release schedule for each of the risk levels is as follows:
+For any given track, we implement three different risk levels: `edge`, `candidate`, and `stable`. The release schedule for each risk level is as follows:
 
 1. Changes pushed to the `ingress-configurator-operator` repository will be released to `edge`.
-2. On Monday of every week, the current revision on `candidate` will be promoted to `stable`. This process requires an approval from the maintainers and happens automatically once the approval is given.
-3. On Monday of every week, the current revision on `edge` will be promoted to `candidate`. This process also requires an approval from the maintainers and happens automatically once the approval is given.
+2. On Monday of every week, the current revision on `candidate` will be automatically promoted to `stable`.
+3. On Monday of every week, the current revision on `edge` will be automatically promoted to `candidate`.
 
-In special cases where an urgent fix is needed on `stable` changes can be pushed directly to that risk level without going through the regular process.
+Both the `candidate` and `stable` promotions require approval from the maintainers. If issues are identified that might break upgrades, manual approval can be enforced to block the automatic promotion until the issues are resolved.
+
+In special cases where an urgent fix is needed on `stable`, changes can be pushed directly to that risk level without going through the regular process.
 
 Release notes are published for the `ingress-configurator` charm with every revision of the `latest/stable` track.
 

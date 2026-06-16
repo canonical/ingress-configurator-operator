@@ -12,4 +12,5 @@ Welcome to the documentation.
 :hidden:
 how-to/index.md
 changelog.md
+release-notes/index.md
 ```

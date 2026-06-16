@@ -34,6 +34,7 @@ from charms.traefik_k8s.v2.ingress import DEFAULT_RELATION_NAME as INGRESS_RELAT
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider, IngressRequirerData
 from lightkube import Client
 
+from helpers import truncate_k8s_resource_name
 from http_route import (
     HTTPRouteManager,
     create_http_routes,
@@ -190,7 +191,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
         ingress_relation: ops.Relation,
     ) -> None:
         """Reconcile haproxy-route in Kubernetes adapter mode."""
-        service_name = f"{self.model.name}-{self.app.name}-service"
+        service_name = truncate_k8s_resource_name(
+            f"{self.model.name}-{self.app.name}-service"
+        )
         try:
             ensure_nodeport_service(
                 client=self.lightkube_client,

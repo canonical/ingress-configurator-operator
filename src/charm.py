@@ -369,7 +369,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self.unit.status = ops.BlockedStatus(str(exc))
             return
 
-        if not state.adapter.is_port_open:
+        if not state.adapter_state.is_port_open:
             self.unit.status = ops.BlockedStatus(
                 "Workload port is not open. Gateway-route adapter mode requires the port to be open."
             )
@@ -471,10 +471,10 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 self.lightkube_client,
                 self.model.name,
                 headless_svc_name,
-                state.integrator.backend_addresses,
+                state.integrator_state.backend_addresses,
                 state.backend_port,
                 self.app.name,
-                state.integrator.address_type,
+                state.integrator_state.address_type,
             )
         except InvalidKubernetesPermissionError as exc:
             self.unit.status = ops.BlockedStatus(str(exc))

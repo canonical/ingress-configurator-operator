@@ -87,8 +87,8 @@ class GatewayRouteState:
         default_factory=lambda: []
     )
     paths: list[str] = Field(default_factory=lambda: ["/"])
-    adapter: GatewayRouteAdapterSubState | None = None
-    integrator: GatewayRouteIntegratorSubState | None = None
+    adapter_state: GatewayRouteAdapterSubState | None = None
+    integrator_state: GatewayRouteIntegratorSubState | None = None
 
     @model_validator(mode="after")
     def validate_exactly_one_mode_state(self) -> Self:
@@ -100,7 +100,7 @@ class GatewayRouteState:
         Raises:
             ValueError: if neither or both sub-states are set.
         """
-        if (self.adapter is None) == (self.integrator is None):
+        if (self.adapter_state is None) == (self.integrator_state is None):
             raise ValueError("Exactly one of adapter_state or integrator_state must be set.")
         return self
 
@@ -177,8 +177,8 @@ class GatewayRouteState:
                 hostname=hostname,
                 additional_hostnames=additional_hostnames,
                 paths=paths,
-                adapter=adapter_state,
-                integrator=integrator_state,
+                adapter_state=adapter_state,
+                integrator_state=integrator_state,
             )
         except ValidationError as exc:
             logger.error(str(exc))

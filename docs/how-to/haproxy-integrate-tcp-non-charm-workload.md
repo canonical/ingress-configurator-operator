@@ -17,6 +17,8 @@ through to the backend without any inspection.
 
 ## Prerequisites
 
+Ensure your backend application is running and reachable from the Juju model.
+
 Deploy the `haproxy` and `self-signed-certificates` charms:
 
 ```sh

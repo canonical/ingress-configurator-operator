@@ -18,6 +18,15 @@ through to the backend without any inspection.
 ## Prerequisites
 
 Ensure your backend application is running and reachable from the Juju model.
+Set its IP address in a variable:
+
+```{note}
+`tcp-backend-addresses` accepts IP addresses only, not FQDNs.
+```
+
+```sh
+BACKEND_IP=<backend-ip>
+```
 
 Deploy the `haproxy` and `self-signed-certificates` charms:
 
@@ -54,7 +63,16 @@ juju config ingress-configurator \
 
 ## Verify that the backend is reachable through HAProxy
 
+Get the HAProxy public IP address:
+
 ```sh
 HAPROXY_IP=$(juju status --format=json | jq -r '.applications["haproxy"].units["haproxy/0"]."public-address"')
+```
+
+Test the connection on the configured frontend port:
+
+```sh
 nc -zv $HAPROXY_IP 587
 ```
+
+You should see a successful connection, confirming that HAProxy is correctly routing traffic to the backend.

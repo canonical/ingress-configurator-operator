@@ -34,8 +34,10 @@ BACKEND_IP=<backend-ip>
 Verify the backend is responding:
 
 ```sh
-curl http://${BACKEND_IP} -I
+curl http://${BACKEND_IP}/ -I
 ```
+
+Adjust the path to match an endpoint exposed by your backend workload.
 
 You should see a successful HTTP response from the backend.
 
@@ -77,4 +79,6 @@ Send a request using the configured hostname:
 curl -i "https://${HAPROXY_IP}/" --insecure -H "Host: ${HOSTNAME}"
 ```
 
-You should see a successful response from the backend.
+Adjust the path to match an endpoint exposed by your backend workload.
+
+You should see a response from the backend workload, confirming that HAProxy is correctly routing traffic to it.

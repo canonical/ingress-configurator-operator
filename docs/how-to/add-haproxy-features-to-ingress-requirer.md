@@ -101,3 +101,7 @@ Use that IP address in a request with the configured hostname:
 ```sh
 curl -i "https://${HAPROXY_IP}/" -H "Host: ${HOSTNAME}" --insecure
 ```
+
+Adjust the path to match an endpoint exposed by your backend workload.
+
+You should see a response from the backend workload, confirming that HAProxy is correctly routing traffic to it.

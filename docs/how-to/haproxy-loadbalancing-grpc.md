@@ -66,3 +66,5 @@ Once all charms are active, verify the gRPC server is reachable through HAProxy:
 HAPROXY_IP=$(juju status --format json | jq -r '.applications.haproxy.units."haproxy/0"."public-address"')
 grpcurl -insecure -d '{}' <grpc-hostname>:<port> <service-method>
 ```
+
+A successful response returns the output from your gRPC service method with no connection errors.

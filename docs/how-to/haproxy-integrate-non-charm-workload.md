@@ -20,16 +20,8 @@ juju deploy self-signed-certificates cert
 juju integrate haproxy:certificates cert
 ```
 
-## Deploy the `ingress-configurator` charm
-
-```sh
-juju deploy ingress-configurator --channel=edge
-```
-
-## Confirm the backend is reachable
-
-This guide assumes you already have a backend workload running and accessible
-from the Juju model. Set its IP address in a variable:
+Ensure you have a backend workload running and accessible from the Juju model.
+Set its IP address in a variable:
 
 ```{note}
 `backend-addresses` accepts IP addresses only, not FQDNs.
@@ -39,13 +31,19 @@ from the Juju model. Set its IP address in a variable:
 BACKEND_IP=<backend-ip>
 ```
 
-Verify the backend is responding before configuring HAProxy:
+Verify the backend is responding:
 
 ```sh
 curl http://${BACKEND_IP} -I
 ```
 
 You should see a successful HTTP response from the backend.
+
+## Deploy the `ingress-configurator` charm
+
+```sh
+juju deploy ingress-configurator --channel=edge
+```
 
 ## Configure the `ingress-configurator` charm
 

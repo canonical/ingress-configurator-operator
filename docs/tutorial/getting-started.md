@@ -1,3 +1,9 @@
+---
+myst:
+  html_meta:
+    "description lang=en": "Step-by-step guide for deploying the Ingress Configurator charm to provide ingress to a backend Flask application running on Kubernetes."
+---
+
 (tutorial_getting_started)=
 
 # Deploy the `ingress-configurator` charm with Gateway API

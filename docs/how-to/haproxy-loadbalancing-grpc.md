@@ -8,7 +8,7 @@ myst:
 
 # How to load balance a gRPC server through HAProxy
 
-You configure the `ingress-configurator` charm to expose a
+You can configure the `ingress-configurator` charm to expose a
 gRPC backend through HAProxy.
 
 gRPC load balancing requires the backend to support HTTP/2 over TLS. HAProxy
@@ -51,6 +51,9 @@ juju config grpc-configurator external-grpc-port=<port>
 ```
 
 ## Integrate with HAProxy
+
+Use the `haproxy-route` interface, which operates at the HTTP level and supports
+gRPC traffic.
 
 ```sh
 juju integrate grpc-configurator:haproxy-route haproxy

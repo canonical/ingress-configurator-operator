@@ -137,6 +137,11 @@ class GatewayRouteState:
         )
         paths = [p.strip() for p in paths_raw if p.strip()] or ["/"]
 
+        if charm.config.get("backend-protocol") == "https":
+            raise InvalidGatewayRouteStateError(
+                "backend-protocol cannot be 'https' in gateway-route mode"
+            )
+
         try:
             return cls(
                 application_name=application_name,

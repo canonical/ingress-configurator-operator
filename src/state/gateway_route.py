@@ -173,7 +173,9 @@ class GatewayRouteState:
                 application_name=application_name,
                 model_name=model_name,
                 backend_port=backend_port,
-                backend_protocol=cast(Literal["http"] | None, charm.config.get("backend-protocol")),
+                backend_protocol=cast(
+                    Literal["http"] | None, charm.config.get("backend-protocol")
+                ),
                 hostname=hostname,
                 additional_hostnames=additional_hostnames,
                 paths=paths,

@@ -367,7 +367,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self.unit.status = ops.BlockedStatus(str(exc))
             return
 
-        if not state.adapter_state.is_port_open:
+        if not ingress_data.app.is_port_open:
             self.unit.status = ops.BlockedStatus(
                 "Workload port is not open. Gateway-route adapter mode requires the port to be open."
             )

@@ -12,7 +12,7 @@ import ops
 from annotated_types import Len
 from charms.gateway_api_integrator.v1.gateway_route import valid_fqdn
 from charms.traefik_k8s.v2.ingress import IngressRequirerData
-from pydantic import BeforeValidator, Field, ValidationError, model_validator
+from pydantic import BeforeValidator, Field, ValidationError
 from pydantic.dataclasses import dataclass
 
 from helpers import get_invalid_config_fields
@@ -24,17 +24,6 @@ CHARM_CONFIG_DELIMITER = ","
 
 class InvalidGatewayRouteStateError(Exception):
     """Exception raised when a GatewayRouteState contains invalid attributes."""
-
-
-@dataclass(frozen=True)
-class GatewayRouteAdapterSubState:
-    """Additional state specific to gateway-route adapter mode.
-
-    Attributes:
-        is_port_open: Whether the backend workload has opened the ingress port.
-    """
-
-    is_port_open: bool = False
 
 
 @dataclass(frozen=True)
@@ -72,10 +61,7 @@ class GatewayRouteState:
         hostname: Optional hostname to route traffic to.
         additional_hostnames: Additional hostnames to route traffic to.
         paths: URL path prefixes to route.
-        adapter_state: Adapter-mode-specific state. Exactly one of
-            ``adapter_state`` / ``integrator_state`` must be set.
-        integrator_state: Integrator-mode-specific state. Exactly one of
-            ``adapter_state`` / ``integrator_state`` must be set.
+        integrator_state: Integrator-mode-specific state. Only populated for integrator mode.
     """
 
     application_name: str
@@ -87,22 +73,7 @@ class GatewayRouteState:
         default_factory=lambda: []
     )
     paths: list[str] = Field(default_factory=lambda: ["/"])
-    adapter_state: GatewayRouteAdapterSubState | None = None
     integrator_state: GatewayRouteIntegratorSubState | None = None
-
-    @model_validator(mode="after")
-    def validate_exactly_one_mode_state(self) -> Self:
-        """Ensure exactly one of adapter_state or integrator_state is set.
-
-        Returns:
-            This instance.
-
-        Raises:
-            ValueError: if neither or both sub-states are set.
-        """
-        if (self.adapter_state is None) == (self.integrator_state is None):
-            raise ValueError("Exactly one of adapter_state or integrator_state must be set.")
-        return self
 
     @property
     def hostnames(self) -> list[str]:
@@ -136,17 +107,15 @@ class GatewayRouteState:
         application_name: str,
         model_name: str,
         backend_port: int,
-        adapter_state: GatewayRouteAdapterSubState | None = None,
         integrator_state: GatewayRouteIntegratorSubState | None = None,
     ) -> Self:
-        """Build a GatewayRouteState from shared config and exactly one mode sub-state.
+        """Build a GatewayRouteState from shared config.
 
         Args:
             charm: The charm instance.
             application_name: Name of the backend application.
             model_name: Model/namespace for the backend application.
             backend_port: Port the backend listens on.
-            adapter_state: Populated for adapter mode, None otherwise.
             integrator_state: Populated for integrator mode, None otherwise.
 
         Raises:
@@ -179,7 +148,6 @@ class GatewayRouteState:
                 hostname=hostname,
                 additional_hostnames=additional_hostnames,
                 paths=paths,
-                adapter_state=adapter_state,
                 integrator_state=integrator_state,
             )
         except ValidationError as exc:
@@ -203,14 +171,13 @@ class GatewayRouteState:
             InvalidGatewayRouteStateError: When config values are invalid.
 
         Returns:
-            GatewayRouteState instance with adapter_state populated.
+            GatewayRouteState instance for adapter mode.
         """
         return cls._build(
             charm,
             application_name=ingress_data.app.name,
             model_name=ingress_data.app.model,
             backend_port=ingress_data.app.port,
-            adapter_state=GatewayRouteAdapterSubState(is_port_open=ingress_data.app.is_port_open),
         )
 
     @classmethod

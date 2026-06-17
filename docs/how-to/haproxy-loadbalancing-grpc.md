@@ -8,7 +8,7 @@ myst:
 
 # How to load balance a gRPC server through HAProxy
 
-This guide shows how to configure the `ingress-configurator` charm to expose a
+You configure the `ingress-configurator` charm to expose a
 gRPC backend through HAProxy.
 
 gRPC load balancing requires the backend to support HTTP/2 over TLS. HAProxy

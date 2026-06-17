@@ -18,7 +18,7 @@ For any given track, we implement three different risk levels: `edge`, `candidat
 
 1. Changes pushed to the `ingress-configurator-operator` repository will be released to `edge`.
 2. On Monday of every week, the current revision on `candidate` will be automatically promoted to `stable`.
-3. On Monday of every week, the current revision on `edge` will be automatically promoted to `candidate`.
+3. On Monday of every week, after the `candidate` promotion occurs, the current revision on `edge` will be automatically promoted to `candidate`.
 
 Both the `candidate` and `stable` promotions happens automatically. If issues are identified that might break upgrades, manual approval can be enforced to block the automatic promotion until the issues are resolved.
 

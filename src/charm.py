@@ -300,11 +300,6 @@ class IngressConfiguratorCharm(ops.CharmBase):
         - Blocked: neither ingress relation nor backend config is present; cleans up stale
             resources before blocking.
         """
-        http_route_manager = HTTPRouteManager(
-            client=self.lightkube_client,
-            namespace=self.model.name,
-            labels={MANAGED_BY_LABEL: self.app.name},
-        )
         self.unit.status = ops.MaintenanceStatus("Configuring gateway route")
         if not self.is_kubernetes():
             logger.error("Gateway-route integration is only supported on Kubernetes substrates.")
@@ -313,6 +308,11 @@ class IngressConfiguratorCharm(ops.CharmBase):
             )
             return
 
+        http_route_manager = HTTPRouteManager(
+            client=self.lightkube_client,
+            namespace=self.model.name,
+            labels={MANAGED_BY_LABEL: self.app.name},
+        )
         ingress_relation = self.model.get_relation(self._ingress.relation_name)
         has_integrator_config = GatewayRouteState.has_integrator_config(self)
 

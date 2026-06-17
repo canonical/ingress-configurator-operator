@@ -8,7 +8,11 @@ from unittest.mock import MagicMock
 import pytest
 from lightkube import ApiError
 
-from http_route import MANAGED_BY_LABEL, apply_headless_backend, delete_headless_backends_owned_by
+from http_route import (
+    MANAGED_BY_LABEL,
+    delete_backend_services_owned_by,
+    ensure_external_backend_service,
+)
 from kubernetes import InvalidKubernetesPermissionError
 
 
@@ -31,10 +35,10 @@ def _make_endpoint_slice(name: str) -> MagicMock:
     return es
 
 
-def test_apply_headless_backend_creates_correct_resources():
+def test_ensure_external_backend_service_creates_correct_resources():
     """
     arrange: mock a lightkube client
-    act: call apply_headless_backend with name "my-app-headless", IPv4 addresses,
+    act: call ensure_external_backend_service with name "my-app-headless", IPv4 addresses,
         port 8080, charm_name "my-charm", and address_type "IPv4"
     assert: client.apply is called twice — first with a headless Service (clusterIP=None,
         correct labels/annotations/port), then with an EndpointSlice (addressType=IPv4,
@@ -45,7 +49,7 @@ def test_apply_headless_backend_creates_correct_resources():
 
     client = MagicMock()
 
-    apply_headless_backend(
+    ensure_external_backend_service(
         client,
         "testing-model",
         "my-app-headless",
@@ -82,27 +86,27 @@ def test_apply_headless_backend_creates_correct_resources():
     assert es.metadata.labels.get(MANAGED_BY_LABEL) == "my-charm"
 
 
-def test_apply_headless_backend_raises_on_service_403():
+def test_ensure_external_backend_service_raises_on_service_403():
     """
     arrange: client raises ApiError 403 when applying the Service
-    act: call apply_headless_backend
+    act: call ensure_external_backend_service
     assert: InvalidKubernetesPermissionError is raised; EndpointSlice is never applied
     """
     client = MagicMock()
     client.apply.side_effect = _make_api_error(403)
 
     with pytest.raises(InvalidKubernetesPermissionError, match="--trust"):
-        apply_headless_backend(
+        ensure_external_backend_service(
             client, "testing-model", "my-app-headless", ["10.0.0.1"], 8080, "my-charm", "IPv4"
         )
 
     assert client.apply.call_count == 1
 
 
-def test_apply_headless_backend_raises_on_endpoint_slice_403():
+def test_ensure_external_backend_service_raises_on_endpoint_slice_403():
     """
     arrange: Service apply succeeds but EndpointSlice apply raises ApiError 403
-    act: call apply_headless_backend
+    act: call ensure_external_backend_service
     assert: InvalidKubernetesPermissionError is raised
     """
     from lightkube.resources.core_v1 import Service
@@ -117,30 +121,30 @@ def test_apply_headless_backend_raises_on_endpoint_slice_403():
     client.apply.side_effect = apply_side_effect
 
     with pytest.raises(InvalidKubernetesPermissionError, match="--trust"):
-        apply_headless_backend(
+        ensure_external_backend_service(
             client, "testing-model", "my-app-headless", ["10.0.0.1"], 8080, "my-charm", "IPv4"
         )
 
 
-def test_apply_headless_backend_reraises_other_api_errors():
+def test_ensure_external_backend_service_reraises_other_api_errors():
     """
     arrange: client raises ApiError 500 on apply
-    act: call apply_headless_backend
+    act: call ensure_external_backend_service
     assert: the ApiError is re-raised
     """
     client = MagicMock()
     client.apply.side_effect = _make_api_error(500)
 
     with pytest.raises(ApiError):
-        apply_headless_backend(
+        ensure_external_backend_service(
             client, "testing-model", "my-app-headless", ["10.0.0.1"], 8080, "my-charm", "IPv4"
         )
 
 
-def test_delete_headless_backends_owned_by_deletes_matching_resources():
+def test_delete_backend_services_owned_by_deletes_matching_resources():
     """
     arrange: mock a client listing one matching EndpointSlice and one matching Service
-    act: call delete_headless_backends_owned_by
+    act: call delete_backend_services_owned_by
     assert: both the EndpointSlice and the Service are deleted
     """
     from lightkube.resources.core_v1 import Service
@@ -159,64 +163,64 @@ def test_delete_headless_backends_owned_by_deletes_matching_resources():
 
     client.list.side_effect = list_side_effect
 
-    delete_headless_backends_owned_by(client, "testing-model", "my-charm")
+    delete_backend_services_owned_by(client, "testing-model", "my-charm")
 
     client.delete.assert_any_call(EndpointSlice, name="my-app-headless", namespace="testing-model")
     client.delete.assert_any_call(Service, name="my-app-headless", namespace="testing-model")
 
 
-def test_delete_headless_backends_owned_by_skips_other_charms():
+def test_delete_backend_services_owned_by_skips_other_charms():
     """
     arrange: mock a client that returns empty lists (K8s filters by label selector server-side)
-    act: call delete_headless_backends_owned_by with "my-charm"
+    act: call delete_backend_services_owned_by with "my-charm"
     assert: list is called with MANAGED_BY_LABEL="my-charm" so other charms' resources are
         never returned, and no deletes happen
     """
     client = MagicMock()
     client.list.return_value = []
 
-    delete_headless_backends_owned_by(client, "testing-model", "my-charm")
+    delete_backend_services_owned_by(client, "testing-model", "my-charm")
 
     for call in client.list.call_args_list:
         assert call.kwargs.get("labels", {}).get(MANAGED_BY_LABEL) == "my-charm"
     client.delete.assert_not_called()
 
 
-def test_delete_headless_backends_owned_by_no_resources():
+def test_delete_backend_services_owned_by_no_resources():
     """
     arrange: mock a client listing no resources
-    act: call delete_headless_backends_owned_by
+    act: call delete_backend_services_owned_by
     assert: no deletes are performed
     """
     client = MagicMock()
     client.list.return_value = []
 
-    delete_headless_backends_owned_by(client, "testing-model", "my-charm")
+    delete_backend_services_owned_by(client, "testing-model", "my-charm")
 
     client.delete.assert_not_called()
 
 
-def test_delete_headless_backends_owned_by_raises_on_403():
+def test_delete_backend_services_owned_by_raises_on_403():
     """
     arrange: client raises ApiError 403 on list
-    act: call delete_headless_backends_owned_by
+    act: call delete_backend_services_owned_by
     assert: InvalidKubernetesPermissionError is raised
     """
     client = MagicMock()
     client.list.side_effect = _make_api_error(403)
 
     with pytest.raises(InvalidKubernetesPermissionError, match="--trust"):
-        delete_headless_backends_owned_by(client, "testing-model", "my-charm")
+        delete_backend_services_owned_by(client, "testing-model", "my-charm")
 
 
-def test_delete_headless_backends_owned_by_reraises_other_api_errors():
+def test_delete_backend_services_owned_by_reraises_other_api_errors():
     """
     arrange: client raises ApiError 500 on list
-    act: call delete_headless_backends_owned_by
+    act: call delete_backend_services_owned_by
     assert: the ApiError is re-raised
     """
     client = MagicMock()
     client.list.side_effect = _make_api_error(500)
 
     with pytest.raises(ApiError):
-        delete_headless_backends_owned_by(client, "testing-model", "my-charm")
+        delete_backend_services_owned_by(client, "testing-model", "my-charm")

@@ -31,7 +31,7 @@ HTTPRouteResource = create_namespaced_resource(
 )
 
 
-def apply_headless_backend(
+def ensure_external_backend_service(
     client: Client,
     namespace: str,
     name: str,
@@ -100,12 +100,12 @@ def apply_headless_backend(
         raise
 
 
-def delete_headless_backends_owned_by(
+def delete_backend_services_owned_by(
     client: Client,
     namespace: str,
     app_name: str,
 ) -> None:
-    """Delete all headless EndpointSlices and Services owned by ``app_name``.
+    """Delete all backend EndpointSlices and Services owned by ``app_name``.
 
     Resources are identified by a :data:`MANAGED_BY_LABEL` label matching ``app_name``.
 

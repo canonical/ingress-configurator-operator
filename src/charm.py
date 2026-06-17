@@ -37,9 +37,9 @@ from lightkube import Client
 from http_route import (
     MANAGED_BY_LABEL,
     HTTPRouteManager,
-    apply_headless_backend,
     create_http_routes,
-    delete_headless_backends_owned_by,
+    delete_backend_services_owned_by,
+    ensure_external_backend_service,
 )
 from kubernetes import (
     InvalidKubernetesPermissionError,
@@ -326,7 +326,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             logger.info("Ingress relation exists but is not ready. Waiting for ingress data.")
             self.unit.status = ops.WaitingStatus("Waiting for ingress relation data.")
             try:
-                delete_headless_backends_owned_by(
+                delete_backend_services_owned_by(
                     self.lightkube_client, self.model.name, self.app.name
                 )
                 http_route_manager.delete_stale()
@@ -345,9 +345,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             return
 
         try:
-            delete_headless_backends_owned_by(
-                self.lightkube_client, self.model.name, self.app.name
-            )
+            delete_backend_services_owned_by(self.lightkube_client, self.model.name, self.app.name)
             http_route_manager.delete_stale()
         except InvalidKubernetesPermissionError as exc:
             self.unit.status = ops.BlockedStatus(str(exc))
@@ -376,8 +374,10 @@ class IngressConfiguratorCharm(ops.CharmBase):
             return
 
         try:
-            delete_headless_backends_owned_by(
-                self.lightkube_client, self.model.name, self.app.name
+            delete_backend_services_owned_by(
+                self.lightkube_client,
+                self.model.name,
+                self.app.name,
             )
         except InvalidKubernetesPermissionError as exc:
             self.unit.status = ops.BlockedStatus(str(exc))
@@ -467,7 +467,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
         headless_svc_name = f"{self.app.name}-headless"
         try:
-            apply_headless_backend(
+            ensure_external_backend_service(
                 self.lightkube_client,
                 self.model.name,
                 headless_svc_name,

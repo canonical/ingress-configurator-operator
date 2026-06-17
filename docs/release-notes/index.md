@@ -5,6 +5,7 @@ myst:
 ---
 
 (release_notes_index)=
+
 # Release notes
 
 Release notes for the `latest/stable` track of the Ingress Configurator charm, summarizing new features, bug fixes and backwards-incompatible changes in each revision.

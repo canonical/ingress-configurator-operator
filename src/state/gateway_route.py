@@ -5,7 +5,6 @@
 
 import ipaddress
 import logging
-from ipaddress import IPv4Address
 from typing import Annotated, Literal, Self, cast
 
 import ops
@@ -46,7 +45,7 @@ class GatewayRouteIntegratorSubState:
         Returns:
             "IPv4" or "IPv6".
         """
-        return "IPv4" if isinstance(self.backend_addresses[0], IPv4Address) else "IPv6"
+        return "IPv4" if isinstance(self.backend_addresses[0], ipaddress.IPv4Address) else "IPv6"
 
 
 @dataclass(frozen=True)

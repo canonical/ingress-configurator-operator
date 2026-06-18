@@ -359,7 +359,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 hostnames=state.hostnames,
                 paths=state.paths,
                 backend_service_name=state.application_name,
-                backend_service_port=state.port,
+                backend_service_port=state.backend_port,
             )
         except InvalidKubernetesPermissionError as exc:
             self.unit.status = ops.BlockedStatus(str(exc))

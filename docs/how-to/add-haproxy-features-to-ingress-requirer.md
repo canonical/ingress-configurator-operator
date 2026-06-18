@@ -5,29 +5,25 @@ myst:
 ---
 
 (how_to_add_haproxy_features_to_ingress_requirer)=
+
 # How to add HAProxy features to an ingress requirer charm
 
-This guide shows how a charm implementing only the `ingress` relation can
+Charms that implement only the `ingress` relation can
 leverage the additional features of the `haproxy-route` relation with the help
 of the `ingress-configurator` charm.
 
-## Deploy an ingress requirer charm
+## Deploy the charms
 
-Deploy an ingress requirer charm:
+Deploy the ingress requirer charm:
 
 ```sh
 juju deploy <ingress-requirer-charm>
 ```
 
-If your charm has a separate action or config step to start the workload,
+If your charm has a separate action or configuration step to start the workload,
 run it now and wait until the unit is `active`.
 
-This guide assumes the ingress requirer charm already works correctly. In this
-case, `ingress-configurator` will expose the workload on the configured
-`hostname` and any configured `additional-hostnames`. Optional path-based
-routing is configured via `ingress-configurator`.
-
-## Deploy and configure the `haproxy` charm
+This guide assumes the ingress requirer charm already works correctly.
 
 Deploy the `haproxy` and `self-signed-certificates` charms:
 
@@ -37,7 +33,7 @@ juju deploy self-signed-certificates
 juju integrate haproxy:certificates self-signed-certificates
 ```
 
-## Deploy the `ingress-configurator` charm
+Deploy the `ingress-configurator` charm:
 
 ```sh
 juju deploy ingress-configurator --channel=edge
@@ -62,6 +58,22 @@ juju config ingress-configurator hostname=${HOSTNAME}
 
 If `hostname` is not set, the endpoint hostname is provided by the
 `haproxy-route` side.
+
+### (Optional) Configure additional hostnames
+
+To expose the workload on additional hostnames, configure `additional-hostnames`:
+
+```sh
+juju config ingress-configurator additional-hostnames=<hostname1>,<hostname2>
+```
+
+### (Optional) Configure path-based routing
+
+To restrict routing to specific URL paths, configure `paths`:
+
+```sh
+juju config ingress-configurator paths=<path1>,<path2>
+```
 
 ## Verify proxied endpoints
 
@@ -89,3 +101,7 @@ Use that IP address in a request with the configured hostname:
 ```sh
 curl -i "https://${HAPROXY_IP}/" -H "Host: ${HOSTNAME}" --insecure
 ```
+
+Adjust the path to match an endpoint exposed by your backend workload.
+
+You should see a response from the backend workload, confirming that HAProxy is correctly routing traffic to it.

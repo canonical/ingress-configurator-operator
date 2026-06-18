@@ -10,9 +10,9 @@ myst:
 
 ```{toctree}
 :maxdepth: 1
-haproxy-integrate-non-charm-workload.md
-haproxy-integrate-tcp-non-charm-workload.md
-add-haproxy-features-to-ingress-requirer.md
-haproxy-loadbalancing-grpc.md
-upgrade.md
+Route HTTP traffic to a non-charmed workload with HAProxy <haproxy-integrate-non-charm-workload.md>
+Route TCP traffic to a non-charmed workload with HAProxy <haproxy-integrate-tcp-non-charm-workload.md>
+Add HAProxy features to an ingress requirer <add-haproxy-features-to-ingress-requirer.md>
+Load balance a gRPC server with HAProxy <haproxy-loadbalancing-grpc.md>
+Upgrade <upgrade.md>
 ```

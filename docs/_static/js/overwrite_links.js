@@ -1,6 +1,6 @@
 // Replaces oldDomain with newDomain in relevant anchor tags
-const RtDHostedDomain = '<<RtDslug>>.readthedocs-hosted.com';
-const newDomain = '<<Domain>>/<<Path>>';
+const RtDHostedDomain = 'canonical-ingress-configurator-charm.readthedocs-hosted.com';
+const newDomain = 'canonical.com/juju/docs/ingress-configurator-charm';
 
 function escapeRegExp(value) {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

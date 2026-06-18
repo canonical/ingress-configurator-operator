@@ -8,7 +8,7 @@ myst:
 
 # How to load balance a gRPC server through HAProxy
 
-This guide shows how to configure the `ingress-configurator` charm to expose a
+You can configure the `ingress-configurator` charm to expose a
 gRPC backend through HAProxy.
 
 gRPC load balancing requires the backend to support HTTP/2 over TLS. HAProxy
@@ -18,20 +18,18 @@ port configured via `external-grpc-port`.
 ## Prerequisites
 
 - A HAProxy deployment with TLS configured. See the
-  [HAProxy getting started tutorial](https://charmhub.io/haproxy/docs) for setup
+  [HAProxy getting started tutorial](https://canonical.com/juju/docs/haproxy-charm/latest/tutorial/getting-started/) for setup
   instructions.
 - A gRPC backend reachable from the Juju model with TLS enabled. See the HAProxy
   operator's
-  [gRPC load balancing guide](https://canonical-haproxy-operator.readthedocs-hosted.com/en/latest/how-to/loadbalancing-for-a-grpc-server.html)
+  [gRPC load balancing guide](https://canonical.com/juju/docs/haproxy-charm/latest/how-to/loadbalancing-for-a-grpc-server/)
   for instructions on setting up a gRPC backend (the `flagd` section).
 
-## Deploy the `ingress-configurator` charm
+## Deploy and configure the `ingress-configurator` charm
 
 ```sh
 juju deploy ingress-configurator grpc-configurator --channel=latest/edge
 ```
-
-## Configure the charm
 
 Set the backend address, port, protocol, and hostname. The `backend-protocol`
 must be `https` for gRPC backends:
@@ -54,6 +52,9 @@ juju config grpc-configurator external-grpc-port=<port>
 
 ## Integrate with HAProxy
 
+Use the `haproxy-route` interface, which operates at the HTTP level and supports
+gRPC traffic.
+
 ```sh
 juju integrate grpc-configurator:haproxy-route haproxy
 ```
@@ -66,3 +67,5 @@ Once all charms are active, verify the gRPC server is reachable through HAProxy:
 HAPROXY_IP=$(juju status --format json | jq -r '.applications.haproxy.units."haproxy/0"."public-address"')
 grpcurl -insecure -d '{}' <grpc-hostname>:<port> <service-method>
 ```
+
+A successful response returns the output from your gRPC service method with no connection errors.

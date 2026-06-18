@@ -8,7 +8,7 @@ myst:
 
 # How to route TCP traffic to a non-charmed workload through HAProxy
 
-This guide shows how to use the `ingress-configurator` charm to route raw TCP
+You can use the `ingress-configurator` charm to route raw TCP
 traffic from HAProxy to a backend that is not managed by a Juju charm.
 
 Use this approach for protocols other than HTTP/HTTPS/gRPC (for example SSH,
@@ -16,6 +16,17 @@ SMTP, or PostgreSQL), or when you want HAProxy to pass HTTP/HTTPS/gRPC traffic
 through to the backend without any inspection.
 
 ## Prerequisites
+
+Ensure your backend application is running and reachable from the Juju model.
+Set its IP address in a variable:
+
+```sh
+BACKEND_IP=<backend-ip>
+```
+
+```{note}
+`tcp-backend-addresses` accepts IP addresses only, not FQDNs.
+```
 
 Deploy the `haproxy` and `self-signed-certificates` charms:
 
@@ -25,15 +36,10 @@ juju deploy self-signed-certificates
 juju integrate haproxy:certificates self-signed-certificates
 ```
 
-## Deploy the `ingress-configurator` charm
+## Deploy and integrate the `ingress-configurator` charm
 
 ```sh
 juju deploy ingress-configurator --channel=edge
-```
-
-## Integrate with HAProxy using the TCP endpoint
-
-```sh
 juju integrate haproxy:haproxy-route-tcp ingress-configurator:haproxy-route-tcp
 ```
 
@@ -52,7 +58,16 @@ juju config ingress-configurator \
 
 ## Verify that the backend is reachable through HAProxy
 
+Get the HAProxy public IP address:
+
 ```sh
 HAPROXY_IP=$(juju status --format=json | jq -r '.applications["haproxy"].units["haproxy/0"]."public-address"')
+```
+
+Test the connection on the configured frontend port:
+
+```sh
 nc -zv $HAPROXY_IP 587
 ```
+
+You should see a successful connection, confirming that HAProxy is correctly routing traffic to the backend.

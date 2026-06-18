@@ -5,10 +5,10 @@ myst:
 ---
 
 (how_to_haproxy_integrate_non_charm_workload)=
+
 # How to route HTTP traffic to a non-charmed workload through HAProxy
 
-This guide shows how to use the `ingress-configurator` charm to route traffic
-from HAProxy to a backend application that is not managed by a Juju charm.
+You can use the `ingress-configurator` charm to route traffic from HAProxy to a backend application that is not managed by a Juju charm.
 
 ## Prerequisites
 
@@ -20,29 +20,32 @@ juju deploy self-signed-certificates cert
 juju integrate haproxy:certificates cert
 ```
 
-## Deploy the `ingress-configurator` charm
-
-```sh
-juju deploy ingress-configurator --channel=edge
-```
-
-## Confirm the backend is reachable
-
-This guide assumes you already have a backend workload running and accessible
-from the Juju model. Set its IP address in a variable (note: `backend-addresses`
-accepts IP addresses only, not FQDNs):
+Ensure you have a backend workload running and accessible from the Juju model.
+Set its IP address in a variable:
 
 ```sh
 BACKEND_IP=<backend-ip>
 ```
 
-Verify the backend is responding before configuring HAProxy:
-
-```sh
-curl http://${BACKEND_IP} -I
+```{note}
+`backend-addresses` accepts IP addresses only, not FQDNs.
 ```
 
+Verify the backend is responding:
+
+```sh
+curl http://${BACKEND_IP}/ -I
+```
+
+Adjust the path to match an endpoint exposed by your backend workload.
+
 You should see a successful HTTP response from the backend.
+
+## Deploy the `ingress-configurator` charm
+
+```sh
+juju deploy ingress-configurator --channel=edge
+```
 
 ## Configure the `ingress-configurator` charm
 
@@ -76,4 +79,6 @@ Send a request using the configured hostname:
 curl -i "https://${HAPROXY_IP}/" --insecure -H "Host: ${HOSTNAME}"
 ```
 
-You should see a successful response from the backend.
+Adjust the path to match an endpoint exposed by your backend workload.
+
+You should see a response from the backend workload, confirming that HAProxy is correctly routing traffic to it.

@@ -20,12 +20,12 @@ through to the backend without any inspection.
 Ensure your backend application is running and reachable from the Juju model.
 Set its IP address in a variable:
 
-```{note}
-`tcp-backend-addresses` accepts IP addresses only, not FQDNs.
-```
-
 ```sh
 BACKEND_IP=<backend-ip>
+```
+
+```{note}
+`tcp-backend-addresses` accepts IP addresses only, not FQDNs.
 ```
 
 Deploy the `haproxy` and `self-signed-certificates` charms:

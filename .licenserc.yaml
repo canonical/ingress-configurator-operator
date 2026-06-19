@@ -25,4 +25,6 @@ header:
   - 'zap_rules.tsv'
   - 'lib/**'
   - 'uv.lock'
+  - '.readthedocs.yaml'
+  - 'docs/**'
   comment: on-failure

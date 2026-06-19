@@ -393,10 +393,9 @@ class HaproxyRouteState:
                 external_grpc_port=external_grpc_port,
             )
         except ValidationError as exc:
-            logger.error(str(exc))
-            error_field_str = ",".join(f"{field}" for field in get_invalid_config_fields(exc))
+            logger.error("Invalid haproxy-route config fields: %s", get_invalid_config_fields(exc))
             raise InvalidHaproxyRouteStateError(
-                f"Invalid configuration: {error_field_str}"
+                "Invalid haproxy-route configuration."
             ) from exc
         except ValueError as exc:
             logger.error(str(exc))

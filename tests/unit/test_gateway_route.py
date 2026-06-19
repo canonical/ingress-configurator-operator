@@ -159,8 +159,7 @@ def test_gateway_route_invalid_hostname(
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
-    assert "hostname" in out.unit_status.message
+    assert out.unit_status == ops.testing.BlockedStatus("Invalid gateway-route configuration")
 
 
 @pytest.mark.usefixtures("mock_lightkube")
@@ -190,8 +189,7 @@ def test_gateway_route_https_backend_protocol_blocked(
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
-    assert "backend_protocol" in out.unit_status.message
+    assert out.unit_status == ops.testing.BlockedStatus("Invalid gateway-route configuration")
 
 
 @pytest.mark.usefixtures("mock_lightkube")
@@ -326,8 +324,7 @@ def test_gateway_route_wildcard_hostname_blocked(
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
-    assert "hostname" in out.unit_status.message
+    assert out.unit_status == ops.testing.BlockedStatus("Invalid gateway-route configuration")
 
 
 def test_gateway_route_https_mode_disabled(
@@ -712,8 +709,7 @@ def test_gateway_route_integrator_fqdn_rejected(
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
-    assert "backend_addresses" in out.unit_status.message
+    assert out.unit_status == ops.testing.BlockedStatus("Invalid gateway-route configuration")
 
 
 @pytest.mark.usefixtures("mock_lightkube")
@@ -742,8 +738,7 @@ def test_gateway_route_integrator_multiple_ports_blocked(
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
-    assert "exactly one port" in out.unit_status.message
+    assert out.unit_status == ops.testing.BlockedStatus("Invalid gateway-route configuration")
 
 
 @pytest.mark.usefixtures("mock_lightkube")
@@ -772,8 +767,7 @@ def test_gateway_route_integrator_mixed_ip_families_blocked(
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
-    assert "backend_addresses" in out.unit_status.message
+    assert out.unit_status == ops.testing.BlockedStatus("Invalid gateway-route configuration")
 
 
 def test_gateway_route_integrator_ipv6(

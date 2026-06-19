@@ -216,8 +216,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 self, kubernetes_data
             )
         except InvalidHaproxyRouteStateError as exc:
-            logger.exception("Invalid backend config.")
-            self.unit.status = ops.BlockedStatus(str(exc))
+            logger.exception("Invalid backend config: %s", exc)
+            self.unit.status = ops.BlockedStatus("Invalid backend configuration")
             return
         self._provide_haproxy_route_requirements(charm_state)
 
@@ -233,8 +233,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
         try:
             charm_state = HaproxyRouteState.build_for_adapter_mode(self, ingress_data)
         except InvalidHaproxyRouteStateError as exc:
-            logger.exception("Invalid backend config.")
-            self.unit.status = ops.BlockedStatus(str(exc))
+            logger.exception("Invalid backend config: %s", exc)
+            self.unit.status = ops.BlockedStatus("Invalid backend configuration")
             return
         self._provide_haproxy_route_requirements(charm_state)
 
@@ -248,8 +248,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
         try:
             charm_state = HaproxyRouteState.build_for_integrator_mode(self)
         except InvalidHaproxyRouteStateError as exc:
-            logger.exception("Invalid haproxy-route config.")
-            self.unit.status = ops.BlockedStatus(str(exc))
+            logger.exception("Invalid haproxy-route config: %s", exc)
+            self.unit.status = ops.BlockedStatus("Invalid haproxy-route configuration")
             return
         self._provide_haproxy_route_requirements(charm_state)
         self.unit.status = ops.ActiveStatus("Ready")
@@ -363,8 +363,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
         try:
             state = GatewayRouteState.build_for_adapter_mode(self, ingress_data)
         except InvalidGatewayRouteStateError as exc:
-            logger.exception("Invalid gateway-route config.")
-            self.unit.status = ops.BlockedStatus(str(exc))
+            logger.exception("Invalid gateway-route config: %s", exc)
+            self.unit.status = ops.BlockedStatus("Invalid gateway-route configuration")
             return
 
         if not ingress_data.app.is_port_open:
@@ -444,8 +444,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
         try:
             state = GatewayRouteState.build_for_integrator_mode(self)
         except InvalidGatewayRouteStateError as exc:
-            logger.exception("Invalid gateway-route integrator config.")
-            self.unit.status = ops.BlockedStatus(str(exc))
+            logger.exception("Invalid gateway-route integrator config: %s", exc)
+            self.unit.status = ops.BlockedStatus("Invalid gateway-route configuration")
             return
 
         try:
@@ -517,8 +517,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
         try:
             charm_state = HaproxyRouteTcpState.build_for_integrator_mode(self)
         except InvalidHaproxyRouteTcpStateError as exc:
-            logger.exception("Invalid haproxy-route-tcp config.")
-            self.unit.status = ops.BlockedStatus(str(exc))
+            logger.exception("Invalid haproxy-route-tcp config: %s", exc)
+            self.unit.status = ops.BlockedStatus("Invalid haproxy-route-tcp configuration")
             return
 
         try:

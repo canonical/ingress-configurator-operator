@@ -1,7 +1,7 @@
 ---
 myst:
   html_meta:
-    "description lang=en": "How to use ingress-configurator to provide Kubernetes Gateway API features to charms that only implement the ingress relation."
+    "description lang=en": "Learn how to use ingress-configurator to provide Kubernetes Gateway API features to charms that only implement the ingress relation."
 ---
 
 (how_to_add_gateway_api_features_to_ingress_requirer)=
@@ -87,7 +87,7 @@ the `endpoints` field.
 
 ## Verify routing with curl
 
-To send a request directly to the gateway, retrieve the gateway's external IP
+To send a request directly to the gateway, first retrieve the gateway's external IP
 address:
 
 ```sh

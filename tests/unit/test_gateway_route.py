@@ -135,11 +135,12 @@ def test_gateway_route_additional_hostnames_only(
 @pytest.mark.usefixtures("mock_lightkube")
 def test_gateway_route_invalid_hostname(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    caplog: pytest.LogCaptureFixture,
 ):
     """
     arrange: invalid hostname in config.
     act: trigger config-changed.
-    assert: status is Blocked with message about invalid hostname.
+    assert: status is Blocked and logs mention the invalid hostname field.
     """
     state = ops.testing.State(
         config={"hostname": "not a valid hostname!"},
@@ -160,16 +161,18 @@ def test_gateway_route_invalid_hostname(
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
     assert out.unit_status == ops.testing.BlockedStatus("Invalid gateway-route configuration")
+    assert "hostname" in caplog.text
 
 
 @pytest.mark.usefixtures("mock_lightkube")
 def test_gateway_route_https_backend_protocol_blocked(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    caplog: pytest.LogCaptureFixture,
 ):
     """
     arrange: backend-protocol set to https in gateway-route mode.
     act: trigger config-changed.
-    assert: status is Blocked explaining that https backend is not supported.
+    assert: status is Blocked and logs mention the invalid backend_protocol field.
     """
     state = ops.testing.State(
         config={"hostname": "example.com", "backend-protocol": "https"},
@@ -190,6 +193,7 @@ def test_gateway_route_https_backend_protocol_blocked(
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
     assert out.unit_status == ops.testing.BlockedStatus("Invalid gateway-route configuration")
+    assert "backend_protocol" in caplog.text
 
 
 @pytest.mark.usefixtures("mock_lightkube")
@@ -300,11 +304,12 @@ def test_gateway_route_https_mode_enforced(
 @pytest.mark.usefixtures("mock_lightkube")
 def test_gateway_route_wildcard_hostname_blocked(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    caplog: pytest.LogCaptureFixture,
 ):
     """
     arrange: wildcard hostname in config.
     act: trigger config-changed.
-    assert: status is Blocked with message about invalid hostname.
+    assert: status is Blocked and logs mention the invalid hostname field.
     """
     state = ops.testing.State(
         config={"hostname": "*.example.com"},
@@ -325,6 +330,7 @@ def test_gateway_route_wildcard_hostname_blocked(
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
     assert out.unit_status == ops.testing.BlockedStatus("Invalid gateway-route configuration")
+    assert "hostname" in caplog.text
 
 
 def test_gateway_route_https_mode_disabled(
@@ -686,11 +692,12 @@ def test_gateway_route_integrator_blocked_ambiguous(
 @pytest.mark.usefixtures("mock_lightkube")
 def test_gateway_route_integrator_fqdn_rejected(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """
     arrange: backend-addresses contains an FQDN instead of an IP.
     act: trigger config-changed.
-    assert: status is Blocked with a message about invalid IP address.
+    assert: status is Blocked and logs mention the invalid backend_addresses field.
     """
     state = ops.testing.State(
         config={
@@ -710,16 +717,18 @@ def test_gateway_route_integrator_fqdn_rejected(
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
     assert out.unit_status == ops.testing.BlockedStatus("Invalid gateway-route configuration")
+    assert "backend_addresses" in caplog.text
 
 
 @pytest.mark.usefixtures("mock_lightkube")
 def test_gateway_route_integrator_multiple_ports_blocked(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """
     arrange: backend-ports contains multiple values.
     act: trigger config-changed.
-    assert: status is Blocked requiring exactly one port.
+    assert: status is Blocked and logs mention exactly one port requirement.
     """
     state = ops.testing.State(
         config={
@@ -739,16 +748,18 @@ def test_gateway_route_integrator_multiple_ports_blocked(
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
     assert out.unit_status == ops.testing.BlockedStatus("Invalid gateway-route configuration")
+    assert "exactly one port" in caplog.text
 
 
 @pytest.mark.usefixtures("mock_lightkube")
 def test_gateway_route_integrator_mixed_ip_families_blocked(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """
     arrange: backend-addresses mixes IPv4 and IPv6 addresses.
     act: trigger config-changed.
-    assert: status is Blocked about mixed IP families.
+    assert: status is Blocked and logs mention the invalid backend_addresses field.
     """
     state = ops.testing.State(
         config={
@@ -768,6 +779,7 @@ def test_gateway_route_integrator_mixed_ip_families_blocked(
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
     assert out.unit_status == ops.testing.BlockedStatus("Invalid gateway-route configuration")
+    assert "backend_addresses" in caplog.text
 
 
 def test_gateway_route_integrator_ipv6(

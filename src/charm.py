@@ -369,7 +369,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             return
 
         selector_svc_name: str | None = None
-        if not state.adapter_state.is_port_open:
+        if not ingress_data.app.is_port_open:
             selector_svc_name = f"{self.app.name}-{state.application_name}"
 
         try:

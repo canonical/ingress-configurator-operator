@@ -22,12 +22,12 @@ juju deploy gateway-api-integrator --channel=latest/edge --trust
 Ensure you have a backend workload running and accessible from the Juju model.
 Set its IP address in a variable:
 
-```{note}
-`backend-addresses` accepts IP addresses only (IPv4 and IPv6), not FQDNs.
-```
-
 ```sh
 BACKEND_IP=<backend-ip>
+```
+
+```{note}
+`backend-addresses` accepts IP addresses only (IPv4 and IPv6), not FQDNs.
 ```
 
 Verify the backend is responding:

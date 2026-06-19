@@ -5,7 +5,7 @@ myst:
 ---
 # Ingress configurator operator
 
-The ingress configurator operator is a Juju charm that acts as a bridge between workloads needing ingress and the route-provider charms that fulfil it. It supports both charm workloads integrating over the `ingress` interface and external backends described by configuration.
+The ingress configurator operator is a Juju charm that acts as a bridge between workloads needing ingress and the route-provider charms that fulfill it. It supports both charm workloads integrating over the `ingress` interface and external backends described by configuration.
 
 The following route-provider interfaces are supported:
 

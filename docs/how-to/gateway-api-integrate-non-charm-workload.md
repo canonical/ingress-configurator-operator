@@ -1,7 +1,7 @@
 ---
 myst:
   html_meta:
-    "description lang=en": "How to route HTTP traffic to a non-charmed workload using ingress-configurator on Kubernetes Gateway API."
+    "description lang=en": "Learn how to route HTTP traffic to a non-charmed workload using ingress-configurator on Kubernetes Gateway API."
 ---
 
 (how_to_gateway_api_integrate_non_charm_workload)=
@@ -98,7 +98,7 @@ juju run ingress-configurator/leader get-proxied-endpoints
 
 You should see `https://${HOSTNAME}/` in the `endpoints` field.
 
-To send a request directly to the gateway, retrieve the gateway's external IP
+To send a request directly to the gateway, first retrieve the gateway's external IP
 address:
 
 ```sh

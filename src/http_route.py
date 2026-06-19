@@ -200,7 +200,7 @@ class HTTPRouteConfig:
         scheme: The scheme of the HTTPRoute ("http" or "https").
         gateway_name: parentRef gateway name.
         gateway_namespace: parentRef namespace.
-        listener_name: sectionName (e.g. "<gateway_name>-http-listener").
+        listener_name: sectionName (e.g. "<gateway_name>-http").
         hostnames: List of hostnames for the HTTPRoute.
         paths: List of path prefixes.
         backend_service_name: The workload K8s Service name.
@@ -392,7 +392,7 @@ def create_http_routes(
             scheme=scheme,
             gateway_name=gateway_name,
             gateway_namespace=gateway_model,
-            listener_name=f"{gateway_name}-{scheme}-listener",
+            listener_name=f"{gateway_name}-{scheme}",
             hostnames=hostnames,
             paths=paths,
             backend_service_name=backend_service_name,

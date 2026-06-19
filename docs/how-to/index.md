@@ -11,6 +11,7 @@ myst:
 ```{toctree}
 :maxdepth: 1
 Add Kubernetes Gateway API features to an ingress requirer <gateway-api-add-features-to-ingress-requirer.md>
+Route HTTP traffic to a non-charmed workload with Kubernetes Gateway API <gateway-api-integrate-non-charm-workload.md>
 Route HTTP traffic to a non-charmed workload with HAProxy <haproxy-integrate-non-charm-workload.md>
 Route TCP traffic to a non-charmed workload with HAProxy <haproxy-integrate-tcp-non-charm-workload.md>
 Add HAProxy features to an ingress requirer <add-haproxy-features-to-ingress-requirer.md>

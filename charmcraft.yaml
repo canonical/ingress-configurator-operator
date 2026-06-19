@@ -12,7 +12,7 @@ parts:
     source: .
     plugin: uv
     build-snaps:
-    - astral-uv
+      - astral-uv
 name: ingress-configurator
 title: Ingress configurator charm.
 description: |
@@ -47,10 +47,14 @@ config:
   options:
     backend-addresses:
       type: string
-      description: (integrator mode) Comma-separated list of IP addresses of the backend services.
+      description: |
+        (integrator mode) Comma-separated list of IP addresses of the backend services.
+        For gateway-route, all IP addresses must be in the same address family (IPv4 or IPv6).
     backend-ports:
       type: string
-      description: (integrator mode) Comma-separated list of ports of the backend services.
+      description: |
+        (integrator mode) Comma-separated list of ports of the backend services.
+        For gateway-route, exactly one port must be provided.
     backend-protocol:
       type: string
       description: The protocol that the backend service speaks. "http" (default) or "https".

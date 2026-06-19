@@ -136,11 +136,6 @@ class GatewayRouteState:
         )
         paths = [p.strip() for p in paths_raw if p.strip()] or ["/"]
 
-        if charm.config.get("backend-protocol") == "https":
-            raise InvalidGatewayRouteStateError(
-                "backend-protocol cannot be 'https' in gateway-route mode"
-            )
-
         try:
             return cls(
                 application_name=application_name,
@@ -155,11 +150,8 @@ class GatewayRouteState:
                 integrator_state=integrator_state,
             )
         except ValidationError as exc:
-            logger.error(str(exc))
-            error_field_str = ", ".join(get_invalid_config_fields(exc))
-            raise InvalidGatewayRouteStateError(
-                f"Invalid gateway-route configuration: {error_field_str}"
-            ) from exc
+            logger.error("Invalid gateway-route config fields: %s", get_invalid_config_fields(exc))
+            raise InvalidGatewayRouteStateError("Invalid gateway-route configuration.") from exc
 
     @classmethod
     def build_for_adapter_mode(
@@ -223,11 +215,8 @@ class GatewayRouteState:
                 backend_addresses=addr_strings,  # type: ignore[arg-type]
             )
         except ValidationError as exc:
-            logger.error(str(exc))
-            error_field_str = ", ".join(get_invalid_config_fields(exc))
-            raise InvalidGatewayRouteStateError(
-                f"Invalid gateway-route configuration: {error_field_str}"
-            ) from exc
+            logger.error("Invalid gateway-route config fields: %s", get_invalid_config_fields(exc))
+            raise InvalidGatewayRouteStateError("Invalid gateway-route configuration.") from exc
 
         return cls._build(
             charm,

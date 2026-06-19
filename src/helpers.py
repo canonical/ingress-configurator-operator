@@ -30,14 +30,23 @@ def value_has_valid_characters(value: str) -> str:
 
 
 def get_invalid_config_fields(exc: ValidationError) -> list[str]:
-    """Return a list on invalid config from pydantic validation error.
+    """Return the top-level field names that failed pydantic validation.
+
+    Only the first element of each error's ``loc`` tuple is kept, so nested
+    type paths (e.g. for list items) are collapsed to their parent field.
+    Results are de-duplicated while preserving order.
 
     Args:
         exc: The validation error exception.
 
     Returns:
-        str: list of fields that failed validation.
+        list[str]: De-duplicated top-level field names that failed validation.
     """
-    logger.info(exc.errors())
-    error_fields = ["-".join([str(i) for i in error["loc"]]) for error in exc.errors()]
+    error_fields: list[str] = []
+    for error in exc.errors():
+        if not error["loc"]:
+            continue
+        field = str(error["loc"][0])
+        if field not in error_fields:
+            error_fields.append(field)
     return error_fields

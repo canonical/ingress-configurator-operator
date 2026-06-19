@@ -286,7 +286,7 @@ def test_gateway_route_https_mode_enforced(
 
     # HTTP route: 301 redirect to HTTPS, http-listener
     assert http_resource.metadata.name == "ingress-configurator-testing-app-http"
-    assert http_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http-listener"
+    assert http_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http"
     http_rule = http_resource.spec["rules"][0]
     assert http_rule["filters"][0]["type"] == "RequestRedirect"
     assert http_rule["filters"][0]["requestRedirect"]["scheme"] == "https"
@@ -295,7 +295,7 @@ def test_gateway_route_https_mode_enforced(
 
     # HTTPS route: forwards to backend, https-listener
     assert https_resource.metadata.name == "ingress-configurator-testing-app-https"
-    assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https-listener"
+    assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https"
     https_rule = https_resource.spec["rules"][0]
     assert https_rule["backendRefs"][0]["port"] == 8080
     assert "filters" not in https_rule
@@ -369,7 +369,7 @@ def test_gateway_route_https_mode_disabled(
     resource = single_call.args[0]
 
     assert resource.metadata.name == "ingress-configurator-testing-app-http"
-    assert resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http-listener"
+    assert resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http"
     rule = resource.spec["rules"][0]
     assert rule["backendRefs"][0]["port"] == 8080
     assert "filters" not in rule
@@ -414,13 +414,13 @@ def test_gateway_route_https_mode_enabled(
 
     # Both routes forward to the backend
     assert http_resource.metadata.name == "ingress-configurator-testing-app-http"
-    assert http_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http-listener"
+    assert http_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http"
     http_rule = http_resource.spec["rules"][0]
     assert http_rule["backendRefs"][0]["port"] == 8080
     assert "filters" not in http_rule
 
     assert https_resource.metadata.name == "ingress-configurator-testing-app-https"
-    assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https-listener"
+    assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https"
     https_rule = https_resource.spec["rules"][0]
     assert https_rule["backendRefs"][0]["port"] == 8080
     assert "filters" not in https_rule
@@ -506,13 +506,16 @@ INGRESS_PORT_CLOSED_UNITS_DATA = {0: {"host": '"test.local"', "ip": '"10.0.0.1"'
 
 
 @pytest.mark.usefixtures("mock_lightkube")
-def test_gateway_route_adapter_port_closed_blocks(
+def test_gateway_route_adapter_port_closed_creates_selector_service(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    mock_lightkube: "LightkubeClient",
 ) -> None:
     """
     arrange: ingress relation with is_port_open=False.
     act: trigger config-changed.
-    assert: status is Blocked with a message about the port not being open.
+    assert: status is Active("Ready"); a selector Service is created with the
+        target app's pod selector and the backend port; the HTTPRoute backendRef
+        uses the selector Service name, not the requirer app name.
     """
     state = ops.testing.State(
         config={"hostname": "example.com"},
@@ -532,9 +535,28 @@ def test_gateway_route_adapter_port_closed_blocks(
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert out.unit_status == ops.testing.BlockedStatus(
-        "Workload port is not open. Gateway-route adapter mode requires the port to be open."
-    )
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
+
+    apply_calls = mock_lightkube.apply.call_args_list  # type: ignore[attr-defined]
+    svc_calls = [c for c in apply_calls if isinstance(c.args[0], Service)]
+    assert len(svc_calls) == 1
+    svc: Service = svc_calls[0].args[0]
+    assert svc.metadata is not None
+    assert svc.metadata.name == "ingress-configurator-testing-app"
+    assert svc.metadata.labels is not None
+    assert svc.metadata.labels.get(MANAGED_BY_LABEL) == "ingress-configurator"
+    assert svc.spec is not None
+    assert svc.spec.selector == {"app.kubernetes.io/name": "testing-app"}
+    assert svc.spec.ports is not None
+    assert svc.spec.ports[0].port == 8080
+
+    http_route_calls = [c for c in apply_calls if not isinstance(c.args[0], Service)]
+    assert http_route_calls, "no HTTPRoute was applied"
+    for call in http_route_calls:
+        resource = call.args[0]
+        backend_ref = resource.spec["rules"][0].get("backendRefs")
+        if backend_ref is not None:
+            assert backend_ref[0]["name"] == "ingress-configurator-testing-app"
 
 
 def test_gateway_route_port_open_cleans_up_stale_headless_resources(

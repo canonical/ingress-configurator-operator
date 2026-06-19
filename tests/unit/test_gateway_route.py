@@ -5,10 +5,14 @@
 
 import json
 from typing import TYPE_CHECKING
-from unittest.mock import ANY
+from unittest.mock import ANY, MagicMock
 
 import ops.testing
 import pytest
+from lightkube.resources.core_v1 import Service
+from lightkube.resources.discovery_v1 import EndpointSlice
+
+from http_route import MANAGED_BY_LABEL
 
 if TYPE_CHECKING:
     from lightkube import Client as LightkubeClient
@@ -540,12 +544,6 @@ def test_gateway_route_port_open_cleans_up_stale_headless_resources(
     act: trigger config-changed.
     assert: status is Active; the stale headless Service is deleted.
     """
-    from unittest.mock import MagicMock
-
-    from lightkube.resources.core_v1 import Service
-
-    from http_route import MANAGED_BY_LABEL
-
     stale_svc = MagicMock()
     stale_svc.metadata.name = "ingress-configurator-headless"
 
@@ -606,11 +604,6 @@ def test_gateway_route_integrator_happy_path(
     assert: status is Active; headless Service and EndpointSlice (addressType=IPv4,
         IP endpoints) are applied; HTTPRoute backend references the headless Service.
     """
-    from lightkube.resources.core_v1 import Service
-    from lightkube.resources.discovery_v1 import EndpointSlice
-
-    from http_route import MANAGED_BY_LABEL
-
     state = ops.testing.State(
         config=GATEWAY_ROUTE_INTEGRATOR_CONFIG,
         relations=[
@@ -792,8 +785,6 @@ def test_gateway_route_integrator_ipv6(
     act: trigger config-changed.
     assert: status is Active; EndpointSlice has addressType=IPv6.
     """
-    from lightkube.resources.discovery_v1 import EndpointSlice
-
     state = ops.testing.State(
         config={
             "hostname": "example.com",

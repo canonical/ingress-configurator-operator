@@ -206,9 +206,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 charm_name=self.app.name,
             )
         except InvalidKubernetesPermissionError as exc:
-            logger.exception("Kubernetes API permission error.")
+            logger.exception("Kubernetes API permission error: %s", exc)
             self.unit.status = ops.BlockedStatus(
-                f"Kubernetes API permission error: {exc}. This charm needs --trust to run on k8s substrates."
+                "Kubernetes API permission error. This charm needs --trust to run on k8s substrates."
             )
             return
         kubernetes_data = get_kubernetes_data(self.lightkube_client, service_name)
@@ -217,8 +217,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 self, kubernetes_data
             )
         except InvalidHaproxyRouteStateError as exc:
-            logger.exception("Invalid backend config.")
-            self.unit.status = ops.BlockedStatus(str(exc))
+            logger.exception("Invalid backend config: %s", exc)
+            self.unit.status = ops.BlockedStatus("Invalid backend configuration")
             return
         self._provide_haproxy_route_requirements(charm_state)
 
@@ -234,8 +234,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
         try:
             charm_state = HaproxyRouteState.build_for_adapter_mode(self, ingress_data)
         except InvalidHaproxyRouteStateError as exc:
-            logger.exception("Invalid backend config.")
-            self.unit.status = ops.BlockedStatus(str(exc))
+            logger.exception("Invalid backend config: %s", exc)
+            self.unit.status = ops.BlockedStatus("Invalid backend configuration")
             return
         self._provide_haproxy_route_requirements(charm_state)
 
@@ -249,8 +249,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
         try:
             charm_state = HaproxyRouteState.build_for_integrator_mode(self)
         except InvalidHaproxyRouteStateError as exc:
-            logger.exception("Invalid haproxy-route config.")
-            self.unit.status = ops.BlockedStatus(str(exc))
+            logger.exception("Invalid haproxy-route config: %s", exc)
+            self.unit.status = ops.BlockedStatus("Invalid haproxy-route configuration")
             return
         self._provide_haproxy_route_requirements(charm_state)
         self.unit.status = ops.ActiveStatus("Ready")
@@ -333,7 +333,10 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 http_route_manager.delete_stale()
                 return
             except InvalidKubernetesPermissionError as exc:
-                self.unit.status = ops.BlockedStatus(str(exc))
+                logger.exception("Kubernetes API permission error: %s", exc)
+                self.unit.status = ops.BlockedStatus(
+                    "Kubernetes API permission error. This charm needs --trust to run on k8s substrates."
+                )
                 return
 
         if ingress_relation:
@@ -349,7 +352,10 @@ class IngressConfiguratorCharm(ops.CharmBase):
             delete_backend_services_owned_by(self.lightkube_client, self.model.name, self.app.name)
             http_route_manager.delete_stale()
         except InvalidKubernetesPermissionError as exc:
-            self.unit.status = ops.BlockedStatus(str(exc))
+            logger.exception("Kubernetes API permission error: %s", exc)
+            self.unit.status = ops.BlockedStatus(
+                "Kubernetes API permission error. This charm needs --trust to run on k8s substrates."
+            )
             return
         self.unit.status = ops.BlockedStatus("Ingress relation or backend config required.")
 
@@ -364,8 +370,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
         try:
             state = GatewayRouteState.build_for_adapter_mode(self, ingress_data)
         except InvalidGatewayRouteStateError as exc:
-            logger.exception("Invalid gateway-route config.")
-            self.unit.status = ops.BlockedStatus(str(exc))
+            logger.exception("Invalid gateway-route config: %s", exc)
+            self.unit.status = ops.BlockedStatus("Invalid gateway-route configuration")
             return
 
         selector_svc_name: str | None = None
@@ -380,7 +386,10 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 exclude={selector_svc_name} if selector_svc_name else None,
             )
         except InvalidKubernetesPermissionError as exc:
-            self.unit.status = ops.BlockedStatus(str(exc))
+            logger.exception("Kubernetes API permission error: %s", exc)
+            self.unit.status = ops.BlockedStatus(
+                "Kubernetes API permission error. This charm needs --trust to run on k8s substrates."
+            )
             return
 
         if selector_svc_name:
@@ -394,7 +403,10 @@ class IngressConfiguratorCharm(ops.CharmBase):
                     self.app.name,
                 )
             except InvalidKubernetesPermissionError as exc:
-                self.unit.status = ops.BlockedStatus(str(exc))
+                logger.exception("Kubernetes API permission error: %s", exc)
+                self.unit.status = ops.BlockedStatus(
+                    "Kubernetes API permission error. This charm needs --trust to run on k8s substrates."
+                )
                 return
 
         try:
@@ -403,8 +415,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 additional_hostnames=list(state.additional_hostnames),
             )
         except GatewayRouteInvalidRelationDataError as exc:
-            logger.exception("Invalid gateway-route relation data.")
-            self.unit.status = ops.BlockedStatus(str(exc))
+            logger.exception("Invalid gateway-route relation data: %s", exc)
+            self.unit.status = ops.BlockedStatus("Invalid gateway-route relation data")
             return
 
         try:
@@ -434,7 +446,10 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 backend_service_port=state.backend_port,
             )
         except InvalidKubernetesPermissionError as exc:
-            self.unit.status = ops.BlockedStatus(str(exc))
+            logger.exception("Kubernetes API permission error: %s", exc)
+            self.unit.status = ops.BlockedStatus(
+                "Kubernetes API permission error. This charm needs --trust to run on k8s substrates."
+            )
             return
 
         if state.hostname:
@@ -460,8 +475,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
         try:
             state = GatewayRouteState.build_for_integrator_mode(self)
         except InvalidGatewayRouteStateError as exc:
-            logger.exception("Invalid gateway-route integrator config.")
-            self.unit.status = ops.BlockedStatus(str(exc))
+            logger.exception("Invalid gateway-route integrator config: %s", exc)
+            self.unit.status = ops.BlockedStatus("Invalid gateway-route configuration")
             return
 
         try:
@@ -470,8 +485,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 additional_hostnames=list(state.additional_hostnames),
             )
         except GatewayRouteInvalidRelationDataError as exc:
-            logger.exception("Invalid gateway-route relation data.")
-            self.unit.status = ops.BlockedStatus(str(exc))
+            logger.exception("Invalid gateway-route relation data: %s", exc)
+            self.unit.status = ops.BlockedStatus("Invalid gateway-route relation data")
             return
 
         try:
@@ -493,7 +508,10 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 state.integrator_state.address_type,
             )
         except InvalidKubernetesPermissionError as exc:
-            self.unit.status = ops.BlockedStatus(str(exc))
+            logger.exception("Kubernetes API permission error: %s", exc)
+            self.unit.status = ops.BlockedStatus(
+                "Kubernetes API permission error. This charm needs --trust to run on k8s substrates."
+            )
             return
 
         route_manager = HTTPRouteManager(
@@ -514,7 +532,85 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 backend_service_port=state.backend_port,
             )
         except InvalidKubernetesPermissionError as exc:
-            self.unit.status = ops.BlockedStatus(str(exc))
+            logger.exception("Kubernetes API permission error: %s", exc)
+            self.unit.status = ops.BlockedStatus(
+                "Kubernetes API permission error. This charm needs --trust to run on k8s substrates."
+            )
+            return
+
+        self.unit.status = ops.ActiveStatus("Ready")
+
+    def _reconcile_gateway_route_integrator(self) -> None:
+        """Reconcile gateway-route in integrator mode.
+
+        Traffic is routed to external backend IPs via a headless Service and
+        EndpointSlice.  There is no ingress relation; backend-addresses (IPs) and
+        a single backend-ports value must be set in config.
+        """
+        try:
+            state = GatewayRouteState.build_for_integrator_mode(self)
+        except InvalidGatewayRouteStateError as exc:
+            logger.exception("Invalid gateway-route integrator config: %s", exc)
+            self.unit.status = ops.BlockedStatus("Invalid gateway-route configuration")
+            return
+
+        try:
+            self._gateway_route.publish_requirer_data(
+                hostname=state.hostname,
+                additional_hostnames=list(state.additional_hostnames),
+            )
+        except GatewayRouteInvalidRelationDataError as exc:
+            logger.exception("Invalid gateway-route relation data: %s", exc)
+            self.unit.status = ops.BlockedStatus("Invalid gateway-route relation data")
+            return
+
+        try:
+            provider_data = self._gateway_route.get_provider_data()
+        except GatewayRouteInvalidRelationDataError:
+            logger.exception("Invalid gateway-route provider data.")
+            self.unit.status = ops.WaitingStatus("Invalid gateway-route provider data")
+            return
+
+        headless_svc_name = f"{self.app.name}-headless"
+        try:
+            ensure_external_backend_service(
+                self.lightkube_client,
+                self.model.name,
+                headless_svc_name,
+                state.integrator_state.backend_addresses,
+                state.backend_port,
+                self.app.name,
+                state.integrator_state.address_type,
+            )
+        except InvalidKubernetesPermissionError as exc:
+            logger.exception("Kubernetes API permission error: %s", exc)
+            self.unit.status = ops.BlockedStatus(
+                "Kubernetes API permission error. This charm needs --trust to run on k8s substrates."
+            )
+            return
+
+        route_manager = HTTPRouteManager(
+            client=self.lightkube_client,
+            namespace=self.model.name,
+            labels={MANAGED_BY_LABEL: self.app.name},
+        )
+        try:
+            create_http_routes(
+                http_route_manager=route_manager,
+                app_name=self.app.name,
+                gateway_name=provider_data.gateway_name,
+                gateway_model=provider_data.gateway_model,
+                https_mode=provider_data.https_mode,
+                hostnames=state.hostnames,
+                paths=state.paths,
+                backend_service_name=headless_svc_name,
+                backend_service_port=state.backend_port,
+            )
+        except InvalidKubernetesPermissionError as exc:
+            logger.exception("Kubernetes API permission error: %s", exc)
+            self.unit.status = ops.BlockedStatus(
+                "Kubernetes API permission error. This charm needs --trust to run on k8s substrates."
+            )
             return
 
         self.unit.status = ops.ActiveStatus("Ready")
@@ -533,8 +629,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
         try:
             charm_state = HaproxyRouteTcpState.build_for_integrator_mode(self)
         except InvalidHaproxyRouteTcpStateError as exc:
-            logger.exception("Invalid haproxy-route-tcp config.")
-            self.unit.status = ops.BlockedStatus(str(exc))
+            logger.exception("Invalid haproxy-route-tcp config: %s", exc)
+            self.unit.status = ops.BlockedStatus("Invalid haproxy-route-tcp configuration")
             return
 
         try:
@@ -564,8 +660,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 proxy_protocol=charm_state.proxy_protocol,
             )
         except DataValidationError as exc:
-            logger.exception("Error providing haproxy-route-tcp requirements.")
-            self.unit.status = ops.BlockedStatus(str(exc))
+            logger.exception("Error providing haproxy-route-tcp requirements: %s", exc)
+            self.unit.status = ops.BlockedStatus("Invalid haproxy-route-tcp relation data")
             return
         self.unit.status = ops.ActiveStatus("Ready")
 

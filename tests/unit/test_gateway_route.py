@@ -547,6 +547,14 @@ def test_gateway_route_adapter_port_closed_creates_selector_service(
     assert svc.spec.ports is not None
     assert svc.spec.ports[0].port == 8080
 
+    http_route_calls = [c for c in apply_calls if not isinstance(c.args[0], Service)]
+    assert http_route_calls, "no HTTPRoute was applied"
+    for call in http_route_calls:
+        resource = call.args[0]
+        backend_ref = resource.spec["rules"][0].get("backendRefs")
+        if backend_ref is not None:
+            assert backend_ref[0]["name"] == "ingress-configurator-testing-app"
+
 
 def test_gateway_route_port_open_cleans_up_stale_headless_resources(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"],

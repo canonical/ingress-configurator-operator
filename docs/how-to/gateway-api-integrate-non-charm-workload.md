@@ -98,10 +98,17 @@ juju run ingress-configurator/leader get-proxied-endpoints
 
 You should see `https://${HOSTNAME}/` in the `endpoints` field.
 
-Use the endpoint URL from the `endpoints` field to send a request to the backend:
+To send a request directly to the gateway, retrieve the gateway's external IP
+address:
 
 ```sh
-curl -i "<endpoint-url>" --insecure
+GATEWAY_IP=$(kubectl get gateway -A -o jsonpath='{.items[0].status.addresses[0].value}')
+```
+
+Then send a request using the configured hostname:
+
+```sh
+curl -i "http://${GATEWAY_IP}/" -H "Host: ${HOSTNAME}"
 ```
 
 Adjust the path to match an endpoint exposed by your backend workload.

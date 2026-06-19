@@ -151,9 +151,7 @@ class GatewayRouteState:
             )
         except ValidationError as exc:
             logger.error("Invalid gateway-route config fields: %s", get_invalid_config_fields(exc))
-            raise InvalidGatewayRouteStateError(
-                "Invalid gateway-route configuration."
-            ) from exc
+            raise InvalidGatewayRouteStateError("Invalid gateway-route configuration.") from exc
 
     @classmethod
     def build_for_adapter_mode(
@@ -218,9 +216,7 @@ class GatewayRouteState:
             )
         except ValidationError as exc:
             logger.error("Invalid gateway-route config fields: %s", get_invalid_config_fields(exc))
-            raise InvalidGatewayRouteStateError(
-                "Invalid gateway-route configuration."
-            ) from exc
+            raise InvalidGatewayRouteStateError("Invalid gateway-route configuration.") from exc
 
         return cls._build(
             charm,

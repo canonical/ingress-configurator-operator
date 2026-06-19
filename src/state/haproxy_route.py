@@ -394,9 +394,7 @@ class HaproxyRouteState:
             )
         except ValidationError as exc:
             logger.error("Invalid haproxy-route config fields: %s", get_invalid_config_fields(exc))
-            raise InvalidHaproxyRouteStateError(
-                "Invalid haproxy-route configuration."
-            ) from exc
+            raise InvalidHaproxyRouteStateError("Invalid haproxy-route configuration.") from exc
         except ValueError as exc:
             logger.error(str(exc))
             raise InvalidHaproxyRouteStateError("State contains invalid value(s).") from exc

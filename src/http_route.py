@@ -100,10 +100,59 @@ def ensure_external_backend_service(
         raise
 
 
+def ensure_workload_backend_service(
+    client: Client,
+    namespace: str,
+    name: str,
+    target_app_name: str,
+    port: int,
+    owner_app_name: str,
+) -> None:
+    """Create or update a selector-based Service routing to pods of ``target_app_name``.
+
+    Unlike the headless backend, this Service uses a pod selector rather than
+    explicit Endpoints, so it works even when the target application has not
+    opened its port in Juju.
+
+    Args:
+        client: The lightkube Client instance.
+        namespace: The Kubernetes namespace to create the Service in.
+        name: Name for the Service.
+        target_app_name: Pod label value for ``app.kubernetes.io/name`` on the
+            target application's pods.
+        port: The port to expose and target.
+        owner_app_name: Owning charm name, used as the value of the
+            :data:`MANAGED_BY_LABEL` label.
+
+    Raises:
+        InvalidKubernetesPermissionError: When the charm lacks RBAC permissions.
+    """
+    service = Service(
+        metadata=ObjectMeta(
+            name=name,
+            namespace=namespace,
+            labels={MANAGED_BY_LABEL: owner_app_name},
+        ),
+        spec=ServiceSpec(
+            selector={"app.kubernetes.io/name": target_app_name},
+            ports=[ServicePort(port=port, targetPort=port)],
+        ),
+    )
+    try:
+        client.apply(service, field_manager=owner_app_name, force=True)
+    except ApiError as e:
+        if e.status.code == 403:
+            raise InvalidKubernetesPermissionError(
+                "This charm needs --trust to run on k8s substrates"
+            ) from e
+        raise
+
+
 def delete_backend_services_owned_by(
     client: Client,
     namespace: str,
     app_name: str,
+    exclude: set[str] | None = None,
 ) -> None:
     """Delete all backend EndpointSlices and Services owned by ``app_name``.
 
@@ -113,20 +162,26 @@ def delete_backend_services_owned_by(
         client: The lightkube Client instance.
         namespace: The Kubernetes namespace to search in.
         app_name: The owning charm name to match.
+        exclude: Optional set of resource names to skip deletion.
 
     Raises:
         InvalidKubernetesPermissionError: When the charm lacks RBAC permissions.
     """
+    exclude_set = exclude or set()
     try:
         for es in client.list(
             EndpointSlice, namespace=namespace, labels={MANAGED_BY_LABEL: app_name}
         ):
-            if es.metadata and es.metadata.name:
+            if es.metadata and es.metadata.name and es.metadata.name not in exclude_set:
                 client.delete(EndpointSlice, name=es.metadata.name, namespace=namespace)
         for service in client.list(
             Service, namespace=namespace, labels={MANAGED_BY_LABEL: app_name}
         ):
-            if service.metadata and service.metadata.name:
+            if (
+                service.metadata
+                and service.metadata.name
+                and service.metadata.name not in exclude_set
+            ):
                 client.delete(Service, name=service.metadata.name, namespace=namespace)
     except ApiError as e:
         if e.status.code == 403:
@@ -145,7 +200,7 @@ class HTTPRouteConfig:
         scheme: The scheme of the HTTPRoute ("http" or "https").
         gateway_name: parentRef gateway name.
         gateway_namespace: parentRef namespace.
-        listener_name: sectionName (e.g. "<gateway_name>-http-listener").
+        listener_name: sectionName (e.g. "<gateway_name>-http").
         hostnames: List of hostnames for the HTTPRoute.
         paths: List of path prefixes.
         backend_service_name: The workload K8s Service name.
@@ -337,7 +392,7 @@ def create_http_routes(
             scheme=scheme,
             gateway_name=gateway_name,
             gateway_namespace=gateway_model,
-            listener_name=f"{gateway_name}-{scheme}-listener",
+            listener_name=f"{gateway_name}-{scheme}",
             hostnames=hostnames,
             paths=paths,
             backend_service_name=backend_service_name,

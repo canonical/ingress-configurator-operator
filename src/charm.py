@@ -40,6 +40,7 @@ from http_route import (
     create_http_routes,
     delete_backend_services_owned_by,
     ensure_external_backend_service,
+    ensure_workload_backend_service,
 )
 from kubernetes import (
     InvalidKubernetesPermissionError,
@@ -373,17 +374,16 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self.unit.status = ops.BlockedStatus("Invalid gateway-route configuration")
             return
 
+        selector_svc_name: str | None = None
         if not ingress_data.app.is_port_open:
-            self.unit.status = ops.BlockedStatus(
-                "Workload port is not open. Gateway-route adapter mode requires the port to be open."
-            )
-            return
+            selector_svc_name = f"{self.app.name}-{state.application_name}"
 
         try:
             delete_backend_services_owned_by(
                 self.lightkube_client,
                 self.model.name,
                 self.app.name,
+                exclude={selector_svc_name} if selector_svc_name else None,
             )
         except InvalidKubernetesPermissionError as exc:
             logger.exception("Kubernetes API permission error: %s", exc)
@@ -391,6 +391,23 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 "Kubernetes API permission error. This charm needs --trust to run on k8s substrates."
             )
             return
+
+        if selector_svc_name:
+            try:
+                ensure_workload_backend_service(
+                    self.lightkube_client,
+                    self.model.name,
+                    selector_svc_name,
+                    state.application_name,
+                    state.backend_port,
+                    self.app.name,
+                )
+            except InvalidKubernetesPermissionError as exc:
+                logger.exception("Kubernetes API permission error: %s", exc)
+                self.unit.status = ops.BlockedStatus(
+                    "Kubernetes API permission error. This charm needs --trust to run on k8s substrates."
+                )
+                return
 
         try:
             self._gateway_route.publish_requirer_data(
@@ -423,7 +440,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 https_mode=provider_data.https_mode,
                 hostnames=state.hostnames,
                 paths=state.paths,
-                backend_service_name=state.application_name,
+                backend_service_name=selector_svc_name
+                if selector_svc_name
+                else state.application_name,
                 backend_service_port=state.backend_port,
             )
         except InvalidKubernetesPermissionError as exc:

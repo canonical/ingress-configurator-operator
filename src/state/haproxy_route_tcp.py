@@ -14,6 +14,7 @@ import ops
 from annotated_types import Len
 from charms.haproxy.v1.haproxy_route_tcp import (
     LoadBalancingAlgorithm,
+    PortMapping,
     Retry,
     TCPHealthCheckType,
     TCPLoadBalancingConfiguration,
@@ -123,8 +124,8 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
 
     Attributes:
         backend_addresses: List of backend IP addresses.
-        port: Frontend port for the TCP route.
-        backend_port: Backend port for the TCP route.
+        port_mapping: Port range mapping from frontend to backend (covers both single-port
+            and range modes).
         tls_terminate: Whether to enable TLS termination.
         hostname: Optional hostname for SNI (Server Name Indication).
         retry: Retry configuration.
@@ -135,8 +136,6 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
     """
 
     backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
-    backend_port: Annotated[int, Field(gt=0, le=65535)]
-    port: Annotated[int, Field(gt=0, le=65535)]
     tls_terminate: bool
     hostname: Annotated[str, BeforeValidator(valid_domain_with_wildcard)] | None
     retry: Retry | None
@@ -145,6 +144,7 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
     health_check: TCPHealthCheck
     timeout: TimeoutConfiguration
     proxy_protocol: bool
+    port_mapping: PortMapping
 
     @classmethod
     def has_integrator_config(cls, charm: ops.CharmBase) -> bool:
@@ -158,9 +158,13 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
             charm: the ingress-configurator charm.
 
         Returns:
-            True if tcp-backend-addresses or tcp-backend-port is set in config.
+            True if tcp-backend-addresses or tcp-backend-port or tcp-port-mapping is set in config.
         """
-        return bool(charm.config.get("backend-addresses") or charm.config.get("backend-ports"))
+        return bool(
+            charm.config.get("tcp-backend-addresses")
+            or charm.config.get("tcp-backend-port")
+            or charm.config.get("tcp-port-mapping")
+        )
 
     @classmethod
     def build_for_integrator_mode(cls, charm: ops.CharmBase) -> Self:
@@ -175,6 +179,15 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
         Returns:
             HaproxyRouteTcpState: instance of the TCP state.
         """
+        port_mapping_str = cast(str | None, charm.config.get("tcp-port-mapping"))
+        tcp_frontend_port = cast(int | None, charm.config.get("tcp-frontend-port"))
+        tcp_backend_port = cast(int | None, charm.config.get("tcp-backend-port"))
+
+        if port_mapping_str is not None and tcp_frontend_port is not None:
+            raise InvalidHaproxyRouteTcpStateError(
+                "tcp-port-mapping is mutually exclusive with tcp-frontend-port and tcp-backend-port."
+            )
+
         try:
             backend_addresses = (
                 [
@@ -184,27 +197,37 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
                 if charm.config.get("tcp-backend-addresses")
                 else []
             )
-            backend_port = cast(int, charm.config.get("tcp-backend-port"))
         except ValueError as exc:
             logger.error(str(exc))
             raise InvalidHaproxyRouteTcpStateError(
                 "TCP backend state contains invalid value(s)."
             ) from exc
-        return cls._build(charm, backend_addresses, backend_port)
+
+        try:
+            port_mapping = PortMapping.from_string(
+                port_mapping_str.strip()
+                if port_mapping_str is not None
+                else f"{tcp_frontend_port}:{tcp_backend_port}"
+            )
+        except ValueError as exc:
+            logger.error(str(exc))
+            raise InvalidHaproxyRouteTcpStateError(f"Invalid port-mapping config: {exc}") from exc
+
+        return cls._build(charm, backend_addresses, port_mapping)
 
     @classmethod
     def _build(
         cls,
         charm: ops.CharmBase,
         backend_addresses: list[IPvAnyAddress],
-        backend_port: int,
+        port_mapping: PortMapping,
     ) -> Self:
         """Build HaproxyRouteTcpState from resolved backend fields and charm config.
 
         Args:
             charm: The IngressConfiguratorCharm instance.
             backend_addresses: list of resolved backend IP addresses.
-            backend_port: the resolved backend port.
+            port_mapping: the resolved TCP port mapping (single-port or range).
 
         Raises:
             InvalidHaproxyRouteTcpStateError: If the configuration
@@ -214,7 +237,6 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
             HaproxyRouteTcpState instance populated with relevant info.
         """
         tls_terminate = cast(bool, charm.config.get("tcp-tls-terminate", True))
-        port = cast(int, charm.config.get("tcp-frontend-port"))
         hostname = cast(str | None, charm.config.get("tcp-hostname"))
         enforce_tls = cast(bool, charm.config.get("tcp-enforce-tls"))
         try:
@@ -243,8 +265,6 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
             )
             return cls(
                 backend_addresses=backend_addresses,
-                backend_port=backend_port,
-                port=port,
                 tls_terminate=tls_terminate,
                 hostname=hostname,
                 retry=retry,
@@ -257,6 +277,7 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
                     queue=cast(int | None, charm.config.get("tcp-timeout-queue")),
                 ),
                 proxy_protocol=cast(bool, charm.config.get("tcp-enable-proxy-protocol", False)),
+                port_mapping=port_mapping,
             )
         except ValidationError as exc:
             logger.error(

@@ -6,7 +6,7 @@
 from unittest.mock import Mock
 
 import pytest
-from charms.haproxy.v1.haproxy_route_tcp import LoadBalancingAlgorithm
+from charms.haproxy.v1.haproxy_route_tcp import LoadBalancingAlgorithm, PortMapping
 from ops import CharmBase
 
 from state.haproxy_route_tcp import (
@@ -277,7 +277,7 @@ def test_haproxy_route_tcp_requirements_invalid_frontend_port(invalid_port):
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
+    assert "Invalid tcp-frontend-port or tcp-backend-port" in str(exc_info.value)
 
 
 @pytest.mark.parametrize(
@@ -308,7 +308,7 @@ def test_haproxy_route_tcp_requirements_invalid_backend_port(invalid_port):
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
+    assert "Invalid tcp-frontend-port or tcp-backend-port" in str(exc_info.value)
 
 
 def test_haproxy_route_tcp_requirements_valid_port_boundaries():
@@ -653,6 +653,7 @@ def test_haproxy_route_tcp_requirements_invalid_health_check_type():
     assert "Invalid health check type" in str(exc_info.value)
 
 
+
 @pytest.mark.parametrize(
     "timeout_config,expected_server,expected_connect,expected_queue",
     [
@@ -751,3 +752,125 @@ def test_haproxy_route_tcp_requirements_proxy_protocol_enabled():
     requirements = _make_tcp_integrator_state(charm)
 
     assert requirements.proxy_protocol is True
+
+
+
+# ---------------------------------------------------------------------------
+# HaproxyRouteTcpState with port_mapping tests
+# ---------------------------------------------------------------------------
+
+BASE_PORT_MAPPING_CONFIG = {
+    "tcp-backend-addresses": "10.0.0.1",
+    "tcp-tls-terminate": True,
+    "tcp-hostname": None,
+    "tcp-load-balancing-algorithm": "leastconn",
+    "tcp-load-balancing-consistent-hashing": False,
+    "tcp-enforce-tls": True,
+}
+
+
+def test_haproxy_route_tcp_port_mapping_integrator_mode():
+    """
+    arrange: mock a charm with tcp-port-mapping set and no single-port config
+    act: build HaproxyRouteTcpState for integrator mode
+    assert: port_mapping is set, port and backend_port are None, frontend_start is correct
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        **BASE_PORT_MAPPING_CONFIG,
+        "tcp-port-mapping": "4000-4499:20000-20499",
+    }
+
+    state = _make_tcp_integrator_state(charm)
+
+    assert state.port_mapping is not None
+    assert isinstance(state.port_mapping, PortMapping)
+    assert state.port_mapping.frontend.start == 4000
+    assert state.port_mapping.frontend.end == 4499
+    assert state.port_mapping.backend.start == 20000
+    assert state.port_mapping.backend.end == 20499
+
+
+def test_haproxy_route_tcp_port_mapping_mutually_exclusive_with_frontend_port():
+    """
+    arrange: mock a charm with both tcp-port-mapping and tcp-frontend-port set
+    act: build HaproxyRouteTcpState for integrator mode
+    assert: InvalidHaproxyRouteTcpStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        **BASE_PORT_MAPPING_CONFIG,
+        "tcp-port-mapping": "4000-4499:20000-20499",
+        "tcp-frontend-port": 4000,
+    }
+
+    with pytest.raises(InvalidHaproxyRouteTcpStateError, match="mutually exclusive"):
+        _make_tcp_integrator_state(charm)
+
+
+def test_haproxy_route_tcp_port_mapping_mutually_exclusive_with_backend_port():
+    """
+    arrange: mock a charm with both tcp-port-mapping and tcp-backend-port set (no frontend port)
+    act: build HaproxyRouteTcpState for integrator mode
+    assert: InvalidHaproxyRouteTcpStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        **BASE_PORT_MAPPING_CONFIG,
+        "tcp-port-mapping": "4000-4499:20000-20499",
+        "tcp-backend-port": 20000,
+    }
+
+    with pytest.raises(InvalidHaproxyRouteTcpStateError, match="mutually exclusive"):
+        _make_tcp_integrator_state(charm)
+
+
+def test_haproxy_route_tcp_port_mapping_invalid_mapping_string():
+    """
+    arrange: mock a charm with an unparseable tcp-port-mapping value
+    act: build HaproxyRouteTcpState for integrator mode
+    assert: InvalidHaproxyRouteTcpStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        **BASE_PORT_MAPPING_CONFIG,
+        "tcp-port-mapping": "not-valid",
+    }
+
+    with pytest.raises(InvalidHaproxyRouteTcpStateError, match="Invalid tcp-port-mapping"):
+        _make_tcp_integrator_state(charm)
+
+
+def test_haproxy_route_tcp_port_mapping_unequal_ranges_via_integrator_mode():
+    """
+    arrange: mock a charm with tcp-port-mapping with unequal frontend/backend range sizes
+    act: call build_for_integrator_mode
+    assert: InvalidHaproxyRouteTcpStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "10.0.0.1",
+        "tcp-port-mapping": "4000-4499:20000-20099",  # 500 frontend vs 100 backend
+        "tcp-tls-terminate": True,
+        "tcp-hostname": None,
+        "tcp-load-balancing-algorithm": "leastconn",
+        "tcp-load-balancing-consistent-hashing": False,
+        "tcp-enforce-tls": True,
+    }
+
+    with pytest.raises(InvalidHaproxyRouteTcpStateError):
+        HaproxyRouteTcpState.build_for_integrator_mode(charm)
+
+
+def test_has_integrator_config_with_port_mapping():
+    """
+    arrange: mock a charm with only tcp-port-mapping config set
+    act: call HaproxyRouteTcpState.has_integrator_config
+    assert: returns True
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-port-mapping": "4000-4499:20000-20499",
+    }
+
+    assert HaproxyRouteTcpState.has_integrator_config(charm) is True

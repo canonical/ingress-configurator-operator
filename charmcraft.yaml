@@ -152,6 +152,14 @@ config:
     tcp-frontend-port:
       type: int
       description: Port opened on the haproxy charm.
+    tcp-port-mapping:
+      type: string
+      description: |
+        (integrator mode, TCP) Port range mapping from frontend to backend, in the format
+        '{frontend_start}-{frontend_end}:{backend_start}-{backend_end}'
+        (e.g. '4000-4499:20000-20499'). The frontend range is exposed on the load balancer,
+        and backend ports are computed by adding the offset between the two ranges.
+        Mutually exclusive with tcp-frontend-port and tcp-backend-port.
     tcp-tls-terminate:
       type: boolean
       default: true

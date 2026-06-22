@@ -37,26 +37,42 @@ from .conftest import (
     HOSTNAME_INTEGRATOR,
     HOSTNAME_OPEN,
     INGRESS_BACKEND_PORT,
-    deploy_configurator,
+    deploy_gateway_configurator,
 )
 from .helper import (
-    assert_gateway_response,
     get_gateway_address,
+    wait_for_gateway_response,
 )
 
 logger = logging.getLogger(__name__)
 
+# Each configurator's primary and additional hostname for the multi-relation test.
+PRIMARY_HOSTNAMES = {
+    GATEWAY_CONFIGURATOR_CLOSED: HOSTNAME_CLOSED,
+    GATEWAY_CONFIGURATOR_OPEN: HOSTNAME_OPEN,
+    GATEWAY_CONFIGURATOR_INTEGRATOR: HOSTNAME_INTEGRATOR,
+}
+ADDITIONAL_HOSTNAMES = {
+    GATEWAY_CONFIGURATOR_CLOSED: ADDITIONAL_HOSTNAME_CLOSED,
+    GATEWAY_CONFIGURATOR_OPEN: ADDITIONAL_HOSTNAME_OPEN,
+    GATEWAY_CONFIGURATOR_INTEGRATOR: ADDITIONAL_HOSTNAME_INTEGRATOR,
+}
 
-@pytest.mark.abort_on_fail
-def test_gateway_route_multiple_relations(
+
+@pytest.fixture(scope="module", name="multi_relation_gateway_address")
+def multi_relation_gateway_address_fixture(
     gateway_juju: jubilant.Juju,
     gateway_api_integrator: str,
     backend_closed: str,
     backend_open: str,
     backend_integrator: str,
     charm: str,
-):
-    """Route three ingress-configurator instances through one gateway simultaneously.
+) -> str:
+    """Deploy and configure three configurators on one gateway and return its address.
+
+    Deploys one ingress-configurator per mode (closed-ports adapter, open-ports adapter and
+    integrator) against the shared gateway-api-integrator, wires the relations, configures each
+    on a distinct hostname with a path restriction, and waits for the whole stack to settle.
 
     Args:
         gateway_juju: Jubilant Juju instance for the Kubernetes model.
@@ -65,30 +81,22 @@ def test_gateway_route_multiple_relations(
         backend_open: any-charm-k8s backend that opens its port (adapter, open-ports branch).
         backend_integrator: flask-k8s backend referenced by IP only (integrator mode).
         charm: Path to the packed ingress-configurator charm.
+
+    Returns:
+        The gateway LoadBalancer address shared by all three relations.
     """
     # Deploy one configurator per mode against the shared gateway.
-    deploy_configurator(
-        gateway_juju, charm, GATEWAY_CONFIGURATOR_CLOSED, gateway=gateway_api_integrator
+    deploy_gateway_configurator(
+        gateway_juju, charm, GATEWAY_CONFIGURATOR_CLOSED, gateway_api_integrator
     )
-    deploy_configurator(
-        gateway_juju, charm, GATEWAY_CONFIGURATOR_OPEN, gateway=gateway_api_integrator
+    deploy_gateway_configurator(
+        gateway_juju, charm, GATEWAY_CONFIGURATOR_OPEN, gateway_api_integrator
     )
-    deploy_configurator(
-        gateway_juju, charm, GATEWAY_CONFIGURATOR_INTEGRATOR, gateway=gateway_api_integrator
+    deploy_gateway_configurator(
+        gateway_juju, charm, GATEWAY_CONFIGURATOR_INTEGRATOR, gateway_api_integrator
     )
     gateway_juju.integrate(f"{backend_closed}:ingress", f"{GATEWAY_CONFIGURATOR_CLOSED}:ingress")
     gateway_juju.integrate(f"{backend_open}:ingress", f"{GATEWAY_CONFIGURATOR_OPEN}:ingress")
-
-    primary_hostnames = {
-        GATEWAY_CONFIGURATOR_CLOSED: HOSTNAME_CLOSED,
-        GATEWAY_CONFIGURATOR_OPEN: HOSTNAME_OPEN,
-        GATEWAY_CONFIGURATOR_INTEGRATOR: HOSTNAME_INTEGRATOR,
-    }
-    additional_hostnames = {
-        GATEWAY_CONFIGURATOR_CLOSED: ADDITIONAL_HOSTNAME_CLOSED,
-        GATEWAY_CONFIGURATOR_OPEN: ADDITIONAL_HOSTNAME_OPEN,
-        GATEWAY_CONFIGURATOR_INTEGRATOR: ADDITIONAL_HOSTNAME_INTEGRATOR,
-    }
 
     # The integrator configurator is driven by config only, so read its backend pod IP first.
     gateway_juju.wait(
@@ -145,13 +153,26 @@ def test_gateway_route_multiple_relations(
     gateway_address = get_gateway_address(gateway_juju, gateway_api_integrator)
     assert gateway_address, "gateway-api-integrator did not report a gateway address"
     logger.info("gateway address: %s", gateway_address)
+    return gateway_address
+
+
+@pytest.mark.abort_on_fail
+def test_gateway_route_multiple_relations(multi_relation_gateway_address: str):
+    """Route three ingress-configurator instances through one gateway simultaneously.
+
+    Args:
+        multi_relation_gateway_address: Shared gateway address with all three relations
+            deployed and configured.
+    """
+    gateway_address = multi_relation_gateway_address
 
     # Every relation routes through the shared gateway and its path restriction applies
     # independently: the restricted path returns 200, while "/" returns 404 per hostname.
-    for configurator, primary in primary_hostnames.items():
-        additional = additional_hostnames[configurator]
+    for configurator, primary in PRIMARY_HOSTNAMES.items():
+        additional = ADDITIONAL_HOSTNAMES[configurator]
         logger.info("checking routing for %s (%s, %s)", configurator, primary, additional)
-        assert_gateway_response(gateway_address, primary, "/restricted", expected_status=200)
-        assert_gateway_response(gateway_address, primary, "/", expected_status=404)
-        assert_gateway_response(gateway_address, additional, "/restricted", expected_status=200)
-        assert_gateway_response(gateway_address, additional, "/", expected_status=404)
+        wait_for_gateway_response(gateway_address, primary, "/restricted", expected_status=200)
+        wait_for_gateway_response(gateway_address, primary, "/", expected_status=404)
+        wait_for_gateway_response(gateway_address, additional, "/restricted", expected_status=200)
+        wait_for_gateway_response(gateway_address, additional, "/", expected_status=404)
+

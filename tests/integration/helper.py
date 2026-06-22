@@ -13,7 +13,7 @@ from lightkube import Client
 from lightkube.resources.core_v1 import Service
 from lightkube.resources.discovery_v1 import EndpointSlice
 from requests.adapters import DEFAULT_POOLBLOCK, DEFAULT_POOLSIZE, DEFAULT_RETRIES, HTTPAdapter
-from tenacity import retry, retry_if_exception_type, stop_after_delay, wait_fixed
+from tenacity import Retrying, retry_if_exception_type, stop_after_delay, wait_fixed
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -39,7 +39,7 @@ def get_gateway_address(juju: jubilant.Juju, gateway_api_integrator: str) -> str
     return match.group(1) if match else ""
 
 
-def assert_gateway_response(
+def wait_for_gateway_response(
     gateway_address: str,
     hostname: str | None,
     path: str,
@@ -48,14 +48,15 @@ def assert_gateway_response(
     expected_status: int = 200,
     body_contains: str | None = None,
     allow_redirects: bool = True,
-    resolve_hostname: bool = False,
     timeout: int = 180,
 ) -> requests.Response:
-    """Request a path through the gateway and assert the response, retrying until convergence.
+    """Wait until the gateway returns a response matching the expectations and return it.
 
     The dataplane (Gateway, HTTPRoute, EndpointSlice) can take a few seconds to converge after a
-    config or relation change, so this retries on connection errors and assertion failures until
-    ``timeout`` is reached.
+    config or relation change, so this polls (retrying on connection errors and on responses that
+    do not match ``expected_status``/``body_contains``) until the expected response is observed or
+    ``timeout`` is reached. The matched :class:`requests.Response` is returned so callers can make
+    further assertions on it (e.g. inspect a redirect ``Location`` header).
 
     Args:
         gateway_address: The gateway LoadBalancer IP to send the request to.
@@ -65,9 +66,6 @@ def assert_gateway_response(
         expected_status: Expected HTTP status code.
         body_contains: Optional substring expected in the response body.
         allow_redirects: Whether to follow redirects; set ``False`` to assert a redirect status.
-        resolve_hostname: When True, send the request to ``hostname`` and resolve it to
-            ``gateway_address`` so the TLS SNI matches the hostname (required for HTTPS routing
-            on hostname-scoped gateway listeners).
         timeout: Maximum seconds to keep retrying.
 
     Returns:
@@ -77,52 +75,38 @@ def assert_gateway_response(
         AssertionError: If the expected response is not observed within ``timeout``.
         requests.exceptions.RequestException: If the request keeps failing within ``timeout``.
     """
-    headers = {"Host": hostname} if hostname is not None else None
-    session: requests.Session | None = None
-    if resolve_hostname and hostname is not None:
-        # Address the gateway by hostname (resolved to its IP) so the TLS SNI carries the
-        # hostname, which hostname-scoped HTTPS listeners require to select the right route.
-        session = requests.Session()
+    session = requests.Session()
+    if hostname is not None:
+        # Resolve the hostname to the gateway IP so the Host header and TLS SNI carry it,
+        # which hostname-scoped gateway listeners require to route correctly.
         session.mount(f"{scheme}://{hostname}", DNSResolverAdapter(hostname, gateway_address))
         url = f"{scheme}://{hostname}{path}"
     else:
         url = f"{scheme}://{gateway_address}{path}"
 
-    @retry(
+    for attempt in Retrying(
         retry=retry_if_exception_type((AssertionError, requests.exceptions.RequestException)),
         wait=wait_fixed(5),
         stop=stop_after_delay(timeout),
         reraise=True,
-    )
-    def _request() -> requests.Response:
-        """Issue the request once and assert the response.
-
-        Returns:
-            The :class:`requests.Response` once it matches the expectations.
-
-        Raises:
-            AssertionError: If the response status or body does not match expectations.
-        """
-        requester: requests.Session = session if session is not None else requests.Session()
-        response = requester.get(
-            url,
-            headers=headers,
-            verify=False,  # nosec - testing against a self-signed / IP-addressed endpoint
-            allow_redirects=allow_redirects,
-            timeout=10,
-        )
-        assert response.status_code == expected_status, (
-            f"Unexpected status routing Host={hostname} {path}: "
-            f"got {response.status_code}, expected {expected_status}, body={response.text!r}"
-        )
-        if body_contains is not None:
-            assert body_contains in response.text, (
-                f"Expected body for Host={hostname} {path} to contain {body_contains!r}, "
-                f"body={response.text!r}"
+    ):
+        with attempt:
+            response = session.get(
+                url,
+                verify=False,  # nosec - testing against a self-signed / IP-addressed endpoint
+                allow_redirects=allow_redirects,
+                timeout=10,
             )
-        return response
-
-    return _request()
+            assert response.status_code == expected_status, (
+                f"Unexpected status routing Host={hostname} {path}: "
+                f"got {response.status_code}, expected {expected_status}, body={response.text!r}"
+            )
+            if body_contains is not None:
+                assert body_contains in response.text, (
+                    f"Expected body for Host={hostname} {path} to contain {body_contains!r}, "
+                    f"body={response.text!r}"
+                )
+    return response
 
 
 def k8s_service_exists(namespace: str, name: str) -> bool:

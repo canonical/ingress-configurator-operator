@@ -27,9 +27,9 @@ from .conftest import (
     GATEWAY_CERTIFICATES_CHANNEL,
     GATEWAY_CONFIGURATOR_HTTPS,
     HOSTNAME_HTTPS,
-    deploy_configurator,
+    deploy_gateway_configurator,
 )
-from .helper import assert_gateway_response, get_gateway_address
+from .helper import get_gateway_address, wait_for_gateway_response
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +52,8 @@ def test_gateway_route_https_enforced(
     # Enforce HTTPS, relate the gateway to a TLS provider, and wire the configurator to the backend.
     gateway_juju.config(gateway_api_integrator, {"enforce-https": True})
     gateway_juju.deploy(charm=CERTIFICATES_APP_NAME, channel=GATEWAY_CERTIFICATES_CHANNEL)
-    deploy_configurator(
-        gateway_juju, charm, GATEWAY_CONFIGURATOR_HTTPS, gateway=gateway_api_integrator
+    deploy_gateway_configurator(
+        gateway_juju, charm, GATEWAY_CONFIGURATOR_HTTPS, gateway_api_integrator
     )
     gateway_juju.integrate(
         f"{CERTIFICATES_APP_NAME}:certificates", f"{gateway_api_integrator}:certificates"
@@ -77,7 +77,7 @@ def test_gateway_route_https_enforced(
     logger.info("gateway address: %s", gateway_address)
 
     # HTTP is redirected to HTTPS (do not follow the redirect so the 301 and Location are visible).
-    redirect = assert_gateway_response(
+    redirect = wait_for_gateway_response(
         gateway_address,
         HOSTNAME_HTTPS,
         "/",
@@ -91,11 +91,10 @@ def test_gateway_route_https_enforced(
     )
 
     # The HTTPS route reaches the backend (SNI carries the hostname; self-signed cert not verified).
-    assert_gateway_response(
+    wait_for_gateway_response(
         gateway_address,
         HOSTNAME_HTTPS,
         "/",
         scheme="https",
         expected_status=200,
-        resolve_hostname=True,
     )

@@ -4,6 +4,7 @@
 """Integration tests configuration."""
 
 import json
+import os
 import pathlib
 from ipaddress import IPv4Address, IPv6Address, ip_address
 from typing import Callable, Generator
@@ -37,6 +38,8 @@ APP_NAME = "ingress-configurator"
 GATEWAY_API_INTEGRATOR_APP_NAME = "gateway-api-integrator"
 GATEWAY_API_INTEGRATOR_CHANNEL = "1/edge"
 GATEWAY_API_INTEGRATOR_REVISION = 160
+# GatewayClass provided by the Canonical Kubernetes used in CI.
+GATEWAY_CLASS = "ck-gateway"
 EXTERNAL_HOSTNAME = "gateway.internal"
 GATEWAY_CERTIFICATES_CHANNEL = "1/edge"
 
@@ -99,10 +102,14 @@ def lxd_model_fixture() -> str:
 def k8s_controller_fixture() -> str:
     """Return the name of the Kubernetes controller.
 
+    Defaults to ``localhost`` (as used in CI) but can be overridden with the
+    ``K8S_CONTROLLER`` environment variable for local/VM runs where the controller
+    has a different name.
+
     Returns:
         The Kubernetes controller name.
     """
-    return "localhost"
+    return os.environ.get("K8S_CONTROLLER", "localhost")
 
 
 @pytest.fixture(scope="session", name="k8s_model")
@@ -381,21 +388,8 @@ def gateway_juju_fixture(
         yield juju
 
 
-@pytest.fixture(scope="module", name="gateway_class")
-def gateway_class_fixture(pytestconfig: pytest.Config) -> str:
-    """Return the GatewayClass name to configure on gateway-api-integrator.
-
-    Args:
-        pytestconfig: Pytest configuration providing the ``--gateway-class`` option.
-
-    Returns:
-        The configured gateway class, defaulting to ``cilium``.
-    """
-    return pytestconfig.getoption("--gateway-class") or "cilium"
-
-
 @pytest.fixture(scope="module", name="gateway_api_integrator")
-def gateway_api_integrator_fixture(gateway_juju: jubilant.Juju, gateway_class: str) -> str:
+def gateway_api_integrator_fixture(gateway_juju: jubilant.Juju) -> str:
     """Deploy gateway-api-integrator as the shared gateway-route provider (HTTP by default).
 
     The provider is deployed with ``enforce-https=False`` (HTTP only). Tests needing HTTPS
@@ -404,7 +398,6 @@ def gateway_api_integrator_fixture(gateway_juju: jubilant.Juju, gateway_class: s
 
     Args:
         gateway_juju: Jubilant Juju instance for the Kubernetes model.
-        gateway_class: GatewayClass to configure on the charm.
 
     Returns:
         The gateway-api-integrator application name.
@@ -415,28 +408,25 @@ def gateway_api_integrator_fixture(gateway_juju: jubilant.Juju, gateway_class: s
         revision=GATEWAY_API_INTEGRATOR_REVISION,
         base="ubuntu@24.04",
         trust=True,
-        config={"gateway-class": gateway_class, "enforce-https": False},
+        config={"gateway-class": GATEWAY_CLASS, "enforce-https": False},
     )
     return GATEWAY_API_INTEGRATOR_APP_NAME
 
 
-def deploy_configurator(
-    juju: jubilant.Juju, charm: str, app: str, *, gateway: str | None = None
-) -> str:
+def deploy_gateway_configurator(juju: jubilant.Juju, charm: str, app: str, gateway: str) -> str:
     """Deploy an ingress-configurator instance (gateway-route requirer); does not wait.
 
     Args:
         juju: Jubilant Juju instance for the Kubernetes model.
         charm: Path to the packed ingress-configurator charm.
         app: Application name to deploy under.
-        gateway: Optional gateway-route provider app name to integrate with.
+        gateway: gateway-route provider app name to integrate with.
 
     Returns:
         The deployed application name.
     """
     juju.deploy(charm=charm, app=app, trust=True)
-    if gateway is not None:
-        juju.integrate(f"{app}:gateway-route", f"{gateway}:gateway-route")
+    juju.integrate(f"{app}:gateway-route", f"{gateway}:gateway-route")
     return app
 
 

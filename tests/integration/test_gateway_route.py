@@ -26,6 +26,7 @@ import logging
 
 import jubilant
 import pytest
+from tenacity import Retrying, retry_if_exception_type, stop_after_delay, wait_fixed
 
 from .conftest import (
     ADDITIONAL_HOSTNAME_CLOSED,
@@ -149,21 +150,31 @@ def test_gateway_route_multiple_relations(
     assert gateway_address, "gateway-api-integrator did not report a gateway address"
     logger.info("gateway address: %s", gateway_address)
 
-    # Each mode leaves a distinct Kubernetes fingerprint.
+    # Each mode leaves a distinct Kubernetes fingerprint (closed → selector Service present,
+    # open → selector Service absent, integrator → headless Service + EndpointSlice present).
+    # These resources reconcile asynchronously after the apps report active, so poll until they
+    # all settle together rather than asserting a single point in time.
     namespace = gateway_juju.model
     assert namespace is not None
-    assert k8s_service_exists(namespace, f"{GATEWAY_CONFIGURATOR_CLOSED}-{backend_closed}"), (
-        "closed-ports adapter must create a selector Service"
-    )
-    assert not k8s_service_exists(namespace, f"{GATEWAY_CONFIGURATOR_OPEN}-{backend_open}"), (
-        "open-ports adapter must not create a selector Service"
-    )
-    assert k8s_service_exists(namespace, f"{GATEWAY_CONFIGURATOR_INTEGRATOR}-headless"), (
-        "integrator must create a headless Service"
-    )
-    assert k8s_endpoint_slice_exists(namespace, f"{GATEWAY_CONFIGURATOR_INTEGRATOR}-headless"), (
-        "integrator must create an EndpointSlice"
-    )
+    for attempt in Retrying(
+        retry=retry_if_exception_type(AssertionError),
+        wait=wait_fixed(5),
+        stop=stop_after_delay(180),
+        reraise=True,
+    ):
+        with attempt:
+            assert k8s_service_exists(
+                namespace, f"{GATEWAY_CONFIGURATOR_CLOSED}-{backend_closed}"
+            ), "closed-ports adapter must create a selector Service"
+            assert not k8s_service_exists(
+                namespace, f"{GATEWAY_CONFIGURATOR_OPEN}-{backend_open}"
+            ), "open-ports adapter must not create a selector Service"
+            assert k8s_service_exists(
+                namespace, f"{GATEWAY_CONFIGURATOR_INTEGRATOR}-headless"
+            ), "integrator must create a headless Service"
+            assert k8s_endpoint_slice_exists(
+                namespace, f"{GATEWAY_CONFIGURATOR_INTEGRATOR}-headless"
+            ), "integrator must create an EndpointSlice"
 
     # Every relation routes through the shared gateway and its path restriction applies
     # independently: the restricted path returns 200, while "/" returns 404 per hostname.

@@ -107,7 +107,7 @@ juju integrate flask-k8s:ingress ingress-configurator:ingress
 
 ## Verify the deployment
 
-Monitor the deployment using `juju status --relations`. Wait until all units show `active` and `idle` status:
+Now we can check the status of the model with `juju status --relations`. Wait until all units show `active` and `idle` status:
 
 ```bash
 juju status --relations
@@ -144,13 +144,11 @@ GATEWAY_IP=$(juju status --format json | jq -r '.applications."gateway-api-integ
 curl -k --resolve flask.internal:443:$GATEWAY_IP https://flask.internal/app
 ```
 
-A successful request returns JSON output from the Flask application, for example:
+A successful request returns the homepage of the `flask-k8s` charm:
 
-```json
-{"hello": "world"}
+```html
+<h1>Welcome to flask-k8s Charm</h1>
 ```
-
-At this point, traffic flows from the Gateway through `ingress-configurator` to your Flask backend. The connection is secured with TLS certificates provided by `self-signed-certificates`.
 
 ## Clean up the environment
 

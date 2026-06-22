@@ -107,10 +107,10 @@ juju integrate flask-k8s:ingress ingress-configurator:ingress
 
 ## Verify the deployment
 
-Monitor the deployment using `juju status`. Wait until all units show `active` and `idle` status:
+Monitor the deployment using `juju status --relations`. Wait until all units show `active` and `idle` status:
 
 ```bash
-juju status
+juju status --relations
 ```
 
 Sample output:
@@ -119,17 +119,22 @@ Sample output:
 Model             Controller  Cloud/Region        Version  SLA          Timestamp
 ingress-tutorial  k8s         ck-gateway/default  3.6.0    unsupported  10:00:00Z
 
-Application                    Charm Rev        OS Rev   Address  Status
-flask-k8s                      14     stable    ubuntu   10.0.0.1 active  
-gateway-api-integrator         42     stable    ubuntu   10.0.0.2 active  
-ingress-configurator           7      stable    ubuntu   10.0.0.3 active  
-self-signed-certificates       156    stable    ubuntu   10.0.0.4 active  
+App                      Version  Status  Scale  Charm                    Channel  Rev  Address     Exposed  Message
+flask-k8s                         active      1  flask-k8s                stable    14  10.0.0.1    no
+gateway-api-integrator            active      1  gateway-api-integrator   stable    42  10.0.0.2    no
+ingress-configurator              active      1  ingress-configurator     stable     7  10.0.0.3    no
+self-signed-certificates          active      1  self-signed-certificates stable   156  10.0.0.4    no
 
-Unit                      Workload  Agent  Address   Ports  Message
-flask-k8s/0*              active    idle   10.1.0.1         
-gateway-api-integrator/0* active    idle   10.1.0.2         
-ingress-configurator/0*   active    idle   10.1.0.3         
-self-signed-certificates/0* active idle  10.1.0.4         
+Unit                        Workload  Agent  Address   Ports  Message
+flask-k8s/0*                active    idle   10.1.0.1
+gateway-api-integrator/0*   active    idle   10.1.0.2
+ingress-configurator/0*     active    idle   10.1.0.3
+self-signed-certificates/0* active    idle   10.1.0.4
+
+Relation provider                          Requirer                               Interface        Type     Message
+gateway-api-integrator:gateway-route       ingress-configurator:gateway-route     gateway-route    regular
+gateway-api-integrator:certificates        self-signed-certificates:certificates  tls-certificates regular
+ingress-configurator:ingress               flask-k8s:ingress                      ingress          regular
 ```
 
 You should now be able to reach the `flask-k8s` charm using the gateway address and the hostname that you provided:

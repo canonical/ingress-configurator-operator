@@ -15,5 +15,6 @@ The following route-provider interfaces are supported:
 ```{toctree}
 :hidden:
 how-to/index.md
+release-notes/index.md
 changelog.md
 ```

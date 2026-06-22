@@ -114,7 +114,7 @@ Now we can check the status of the model with `juju status --relations`. Wait un
 juju status --relations
 ```
 
-Sample output:
+You should see something like:
 
 ```{terminal}
 :user: ubuntu

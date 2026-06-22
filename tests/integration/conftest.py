@@ -395,9 +395,7 @@ def gateway_class_fixture(pytestconfig: pytest.Config) -> str:
 
 
 @pytest.fixture(scope="module", name="gateway_api_integrator")
-def gateway_api_integrator_fixture(
-    gateway_juju: jubilant.Juju, gateway_class: str
-) -> Generator[str, None, None]:
+def gateway_api_integrator_fixture(gateway_juju: jubilant.Juju, gateway_class: str) -> str:
     """Deploy gateway-api-integrator as the shared gateway-route provider (HTTP by default).
 
     The provider is deployed with ``enforce-https=False`` (HTTP only). Tests needing HTTPS
@@ -408,7 +406,7 @@ def gateway_api_integrator_fixture(
         gateway_juju: Jubilant Juju instance for the Kubernetes model.
         gateway_class: GatewayClass to configure on the charm.
 
-    Yields:
+    Returns:
         The gateway-api-integrator application name.
     """
     gateway_juju.deploy(
@@ -419,7 +417,7 @@ def gateway_api_integrator_fixture(
         trust=True,
         config={"gateway-class": gateway_class, "enforce-https": False},
     )
-    yield GATEWAY_API_INTEGRATOR_APP_NAME
+    return GATEWAY_API_INTEGRATOR_APP_NAME
 
 
 def deploy_configurator(
@@ -443,7 +441,7 @@ def deploy_configurator(
 
 
 @pytest.fixture(scope="module", name="backend_closed")
-def backend_closed_fixture(gateway_juju: jubilant.Juju) -> Generator[str, None, None]:
+def backend_closed_fixture(gateway_juju: jubilant.Juju) -> str:
     """Deploy a flask-k8s workload that keeps its port closed (``is_port_open=False``).
 
     flask-k8s does not open its workload port, so a consumer relating over ``ingress`` sees
@@ -453,15 +451,15 @@ def backend_closed_fixture(gateway_juju: jubilant.Juju) -> Generator[str, None, 
     Args:
         gateway_juju: Jubilant Juju instance for the Kubernetes model.
 
-    Yields:
+    Returns:
         The deployed application name.
     """
     gateway_juju.deploy(charm="flask-k8s", app=GATEWAY_BACKEND_CLOSED, channel="latest/edge")
-    yield GATEWAY_BACKEND_CLOSED
+    return GATEWAY_BACKEND_CLOSED
 
 
 @pytest.fixture(scope="module", name="backend_open")
-def backend_open_fixture(gateway_juju: jubilant.Juju) -> Generator[str, None, None]:
+def backend_open_fixture(gateway_juju: jubilant.Juju) -> str:
     """Deploy an any-charm-k8s workload that opens its port (``is_port_open=True``).
 
     The backend declares ingress on a fixed port, opens that port (so the ingress databag
@@ -472,7 +470,7 @@ def backend_open_fixture(gateway_juju: jubilant.Juju) -> Generator[str, None, No
     Args:
         gateway_juju: Jubilant Juju instance for the Kubernetes model.
 
-    Yields:
+    Returns:
         The deployed application name.
     """
     gateway_juju.deploy(
@@ -489,11 +487,11 @@ def backend_open_fixture(gateway_juju: jubilant.Juju) -> Generator[str, None, No
             "python-packages": "pydantic",
         },
     )
-    yield GATEWAY_BACKEND_OPEN
+    return GATEWAY_BACKEND_OPEN
 
 
 @pytest.fixture(scope="module", name="backend_integrator")
-def backend_integrator_fixture(gateway_juju: jubilant.Juju) -> Generator[str, None, None]:
+def backend_integrator_fixture(gateway_juju: jubilant.Juju) -> str:
     """Deploy a flask-k8s workload to use as a config-described (integrator-mode) backend IP.
 
     The integrator mode has no ``ingress`` relation: the backend is referenced purely by IP via
@@ -503,8 +501,8 @@ def backend_integrator_fixture(gateway_juju: jubilant.Juju) -> Generator[str, No
     Args:
         gateway_juju: Jubilant Juju instance for the Kubernetes model.
 
-    Yields:
+    Returns:
         The deployed application name.
     """
     gateway_juju.deploy(charm="flask-k8s", app=GATEWAY_BACKEND_INTEGRATOR, channel="latest/edge")
-    yield GATEWAY_BACKEND_INTEGRATOR
+    return GATEWAY_BACKEND_INTEGRATOR

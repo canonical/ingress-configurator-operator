@@ -16,7 +16,7 @@ jobs:
       provider: k8s
       juju-channel: 3/stable
       charmcraft-channel: latest/edge
-      modules: '["test_actions.py", "test_haproxy_adapter.py", "test_haproxy_integrator.py", "test_ingress_kubernetes.py", "test_haproxy_route_tcp.py", "test_gateway_route.py", "test_gateway_route_https.py"]'
+      modules: '["test_actions.py", "test_gateway_route.py", "test_gateway_route_https.py", "test_haproxy_adapter.py", "test_haproxy_integrator.py", "test_haproxy_route_tcp.py", "test_ingress_kubernetes.py"]'
       with-uv: true
       pre-run-script: tests/integration/prepare.sh
   allure-report:

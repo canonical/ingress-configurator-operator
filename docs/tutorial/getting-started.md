@@ -108,11 +108,7 @@ juju integrate flask-k8s:ingress ingress-configurator:ingress
 
 ## Verify the deployment
 
-Now we can check the status of the model with `juju status --relations`. Wait until all units show `active` and `idle` status:
-
-```bash
-juju status --relations
-```
+Now we can check the status of the model with `juju status --relations`. Wait until all units show `active` and `idle` status.
 
 You should see something like:
 
@@ -121,6 +117,7 @@ You should see something like:
 :host: charm-tutorial-vm
 
 juju status --relations
+
 
 Model             Controller  Cloud/Region        Version  SLA          Timestamp
 ingress-tutorial  k8s         ck-gateway/default  3.6.0    unsupported  10:00:00Z
@@ -176,4 +173,3 @@ Check out these guides to learn more about configuring ingress for your applicat
 - {ref}`Route TCP traffic to a non-charmed workload with HAProxy <how_to_haproxy_integrate_tcp_non_charm_workload>`
 - {ref}`Add HAProxy features to an ingress requirer <how_to_add_haproxy_features_to_ingress_requirer>`
 - {ref}`Load balance a gRPC server with HAProxy <how_to_haproxy_loadbalancing_grpc>`
-- {ref}`how_to_upgrade`

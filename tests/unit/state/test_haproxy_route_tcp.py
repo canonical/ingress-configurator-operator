@@ -277,7 +277,7 @@ def test_haproxy_route_tcp_requirements_invalid_frontend_port(invalid_port):
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid tcp-frontend-port or tcp-backend-port" in str(exc_info.value)
+    assert "Invalid tcp-port-mapping" in str(exc_info.value)
 
 
 @pytest.mark.parametrize(
@@ -308,7 +308,7 @@ def test_haproxy_route_tcp_requirements_invalid_backend_port(invalid_port):
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid tcp-frontend-port or tcp-backend-port" in str(exc_info.value)
+    assert "Invalid tcp-port-mapping" in str(exc_info.value)
 
 
 def test_haproxy_route_tcp_requirements_valid_port_boundaries():

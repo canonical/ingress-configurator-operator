@@ -146,6 +146,16 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
     proxy_protocol: bool
     port_mapping: PortMapping
 
+    @property
+    def port(self) -> int:
+        """Return the frontend start port."""
+        return self.port_mapping.frontend.start
+
+    @property
+    def backend_port(self) -> int:
+        """Return the backend start port."""
+        return self.port_mapping.backend.start
+
     @classmethod
     def has_integrator_config(cls, charm: ops.CharmBase) -> bool:
         """Return True if any TCP integrator backend config option is set.
@@ -183,7 +193,9 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
         tcp_frontend_port = cast(int | None, charm.config.get("tcp-frontend-port"))
         tcp_backend_port = cast(int | None, charm.config.get("tcp-backend-port"))
 
-        if port_mapping_str is not None and tcp_frontend_port is not None:
+        if port_mapping_str is not None and (
+            tcp_frontend_port is not None or tcp_backend_port is not None
+        ):
             raise InvalidHaproxyRouteTcpStateError(
                 "tcp-port-mapping is mutually exclusive with tcp-frontend-port and tcp-backend-port."
             )
@@ -211,7 +223,7 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
             )
         except ValueError as exc:
             logger.error(str(exc))
-            raise InvalidHaproxyRouteTcpStateError(f"Invalid port-mapping config: {exc}") from exc
+            raise InvalidHaproxyRouteTcpStateError(f"Invalid tcp-port-mapping: {exc}") from exc
 
         return cls._build(charm, backend_addresses, port_mapping)
 

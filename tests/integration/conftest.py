@@ -351,21 +351,32 @@ def k8s_ingress_requirer_fixture(
 
 
 @pytest.fixture(scope="module", name="gateway_juju")
-def gateway_juju_fixture(request: pytest.FixtureRequest) -> Generator[jubilant.Juju, None, None]:
+def gateway_juju_fixture(
+    request: pytest.FixtureRequest, k8s_controller: str
+) -> Generator[jubilant.Juju, None, None]:
     """Create a temporary Kubernetes Juju model for the gateway-route tests.
 
     The gateway-route stack (gateway-api-integrator + ingress-configurator) is Kubernetes-only,
-    so this targets the currently selected controller, which must be a Kubernetes controller.
-    Run these tests with the Kubernetes controller as the active Juju controller.
+    so the temporary model is created on the ``k8s`` cloud, registering it on the controller
+    first if needed (mirroring the ``juju_k8s`` fixture).
 
     Args:
         request: Pytest request used to read the ``--keep-models`` option.
+        k8s_controller: Name of the controller hosting the Kubernetes cloud.
 
     Yields:
         A :class:`jubilant.Juju` instance bound to a fresh temporary model.
     """
+    try:
+        jubilant.Juju().cli(
+            "add-cloud", "--controller", k8s_controller, "k8s", include_model=False
+        )
+    except jubilant.CLIError as exc:
+        # Ignore the error only if the cloud already exists; re-raise for all other failures.
+        if "already exists" not in str(exc):
+            raise
     keep_models = bool(request.config.getoption("--keep-models"))
-    with jubilant.temp_model(keep=keep_models) as juju:
+    with jubilant.temp_model(keep=keep_models, controller=k8s_controller, cloud="k8s") as juju:
         juju.wait_timeout = JUJU_WAIT_TIMEOUT
         yield juju
 

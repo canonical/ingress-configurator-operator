@@ -34,8 +34,14 @@ _SERVER = textwrap.dedent(
 
     class Handler(BaseHTTPRequestHandler):
         # Speak HTTP/1.1 so keep-alive works; the gateway dataplane (Envoy) pools and
-        # reuses upstream connections and a HTTP/1.0 server closing them yields 503s.
+        # reuses upstream connections, and a server closing them mid-request yields 503s.
         protocol_version = "HTTP/1.1"
+
+        def log_message(self, *args):  # noqa: N802
+            # Silence logging entirely: the default writes to stderr, which is the (now
+            # closed) pipe inherited from the charm hook, raising BrokenPipeError and
+            # killing the handler thread mid-response.
+            pass
 
         def do_GET(self):  # noqa: N802
             body = b"ok from open-ports backend"
@@ -82,9 +88,14 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
             sock.settimeout(1)
             if sock.connect_ex(("127.0.0.1", _PORT)) == 0:
                 return
-        # Detach so the server outlives the charm hook. Safe: fixed argument list, no shell,
-        # no user input.
+        # Detach so the server outlives the charm hook. Redirect all std streams to /dev/null:
+        # the hook's stdout/stderr pipes close when the hook exits, so any inherited write
+        # (e.g. server logging) would raise BrokenPipeError and reset in-flight connections.
+        # Safe: fixed argument list, no shell, no user input.
         subprocess.Popen(  # nosec: B603
             [sys.executable, "-c", _SERVER],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             start_new_session=True,
         )

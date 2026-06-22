@@ -12,6 +12,12 @@ def pytest_addoption(parser):
     """
     parser.addoption("--charm-file", action="store")
     parser.addoption(
+        "--keep-models",
+        action="store_true",
+        default=False,
+        help="Keep temporary models created by the tests instead of tearing them down.",
+    )
+    parser.addoption(
         "--gateway-class",
         action="store",
         default=None,

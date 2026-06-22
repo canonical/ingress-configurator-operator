@@ -175,4 +175,3 @@ def test_gateway_route_multiple_relations(multi_relation_gateway_address: str):
         wait_for_gateway_response(gateway_address, primary, "/", expected_status=404)
         wait_for_gateway_response(gateway_address, additional, "/restricted", expected_status=200)
         wait_for_gateway_response(gateway_address, additional, "/", expected_status=404)
-

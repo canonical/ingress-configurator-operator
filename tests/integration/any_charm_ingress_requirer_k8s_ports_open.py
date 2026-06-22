@@ -33,6 +33,10 @@ _SERVER = textwrap.dedent(
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
     class Handler(BaseHTTPRequestHandler):
+        # Speak HTTP/1.1 so keep-alive works; the gateway dataplane (Envoy) pools and
+        # reuses upstream connections and a HTTP/1.0 server closing them yields 503s.
+        protocol_version = "HTTP/1.1"
+
         def do_GET(self):  # noqa: N802
             body = b"ok from open-ports backend"
             self.send_response(200)

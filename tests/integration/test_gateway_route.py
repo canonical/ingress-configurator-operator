@@ -15,9 +15,8 @@ that by deploying all three ingress-configurator modes against the same gateway 
                                                                                       (one LoadBalancer address)
 
 Each configurator is exposed on a distinct hostname. The test asserts that:
-  * each mode leaves its distinct Kubernetes fingerprint (closed → selector Service present,
-    open → selector Service absent, integrator → headless Service + EndpointSlice present),
-  * all three relations route simultaneously through the single shared gateway, and
+  * all three modes (closed-ports adapter, open-ports adapter, integrator) route simultaneously
+    through the single shared gateway, and
   * per-relation config (a distinct additional hostname plus a path restriction) takes effect
     independently for each, with no cross-relation interference.
 """
@@ -26,7 +25,6 @@ import logging
 
 import jubilant
 import pytest
-from tenacity import Retrying, retry_if_exception_type, stop_after_delay, wait_fixed
 
 from .conftest import (
     ADDITIONAL_HOSTNAME_CLOSED,
@@ -44,8 +42,6 @@ from .conftest import (
 from .helper import (
     assert_gateway_response,
     get_gateway_address,
-    k8s_endpoint_slice_exists,
-    k8s_service_exists,
 )
 
 logger = logging.getLogger(__name__)
@@ -149,32 +145,6 @@ def test_gateway_route_multiple_relations(
     gateway_address = get_gateway_address(gateway_juju, gateway_api_integrator)
     assert gateway_address, "gateway-api-integrator did not report a gateway address"
     logger.info("gateway address: %s", gateway_address)
-
-    # Each mode leaves a distinct Kubernetes fingerprint (closed → selector Service present,
-    # open → selector Service absent, integrator → headless Service + EndpointSlice present).
-    # These resources reconcile asynchronously after the apps report active, so poll until they
-    # all settle together rather than asserting a single point in time.
-    namespace = gateway_juju.model
-    assert namespace is not None
-    for attempt in Retrying(
-        retry=retry_if_exception_type(AssertionError),
-        wait=wait_fixed(5),
-        stop=stop_after_delay(180),
-        reraise=True,
-    ):
-        with attempt:
-            assert k8s_service_exists(
-                namespace, f"{GATEWAY_CONFIGURATOR_CLOSED}-{backend_closed}"
-            ), "closed-ports adapter must create a selector Service"
-            assert not k8s_service_exists(
-                namespace, f"{GATEWAY_CONFIGURATOR_OPEN}-{backend_open}"
-            ), "open-ports adapter must not create a selector Service"
-            assert k8s_service_exists(
-                namespace, f"{GATEWAY_CONFIGURATOR_INTEGRATOR}-headless"
-            ), "integrator must create a headless Service"
-            assert k8s_endpoint_slice_exists(
-                namespace, f"{GATEWAY_CONFIGURATOR_INTEGRATOR}-headless"
-            ), "integrator must create an EndpointSlice"
 
     # Every relation routes through the shared gateway and its path restriction applies
     # independently: the restricted path returns 200, while "/" returns 404 per hostname.

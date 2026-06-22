@@ -146,7 +146,9 @@ curl -k --resolve flask.internal:443:$GATEWAY_IP https://flask.internal/app
 
 A successful request returns the homepage of the `flask-k8s` charm:
 
-```html
+```{terminal}
+:output-only:
+
 <h1>Welcome to flask-k8s Charm</h1>
 ```
 

@@ -11,12 +11,6 @@ def pytest_addoption(parser):
         parser: Pytest parser.
     """
     parser.addoption("--charm-file", action="store")
-    parser.addoption(
-        "--gateway-class",
-        action="store",
-        default=None,
-        help="GatewayClass to configure on gateway-api-integrator (default: cilium).",
-    )
 
 
 def pytest_configure(config):

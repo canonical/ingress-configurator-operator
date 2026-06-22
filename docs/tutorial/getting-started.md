@@ -116,7 +116,12 @@ juju status --relations
 
 Sample output:
 
-```
+```{terminal}
+:user: ubuntu
+:host: charm-tutorial-vm
+
+juju status --relations
+
 Model             Controller  Cloud/Region        Version  SLA          Timestamp
 ingress-tutorial  k8s         ck-gateway/default  3.6.0    unsupported  10:00:00Z
 

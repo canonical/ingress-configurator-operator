@@ -26,7 +26,7 @@ fmt = [
 ]
 lint = [
   "codespell",
-  "jubilant>=1.3.0",
+  "jubilant",
   "mypy",
   "ops[testing]",
   "pep8-naming",
@@ -52,7 +52,7 @@ static = [
 integration = [
   "allure-pytest>=2.8.18",
   "allure-pytest-collection-report @ git+https://github.com/canonical/data-platform-workflows@v24.0.0#subdirectory=python/pytest_plugins/allure_pytest_collection_report",
-  "jubilant>=1.3.0",
+  "jubilant>=1.10.0",
   "pytest",
   "pytest-jubilant",
   "requests",

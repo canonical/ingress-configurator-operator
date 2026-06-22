@@ -93,7 +93,8 @@ juju integrate gateway-api-integrator:gateway-route ingress-configurator:gateway
 
 ## Deploy the backend application
 
-For this tutorial we'll use the `flask-k8s` charm as a sample backend application:
+For this tutorial we'll use the `flask-k8s` charm as a sample backend application.
+Deploy the charm:
 
 ```bash
 juju deploy flask-k8s

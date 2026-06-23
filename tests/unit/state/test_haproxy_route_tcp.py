@@ -653,7 +653,6 @@ def test_haproxy_route_tcp_requirements_invalid_health_check_type():
     assert "Invalid health check type" in str(exc_info.value)
 
 
-
 @pytest.mark.parametrize(
     "timeout_config,expected_server,expected_connect,expected_queue",
     [
@@ -754,7 +753,6 @@ def test_haproxy_route_tcp_requirements_proxy_protocol_enabled():
     assert requirements.proxy_protocol is True
 
 
-
 # ---------------------------------------------------------------------------
 # HaproxyRouteTcpState with port_mapping tests
 # ---------------------------------------------------------------------------
@@ -827,7 +825,7 @@ def test_haproxy_route_tcp_port_mapping_mutually_exclusive_with_backend_port():
 
 def test_haproxy_route_tcp_port_mapping_invalid_mapping_string():
     """
-    arrange: mock a charm with an unparseable tcp-port-mapping value
+    arrange: mock a charm with an unparsable tcp-port-mapping value
     act: build HaproxyRouteTcpState for integrator mode
     assert: InvalidHaproxyRouteTcpStateError is raised
     """

@@ -16,8 +16,7 @@ from requests import Session
 from .helper import DNSResolverAdapter
 
 MOCK_HAPROXY_HOSTNAME = "haproxy.internal"
-HTTP_REQUIRER_SRC = pathlib.Path("tests/integration/any_charm_http_requirer.py")
-INGRESS_REQUIRER_SRC = pathlib.Path("tests/integration/any_charm_ingress_requirer.py")
+INGRESS_REQUIRER_SRC = pathlib.Path("tests/integration/any_charm_apache.py")
 HELPER_SRC = pathlib.Path("tests/integration/helper.py")
 INGRESS_LIB_SRC = pathlib.Path("lib/charms/traefik_k8s/v2/ingress.py")
 JUJU_WAIT_TIMEOUT = 5 * 60
@@ -221,8 +220,12 @@ def any_charm_backend_fixture(
         app=ANY_CHARM_APP_NAME,
         config={
             "src-overwrite": json.dumps(
-                {"any_charm.py": HTTP_REQUIRER_SRC.read_text(encoding="utf-8")}
+                {
+                    "any_charm.py": INGRESS_REQUIRER_SRC.read_text(encoding="utf-8"),
+                    "ingress.py": INGRESS_LIB_SRC.read_text(encoding="utf-8"),
+                }
             ),
+            "python-packages": "\n".join(["pydantic", "charmlibs-apt"]),
         },
         num_units=2,
     )

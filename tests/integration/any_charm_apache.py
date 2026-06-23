@@ -5,7 +5,7 @@
 # We use subprocess and subprocess.run to install apache
 # No external inputs is parsed, ignoring bandit errors with nosec
 
-"""Ingress requirer source."""
+"""Any-charm with Apache HTTP server source."""
 
 import pathlib
 import subprocess  # nosec: B404
@@ -31,21 +31,25 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
         super().__init__(*args, **kwargs)
         self.ingress = IngressPerAppRequirer(self, port=_PORT)
         self.framework.observe(self.on.install, self._install)
-        self.framework.observe(self.on.start, self._configure)
-        self.framework.observe(self.on.config_changed, self._configure)
-        self.framework.observe(self.on.update_status, self._configure)
+        self.framework.observe(self.on.start, self._start_apache)
+        self.framework.observe(self.on.config_changed, self._start_apache)
+        self.framework.observe(self.on.update_status, self._start_apache)
 
     def _install(self, _: ops.InstallEvent) -> None:
-        """Install apache2.
+        """Install apache2 and pre-seed versioned API paths.
 
         Args:
             _: The triggering Juju event.
         """
         apt.update()
         apt.add_package(package_names="apache2")
+        base = pathlib.Path("/var/www/html/api")
+        for version in ("v1", "v2"):
+            (base / version).mkdir(parents=True, exist_ok=True)
+            (base / version / "index.html").write_text(f"{version} ok!", encoding="utf-8")
 
-    def _configure(self, _: ops.EventBase) -> None:
-        """Start apache2 with default configuration on lifecycle events.
+    def _start_apache(self, _: ops.EventBase) -> None:
+        """Start apache2 and open the port on lifecycle events.
 
         Args:
             _: The triggering Juju event.

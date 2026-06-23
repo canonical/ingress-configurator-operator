@@ -50,7 +50,8 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
         Args:
             _: The triggering Juju event.
         """
-        self.start_server()
+        subprocess.run(["service", "apache2", "restart"], check=False)  # nosec: B603, B607
+        self.unit.set_ports(_PORT)
 
     def start_server(
         self,

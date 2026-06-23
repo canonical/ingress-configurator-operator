@@ -4,7 +4,6 @@
 """Integration tests configuration."""
 
 import json
-import os
 import pathlib
 from ipaddress import IPv4Address, IPv6Address, ip_address
 from typing import Callable, Generator
@@ -17,11 +16,10 @@ from requests import Session
 from .helper import DNSResolverAdapter
 
 MOCK_HAPROXY_HOSTNAME = "haproxy.internal"
-HAPROXY_HTTP_REQUIRER_SRC = pathlib.Path("tests/integration/any_charm_http_requirer.py")
-HAPROXY_INGRESS_REQUIRER_SRC = pathlib.Path("tests/integration/any_charm_ingress_requirer.py")
+HTTP_REQUIRER_SRC = pathlib.Path("tests/integration/any_charm_http_requirer.py")
+INGRESS_REQUIRER_SRC = pathlib.Path("tests/integration/any_charm_ingress_requirer.py")
 HELPER_SRC = pathlib.Path("tests/integration/helper.py")
 INGRESS_LIB_SRC = pathlib.Path("lib/charms/traefik_k8s/v2/ingress.py")
-APT_LIB_SRC = pathlib.Path("lib/charms/operator_libs_linux/v0/apt.py")
 JUJU_WAIT_TIMEOUT = 5 * 60
 HAPROXY_APP_NAME = "haproxy"
 HAPROXY_CHANNEL = "2.8/edge"
@@ -45,9 +43,6 @@ GATEWAY_CERTIFICATES_CHANNEL = "1/edge"
 
 # Kubernetes ingress backends.
 INGRESS_BACKEND_PORT = 8000
-INGRESS_BACKEND_OPEN_PORTS_SRC = pathlib.Path(
-    "tests/integration/any_charm_ingress_requirer_k8s_ports_open.py"
-)
 
 # Per-instance app names and hostnames for the multi-relation gateway-route test. Each
 # ingress-configurator instance attaches to the same gateway-api-integrator over its own
@@ -102,14 +97,10 @@ def lxd_model_fixture() -> str:
 def k8s_controller_fixture() -> str:
     """Return the name of the Kubernetes controller.
 
-    Defaults to ``localhost`` (as used in CI) but can be overridden with the
-    ``K8S_CONTROLLER`` environment variable for local/VM runs where the controller
-    has a different name.
-
     Returns:
         The Kubernetes controller name.
     """
-    return os.environ.get("K8S_CONTROLLER", "localhost")
+    return "localhost"
 
 
 @pytest.fixture(scope="session", name="k8s_model")
@@ -230,7 +221,7 @@ def any_charm_backend_fixture(
         app=ANY_CHARM_APP_NAME,
         config={
             "src-overwrite": json.dumps(
-                {"any_charm.py": HAPROXY_HTTP_REQUIRER_SRC.read_text(encoding="utf-8")}
+                {"any_charm.py": HTTP_REQUIRER_SRC.read_text(encoding="utf-8")}
             ),
         },
         num_units=2,
@@ -272,11 +263,11 @@ def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, a
         config={
             "src-overwrite": json.dumps(
                 {
-                    "any_charm.py": HAPROXY_INGRESS_REQUIRER_SRC.read_text(encoding="utf-8"),
+                    "any_charm.py": INGRESS_REQUIRER_SRC.read_text(encoding="utf-8"),
                     "ingress.py": INGRESS_LIB_SRC.read_text(encoding="utf-8"),
                 }
             ),
-            "python-packages": "pydantic",
+            "python-packages": "\n".join(["pydantic", "charmlibs-apt"]),
         },
     )
     juju.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{application}:ingress")
@@ -364,8 +355,7 @@ def gateway_juju_fixture(
     """Create a temporary Kubernetes Juju model for the gateway-route tests.
 
     The gateway-route stack (gateway-api-integrator + ingress-configurator) is Kubernetes-only,
-    so the temporary model is created on the ``k8s`` cloud, registering it on the controller
-    first if needed (mirroring the ``juju_k8s`` fixture).
+    so the temporary model is created on the ``k8s`` cloud.
 
     Args:
         request: Pytest request used to read the ``--keep-models`` option.
@@ -374,14 +364,6 @@ def gateway_juju_fixture(
     Yields:
         A :class:`jubilant.Juju` instance bound to a fresh temporary model.
     """
-    try:
-        jubilant.Juju().cli(
-            "add-cloud", "--controller", k8s_controller, "k8s", include_model=False
-        )
-    except jubilant.CLIError as exc:
-        # Ignore the error only if the cloud already exists; re-raise for all other failures.
-        if "already exists" not in str(exc):
-            raise
     keep_models = bool(request.config.getoption("--keep-models"))
     with jubilant.temp_model(keep=keep_models, controller=k8s_controller, cloud="k8s") as juju:
         juju.wait_timeout = JUJU_WAIT_TIMEOUT
@@ -413,7 +395,7 @@ def gateway_api_integrator_fixture(gateway_juju: jubilant.Juju) -> str:
     return GATEWAY_API_INTEGRATOR_APP_NAME
 
 
-def deploy_gateway_configurator(juju: jubilant.Juju, charm: str, app: str, gateway: str) -> str:
+def deploy_gateway_route_configurator(juju: jubilant.Juju, charm: str, app: str, gateway: str) -> str:
     """Deploy an ingress-configurator instance (gateway-route requirer); does not wait.
 
     Args:
@@ -470,7 +452,7 @@ def backend_open_fixture(gateway_juju: jubilant.Juju) -> str:
         config={
             "src-overwrite": json.dumps(
                 {
-                    "any_charm.py": INGRESS_BACKEND_OPEN_PORTS_SRC.read_text(encoding="utf-8"),
+                    "any_charm.py": INGRESS_REQUIRER_SRC.read_text(encoding="utf-8"),
                     "ingress.py": INGRESS_LIB_SRC.read_text(encoding="utf-8"),
                 }
             ),

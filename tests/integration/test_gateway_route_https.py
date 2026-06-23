@@ -27,7 +27,7 @@ from .conftest import (
     GATEWAY_CERTIFICATES_CHANNEL,
     GATEWAY_CONFIGURATOR_HTTPS,
     HOSTNAME_HTTPS,
-    deploy_gateway_configurator,
+    deploy_gateway_route_configurator,
 )
 from .helper import get_gateway_address, wait_for_gateway_response
 
@@ -52,7 +52,7 @@ def test_gateway_route_https_enforced(
     # Enforce HTTPS, relate the gateway to a TLS provider, and wire the configurator to the backend.
     gateway_juju.config(gateway_api_integrator, {"enforce-https": True})
     gateway_juju.deploy(charm=CERTIFICATES_APP_NAME, channel=GATEWAY_CERTIFICATES_CHANNEL)
-    deploy_gateway_configurator(
+    deploy_gateway_route_configurator(
         gateway_juju, charm, GATEWAY_CONFIGURATOR_HTTPS, gateway_api_integrator
     )
     gateway_juju.integrate(

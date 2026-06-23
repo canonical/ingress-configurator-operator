@@ -13,7 +13,7 @@ from lightkube import Client
 from lightkube.resources.core_v1 import Service
 from lightkube.resources.discovery_v1 import EndpointSlice
 from requests.adapters import DEFAULT_POOLBLOCK, DEFAULT_POOLSIZE, DEFAULT_RETRIES, HTTPAdapter
-from tenacity import Retrying, retry_if_exception_type, stop_after_delay, wait_fixed
+from tenacity import retry, retry_if_exception_type, stop_after_delay, wait_fixed
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -39,6 +39,12 @@ def get_gateway_address(juju: jubilant.Juju, gateway_api_integrator: str) -> str
     return match.group(1) if match else ""
 
 
+@retry(
+    stop=stop_after_delay(180),
+    wait=wait_fixed(5),
+    retry=retry_if_exception_type((AssertionError, requests.exceptions.RequestException)),
+    reraise=True,
+)
 def wait_for_gateway_response(
     gateway_address: str,
     hostname: str | None,
@@ -48,14 +54,13 @@ def wait_for_gateway_response(
     expected_status: int = 200,
     body_contains: str | None = None,
     allow_redirects: bool = True,
-    timeout: int = 180,
 ) -> requests.Response:
     """Wait until the gateway returns a response matching the expectations and return it.
 
     The dataplane (Gateway, HTTPRoute, EndpointSlice) can take a few seconds to converge after a
     config or relation change, so this polls (retrying on connection errors and on responses that
-    do not match ``expected_status``/``body_contains``) until the expected response is observed or
-    ``timeout`` is reached. The matched :class:`requests.Response` is returned so callers can make
+    do not match ``expected_status``/``body_contains``) until the expected response is observed
+    within 180 seconds. The matched :class:`requests.Response` is returned so callers can make
     further assertions on it (e.g. inspect a redirect ``Location`` header).
 
     Args:
@@ -66,14 +71,13 @@ def wait_for_gateway_response(
         expected_status: Expected HTTP status code.
         body_contains: Optional substring expected in the response body.
         allow_redirects: Whether to follow redirects; set ``False`` to assert a redirect status.
-        timeout: Maximum seconds to keep retrying.
 
     Returns:
         The successful :class:`requests.Response`.
 
     Raises:
-        AssertionError: If the expected response is not observed within ``timeout``.
-        requests.exceptions.RequestException: If the request keeps failing within ``timeout``.
+        AssertionError: If the expected response is not observed within 180 seconds.
+        requests.exceptions.RequestException: If the request keeps failing within 180 seconds.
     """
     session = requests.Session()
     if hostname is not None:
@@ -84,28 +88,21 @@ def wait_for_gateway_response(
     else:
         url = f"{scheme}://{gateway_address}{path}"
 
-    for attempt in Retrying(
-        retry=retry_if_exception_type((AssertionError, requests.exceptions.RequestException)),
-        wait=wait_fixed(5),
-        stop=stop_after_delay(timeout),
-        reraise=True,
-    ):
-        with attempt:
-            response = session.get(
-                url,
-                verify=False,  # nosec - testing against a self-signed / IP-addressed endpoint
-                allow_redirects=allow_redirects,
-                timeout=10,
-            )
-            assert response.status_code == expected_status, (
-                f"Unexpected status routing Host={hostname} {path}: "
-                f"got {response.status_code}, expected {expected_status}, body={response.text!r}"
-            )
-            if body_contains is not None:
-                assert body_contains in response.text, (
-                    f"Expected body for Host={hostname} {path} to contain {body_contains!r}, "
-                    f"body={response.text!r}"
-                )
+    response = session.get(
+        url,
+        verify=False,  # nosec - testing against a self-signed / IP-addressed endpoint
+        allow_redirects=allow_redirects,
+        timeout=10,
+    )
+    assert response.status_code == expected_status, (
+        f"Unexpected status routing Host={hostname} {path}: "
+        f"got {response.status_code}, expected {expected_status}, body={response.text!r}"
+    )
+    if body_contains is not None:
+        assert body_contains in response.text, (
+            f"Expected body for Host={hostname} {path} to contain {body_contains!r}, "
+            f"body={response.text!r}"
+        )
     return response
 
 

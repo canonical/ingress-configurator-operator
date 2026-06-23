@@ -21,6 +21,7 @@ Each configurator is exposed on a distinct hostname. The test asserts that:
     independently for each, with no cross-relation interference.
 """
 
+import json
 import logging
 
 import jubilant
@@ -37,7 +38,7 @@ from .conftest import (
     HOSTNAME_INTEGRATOR,
     HOSTNAME_OPEN,
     INGRESS_BACKEND_PORT,
-    deploy_gateway_configurator,
+    deploy_gateway_route_configurator,
 )
 from .helper import (
     get_gateway_address,
@@ -46,17 +47,11 @@ from .helper import (
 
 logger = logging.getLogger(__name__)
 
-# Each configurator's primary and additional hostname for the multi-relation test.
-PRIMARY_HOSTNAMES = {
-    GATEWAY_CONFIGURATOR_CLOSED: HOSTNAME_CLOSED,
-    GATEWAY_CONFIGURATOR_OPEN: HOSTNAME_OPEN,
-    GATEWAY_CONFIGURATOR_INTEGRATOR: HOSTNAME_INTEGRATOR,
-}
-ADDITIONAL_HOSTNAMES = {
-    GATEWAY_CONFIGURATOR_CLOSED: ADDITIONAL_HOSTNAME_CLOSED,
-    GATEWAY_CONFIGURATOR_OPEN: ADDITIONAL_HOSTNAME_OPEN,
-    GATEWAY_CONFIGURATOR_INTEGRATOR: ADDITIONAL_HOSTNAME_INTEGRATOR,
-}
+# Port, path and body served by the open-ports backend. Passed to the charm via RPC so
+# tests can assert the body to prove traffic genuinely reaches this backend.
+BACKEND_PORT = 80
+BACKEND_PATH = "/api/v1"
+BACKEND_BODY = "ok from open-ports backend"
 
 
 @pytest.fixture(scope="module", name="multi_relation_gateway_address")
@@ -86,17 +81,26 @@ def multi_relation_gateway_address_fixture(
         The gateway LoadBalancer address shared by all three relations.
     """
     # Deploy one configurator per mode against the shared gateway.
-    deploy_gateway_configurator(
+    deploy_gateway_route_configurator(
         gateway_juju, charm, GATEWAY_CONFIGURATOR_CLOSED, gateway_api_integrator
     )
-    deploy_gateway_configurator(
+    deploy_gateway_route_configurator(
         gateway_juju, charm, GATEWAY_CONFIGURATOR_OPEN, gateway_api_integrator
     )
-    deploy_gateway_configurator(
+    deploy_gateway_route_configurator(
         gateway_juju, charm, GATEWAY_CONFIGURATOR_INTEGRATOR, gateway_api_integrator
     )
     gateway_juju.integrate(f"{backend_closed}:ingress", f"{GATEWAY_CONFIGURATOR_CLOSED}:ingress")
     gateway_juju.integrate(f"{backend_open}:ingress", f"{GATEWAY_CONFIGURATOR_OPEN}:ingress")
+
+    # Configure the open-ports backend to serve BACKEND_BODY at BACKEND_PATH via RPC.
+    # We wait for the unit to be reachable before calling RPC.
+    gateway_juju.wait(lambda status: jubilant.all_agents_idle(status, backend_open))
+    gateway_juju.run(
+        f"{backend_open}/0",
+        "rpc",
+        {"method": "start_server", "args": json.dumps([BACKEND_PORT, BACKEND_PATH, BACKEND_BODY])},
+    )
 
     # The integrator configurator is driven by config only, so read its backend pod IP first.
     gateway_juju.wait(
@@ -113,7 +117,7 @@ def multi_relation_gateway_address_fixture(
         {
             "hostname": HOSTNAME_CLOSED,
             "additional-hostnames": ADDITIONAL_HOSTNAME_CLOSED,
-            "paths": "/restricted",
+            "paths": BACKEND_PATH,
         },
     )
     gateway_juju.config(
@@ -121,7 +125,7 @@ def multi_relation_gateway_address_fixture(
         {
             "hostname": HOSTNAME_OPEN,
             "additional-hostnames": ADDITIONAL_HOSTNAME_OPEN,
-            "paths": "/restricted",
+            "paths": BACKEND_PATH,
         },
     )
     gateway_juju.config(
@@ -131,7 +135,7 @@ def multi_relation_gateway_address_fixture(
             "backend-ports": INGRESS_BACKEND_PORT,
             "hostname": HOSTNAME_INTEGRATOR,
             "additional-hostnames": ADDITIONAL_HOSTNAME_INTEGRATOR,
-            "paths": "/restricted",
+            "paths": BACKEND_PATH,
         },
     )
 
@@ -166,18 +170,46 @@ def test_gateway_route_multiple_relations(multi_relation_gateway_address: str):
     """
     gateway_address = multi_relation_gateway_address
 
-    # Every relation routes through the shared gateway and its path restriction applies
-    # independently: the restricted path returns 200, while "/" returns 404 per hostname.
-    for configurator, primary in PRIMARY_HOSTNAMES.items():
-        additional = ADDITIONAL_HOSTNAMES[configurator]
-        # Only the open-ports backend serves a known body; assert it to prove traffic reaches it.
-        body = "ok from open-ports backend" if configurator == GATEWAY_CONFIGURATOR_OPEN else None
-        logger.info("checking routing for %s (%s, %s)", configurator, primary, additional)
-        wait_for_gateway_response(
-            gateway_address, primary, "/restricted", expected_status=200, body_contains=body
-        )
-        wait_for_gateway_response(gateway_address, primary, "/", expected_status=404)
-        wait_for_gateway_response(
-            gateway_address, additional, "/restricted", expected_status=200, body_contains=body
-        )
-        wait_for_gateway_response(gateway_address, additional, "/", expected_status=404)
+    # --- Closed-ports adapter (flask-k8s, is_port_open=False) ---
+    # The configurator creates a selector Service targeting the backend pod; no body assertion
+    # since flask-k8s serves its own response.
+    logger.info("checking closed-ports routing (%s, %s)", HOSTNAME_CLOSED, ADDITIONAL_HOSTNAME_CLOSED)
+    wait_for_gateway_response(gateway_address, HOSTNAME_CLOSED, BACKEND_PATH, expected_status=200)
+    wait_for_gateway_response(gateway_address, HOSTNAME_CLOSED, "/", expected_status=404)
+    wait_for_gateway_response(
+        gateway_address, ADDITIONAL_HOSTNAME_CLOSED, BACKEND_PATH, expected_status=200
+    )
+    wait_for_gateway_response(gateway_address, ADDITIONAL_HOSTNAME_CLOSED, "/", expected_status=404)
+
+    # --- Open-ports adapter (any-charm-k8s, is_port_open=True) ---
+    # The configurator routes directly to the pod IP; assert BACKEND_BODY to prove traffic
+    # reaches this specific backend rather than any other 200 source.
+    logger.info("checking open-ports routing (%s, %s)", HOSTNAME_OPEN, ADDITIONAL_HOSTNAME_OPEN)
+    wait_for_gateway_response(
+        gateway_address, HOSTNAME_OPEN, BACKEND_PATH, expected_status=200, body_contains=BACKEND_BODY
+    )
+    wait_for_gateway_response(gateway_address, HOSTNAME_OPEN, "/", expected_status=404)
+    wait_for_gateway_response(
+        gateway_address,
+        ADDITIONAL_HOSTNAME_OPEN,
+        BACKEND_PATH,
+        expected_status=200,
+        body_contains=BACKEND_BODY,
+    )
+    wait_for_gateway_response(gateway_address, ADDITIONAL_HOSTNAME_OPEN, "/", expected_status=404)
+
+    # --- Integrator mode (config-driven backend IP, no ingress relation) ---
+    # The configurator creates a headless Service + EndpointSlice pointing at the backend pod IP.
+    logger.info(
+        "checking integrator routing (%s, %s)", HOSTNAME_INTEGRATOR, ADDITIONAL_HOSTNAME_INTEGRATOR
+    )
+    wait_for_gateway_response(
+        gateway_address, HOSTNAME_INTEGRATOR, BACKEND_PATH, expected_status=200
+    )
+    wait_for_gateway_response(gateway_address, HOSTNAME_INTEGRATOR, "/", expected_status=404)
+    wait_for_gateway_response(
+        gateway_address, ADDITIONAL_HOSTNAME_INTEGRATOR, BACKEND_PATH, expected_status=200
+    )
+    wait_for_gateway_response(
+        gateway_address, ADDITIONAL_HOSTNAME_INTEGRATOR, "/", expected_status=404
+    )

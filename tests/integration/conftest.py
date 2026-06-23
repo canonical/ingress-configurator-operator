@@ -41,30 +41,27 @@ GATEWAY_CLASS = "ck-gateway"
 EXTERNAL_HOSTNAME = "gateway.internal"
 GATEWAY_CERTIFICATES_CHANNEL = "1/edge"
 
-# Kubernetes ingress backends.
+# Closed-ports backend (flask-k8s, is_port_open=False).
+# Also reused by the enforced-HTTPS test, which runs in a separate model.
+GATEWAY_CONFIGURATOR_CLOSED = "configurator-closed"
+GATEWAY_BACKEND_CLOSED = "backend-closed"
+HOSTNAME_CLOSED = "closed.gateway.internal"
+ADDITIONAL_HOSTNAME_CLOSED = "alt-closed.gateway.internal"
+
+# Open-ports backend (any-charm-k8s, is_port_open=True).
+GATEWAY_CONFIGURATOR_OPEN = "configurator-open"
+GATEWAY_BACKEND_OPEN = "backend-open"
+HOSTNAME_OPEN = "open.gateway.internal"
+ADDITIONAL_HOSTNAME_OPEN = "alt-open.gateway.internal"
 INGRESS_BACKEND_PORT = 8000
 GATEWAY_BACKEND_OPEN_PATH = "/api/v1"
 GATEWAY_BACKEND_OPEN_BODY = "ok from open-ports backend"
 
-# Per-instance app names and hostnames for the multi-relation gateway-route test. Each
-# ingress-configurator instance attaches to the same gateway-api-integrator over its own
-# gateway-route relation and is exposed on a distinct hostname.
-GATEWAY_CONFIGURATOR_CLOSED = "configurator-closed"
-GATEWAY_CONFIGURATOR_OPEN = "configurator-open"
+# Integrator-mode backend (flask-k8s, referenced by IP only via config).
 GATEWAY_CONFIGURATOR_INTEGRATOR = "configurator-integrator"
-GATEWAY_BACKEND_CLOSED = "backend-closed"
-GATEWAY_BACKEND_OPEN = "backend-open"
 GATEWAY_BACKEND_INTEGRATOR = "backend-integrator"
-HOSTNAME_CLOSED = "closed.gateway.internal"
-HOSTNAME_OPEN = "open.gateway.internal"
 HOSTNAME_INTEGRATOR = "integrator.gateway.internal"
-# Distinct additional hostname per relation (a shared one would create ambiguous routes).
-ADDITIONAL_HOSTNAME_CLOSED = "alt-closed.gateway.internal"
-ADDITIONAL_HOSTNAME_OPEN = "alt-open.gateway.internal"
 ADDITIONAL_HOSTNAME_INTEGRATOR = "alt-integrator.gateway.internal"
-# Single instance used by the enforced-HTTPS test.
-GATEWAY_CONFIGURATOR_HTTPS = "configurator-https"
-HOSTNAME_HTTPS = "https.gateway.internal"
 
 
 @pytest.fixture(scope="session", name="charm")

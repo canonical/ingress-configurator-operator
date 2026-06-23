@@ -25,8 +25,8 @@ import pytest
 from .conftest import (
     CERTIFICATES_APP_NAME,
     GATEWAY_CERTIFICATES_CHANNEL,
-    GATEWAY_CONFIGURATOR_HTTPS,
-    HOSTNAME_HTTPS,
+    GATEWAY_CONFIGURATOR_CLOSED,
+    HOSTNAME_CLOSED,
     deploy_gateway_route_configurator,
 )
 from .helper import get_gateway_address, wait_for_gateway_response
@@ -53,20 +53,20 @@ def test_gateway_route_https_enforced(
     gateway_juju.config(gateway_api_integrator, {"enforce-https": True})
     gateway_juju.deploy(charm=CERTIFICATES_APP_NAME, channel=GATEWAY_CERTIFICATES_CHANNEL)
     deploy_gateway_route_configurator(
-        gateway_juju, charm, GATEWAY_CONFIGURATOR_HTTPS, gateway_api_integrator
+        gateway_juju, charm, GATEWAY_CONFIGURATOR_CLOSED, gateway_api_integrator
     )
     gateway_juju.integrate(
         f"{CERTIFICATES_APP_NAME}:certificates", f"{gateway_api_integrator}:certificates"
     )
-    gateway_juju.integrate(f"{backend_closed}:ingress", f"{GATEWAY_CONFIGURATOR_HTTPS}:ingress")
-    gateway_juju.config(GATEWAY_CONFIGURATOR_HTTPS, {"hostname": HOSTNAME_HTTPS})
+    gateway_juju.integrate(f"{backend_closed}:ingress", f"{GATEWAY_CONFIGURATOR_CLOSED}:ingress")
+    gateway_juju.config(GATEWAY_CONFIGURATOR_CLOSED, {"hostname": HOSTNAME_CLOSED})
 
     gateway_juju.wait(
         lambda status: jubilant.all_active(
             status,
             gateway_api_integrator,
             CERTIFICATES_APP_NAME,
-            GATEWAY_CONFIGURATOR_HTTPS,
+            GATEWAY_CONFIGURATOR_CLOSED,
             backend_closed,
         ),
         error=jubilant.any_error,
@@ -79,7 +79,7 @@ def test_gateway_route_https_enforced(
     # HTTP is redirected to HTTPS (do not follow the redirect so the 301 and Location are visible).
     redirect = wait_for_gateway_response(
         gateway_address,
-        HOSTNAME_HTTPS,
+        HOSTNAME_CLOSED,
         "/",
         scheme="http",
         expected_status=301,
@@ -93,7 +93,7 @@ def test_gateway_route_https_enforced(
     # The HTTPS route reaches the backend (SNI carries the hostname; self-signed cert not verified).
     wait_for_gateway_response(
         gateway_address,
-        HOSTNAME_HTTPS,
+        HOSTNAME_CLOSED,
         "/",
         scheme="https",
         expected_status=200,

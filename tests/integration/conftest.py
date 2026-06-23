@@ -4,7 +4,6 @@
 """Integration tests configuration."""
 
 import json
-import os
 import pathlib
 from ipaddress import IPv4Address, IPv6Address, ip_address
 from typing import Callable, Generator
@@ -99,8 +98,7 @@ def k8s_controller_fixture() -> str:
     Returns:
         The Kubernetes controller name.
     """
-    return os.environ.get("K8S_CONTROLLER", "localhost")
-
+    return "localhost"
 
 @pytest.fixture(scope="session", name="k8s_model")
 def k8s_model_fixture() -> str:

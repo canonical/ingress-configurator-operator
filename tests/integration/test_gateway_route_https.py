@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 @pytest.mark.abort_on_fail
 def test_gateway_route_https_enforced(
-    gateway_juju: jubilant.Juju,
+    juju_k8s: jubilant.Juju,
     gateway_api_integrator: str,
     backend_closed: str,
     charm: str,
@@ -44,24 +44,24 @@ def test_gateway_route_https_enforced(
     """Enforced HTTPS: HTTP is redirected to HTTPS and the HTTPS route reaches the backend.
 
     Args:
-        gateway_juju: Jubilant Juju instance for the Kubernetes model.
+        juju_k8s: Jubilant Juju instance for the Kubernetes model.
         gateway_api_integrator: gateway-api-integrator (gateway-route provider) app name.
         backend_closed: flask-k8s backend workload app name.
         charm: Path to the packed ingress-configurator charm.
     """
     # Enforce HTTPS, relate the gateway to a TLS provider, and wire the configurator to the backend.
-    gateway_juju.config(gateway_api_integrator, {"enforce-https": True})
-    gateway_juju.deploy(charm=CERTIFICATES_APP_NAME, channel=GATEWAY_CERTIFICATES_CHANNEL)
+    juju_k8s.config(gateway_api_integrator, {"enforce-https": True})
+    juju_k8s.deploy(charm=CERTIFICATES_APP_NAME, channel=GATEWAY_CERTIFICATES_CHANNEL)
     deploy_gateway_route_configurator(
-        gateway_juju, charm, GATEWAY_CONFIGURATOR_CLOSED, gateway_api_integrator
+        juju_k8s, charm, GATEWAY_CONFIGURATOR_CLOSED, gateway_api_integrator
     )
-    gateway_juju.integrate(
+    juju_k8s.integrate(
         f"{CERTIFICATES_APP_NAME}:certificates", f"{gateway_api_integrator}:certificates"
     )
-    gateway_juju.integrate(f"{backend_closed}:ingress", f"{GATEWAY_CONFIGURATOR_CLOSED}:ingress")
-    gateway_juju.config(GATEWAY_CONFIGURATOR_CLOSED, {"hostname": HOSTNAME_CLOSED})
+    juju_k8s.integrate(f"{backend_closed}:ingress", f"{GATEWAY_CONFIGURATOR_CLOSED}:ingress")
+    juju_k8s.config(GATEWAY_CONFIGURATOR_CLOSED, {"hostname": HOSTNAME_CLOSED})
 
-    gateway_juju.wait(
+    juju_k8s.wait(
         lambda status: jubilant.all_active(
             status,
             gateway_api_integrator,
@@ -72,7 +72,7 @@ def test_gateway_route_https_enforced(
         error=jubilant.any_error,
     )
 
-    gateway_address = get_gateway_address(gateway_juju, gateway_api_integrator)
+    gateway_address = get_gateway_address(juju_k8s, gateway_api_integrator)
     assert gateway_address, "gateway-api-integrator did not report a gateway address"
     logger.info("gateway address: %s", gateway_address)
 

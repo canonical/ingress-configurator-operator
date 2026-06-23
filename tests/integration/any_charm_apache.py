@@ -37,36 +37,39 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
         self.framework.observe(self.on.install, self._install)
 
     def _install(self, _: ops.InstallEvent) -> None:
-        """Install apache2 and configure it using the optional config.json.
-
-        Args:
-            _: The triggering Juju event.
-        """
+        """Install apache2 and configure it using the optional config.json."""
         apt.update()
         apt.add_package(package_names="apache2")
         if self._cfg:
             port = self._cfg.get("port", _PORT)
-            path = self._cfg.get("path", "/index.html")
-            body = self._cfg.get("body", "Server Ready")
             open_port = self._cfg.get("open_port", True)
-            self._start_server(port=port, path=path, body=body, open_port=open_port)
+            self._start_server(port=port, pages=self._cfg.get("pages"), open_port=open_port)
 
     def _start_server(
         self,
         port: int = _PORT,
-        path: str = "/index.html",
-        body: str = "Server Ready",
+        pages: dict | None = None,
         open_port: bool = True,
     ) -> None:
-        """Configure apache2 to serve ``body`` at ``path`` on ``port`` and open the port."""
+        """Configure apache2 to serve each path→body entry on ``port`` and open the port.
+
+        Args:
+            port: TCP port apache should listen on.
+            pages: Mapping of URL path to response body.  Each path is written under
+                ``/var/www/html``; parent directories are created as needed.
+            open_port: When True, call ``unit.set_ports`` to advertise the port.
+        """
+        if pages is None:
+            pages = {"/index.html": "Server Ready"}
         pathlib.Path("/etc/apache2/ports.conf").write_text(f"Listen {port}\n", encoding="utf-8")
         pathlib.Path("/etc/apache2/sites-available/000-default.conf").write_text(
             f"<VirtualHost *:{port}>\n    DocumentRoot /var/www/html\n</VirtualHost>\n",
             encoding="utf-8",
         )
-        served_file = pathlib.Path("/var/www/html") / path.lstrip("/")
-        served_file.parent.mkdir(parents=True, exist_ok=True)
-        served_file.write_text(body, encoding="utf-8")
+        for path, body in pages.items():
+            served_file = pathlib.Path("/var/www/html") / path.lstrip("/")
+            served_file.parent.mkdir(parents=True, exist_ok=True)
+            served_file.write_text(body, encoding="utf-8")
         subprocess.run(["service", "apache2", "restart"], check=False)  # nosec: B603, B607
         if open_port:
             self.unit.set_ports(port)

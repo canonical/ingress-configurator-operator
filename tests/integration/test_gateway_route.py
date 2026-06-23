@@ -57,7 +57,7 @@ BACKEND_BODY = GATEWAY_BACKEND_OPEN_BODY
 
 @pytest.fixture(scope="module", name="multi_relation_gateway_address")
 def multi_relation_gateway_address_fixture(
-    gateway_juju: jubilant.Juju,
+    juju_k8s: jubilant.Juju,
     gateway_api_integrator: str,
     backend_closed: str,
     backend_open: str,
@@ -71,7 +71,7 @@ def multi_relation_gateway_address_fixture(
     on a distinct hostname with a path restriction, and waits for the whole stack to settle.
 
     Args:
-        gateway_juju: Jubilant Juju instance for the Kubernetes model.
+        juju_k8s: Jubilant Juju instance for the Kubernetes model.
         gateway_api_integrator: gateway-api-integrator (gateway-route provider) app name.
         backend_closed: flask-k8s backend with its port closed (adapter, closed-ports branch).
         backend_open: any-charm-k8s backend that opens its port (adapter, open-ports branch).
@@ -83,28 +83,28 @@ def multi_relation_gateway_address_fixture(
     """
     # Deploy one configurator per mode against the shared gateway.
     deploy_gateway_route_configurator(
-        gateway_juju, charm, GATEWAY_CONFIGURATOR_CLOSED, gateway_api_integrator
+        juju_k8s, charm, GATEWAY_CONFIGURATOR_CLOSED, gateway_api_integrator
     )
     deploy_gateway_route_configurator(
-        gateway_juju, charm, GATEWAY_CONFIGURATOR_OPEN, gateway_api_integrator
+        juju_k8s, charm, GATEWAY_CONFIGURATOR_OPEN, gateway_api_integrator
     )
     deploy_gateway_route_configurator(
-        gateway_juju, charm, GATEWAY_CONFIGURATOR_INTEGRATOR, gateway_api_integrator
+        juju_k8s, charm, GATEWAY_CONFIGURATOR_INTEGRATOR, gateway_api_integrator
     )
-    gateway_juju.integrate(f"{backend_closed}:ingress", f"{GATEWAY_CONFIGURATOR_CLOSED}:ingress")
-    gateway_juju.integrate(f"{backend_open}:ingress", f"{GATEWAY_CONFIGURATOR_OPEN}:ingress")
+    juju_k8s.integrate(f"{backend_closed}:ingress", f"{GATEWAY_CONFIGURATOR_CLOSED}:ingress")
+    juju_k8s.integrate(f"{backend_open}:ingress", f"{GATEWAY_CONFIGURATOR_OPEN}:ingress")
 
     # The integrator configurator is driven by config only, so read its backend pod IP first.
-    gateway_juju.wait(
+    juju_k8s.wait(
         lambda status: any(unit.address for unit in status.apps[backend_integrator].units.values())
     )
     integrator_backend_address = next(
         unit.address
-        for unit in gateway_juju.status().apps[backend_integrator].units.values()
+        for unit in juju_k8s.status().apps[backend_integrator].units.values()
         if unit.address
     )
     logger.info("integrator backend pod IP: %s", integrator_backend_address)
-    gateway_juju.config(
+    juju_k8s.config(
         GATEWAY_CONFIGURATOR_CLOSED,
         {
             "hostname": HOSTNAME_CLOSED,
@@ -112,7 +112,7 @@ def multi_relation_gateway_address_fixture(
             "paths": BACKEND_PATH,
         },
     )
-    gateway_juju.config(
+    juju_k8s.config(
         GATEWAY_CONFIGURATOR_OPEN,
         {
             "hostname": HOSTNAME_OPEN,
@@ -120,7 +120,7 @@ def multi_relation_gateway_address_fixture(
             "paths": BACKEND_PATH,
         },
     )
-    gateway_juju.config(
+    juju_k8s.config(
         GATEWAY_CONFIGURATOR_INTEGRATOR,
         {
             "backend-addresses": integrator_backend_address,
@@ -141,12 +141,12 @@ def multi_relation_gateway_address_fixture(
         backend_open,
         backend_integrator,
     )
-    gateway_juju.wait(
+    juju_k8s.wait(
         lambda status: jubilant.all_active(status, *all_apps),
         error=jubilant.any_error,
     )
 
-    gateway_address = get_gateway_address(gateway_juju, gateway_api_integrator)
+    gateway_address = get_gateway_address(juju_k8s, gateway_api_integrator)
     assert gateway_address, "gateway-api-integrator did not report a gateway address"
     logger.info("gateway address: %s", gateway_address)
     return gateway_address

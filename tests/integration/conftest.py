@@ -223,6 +223,15 @@ def any_charm_backend_fixture(
                 {
                     "any_charm.py": INGRESS_REQUIRER_SRC.read_text(encoding="utf-8"),
                     "ingress.py": INGRESS_LIB_SRC.read_text(encoding="utf-8"),
+                    "config.json": json.dumps(
+                        {
+                            "port": 80,
+                            "pages": {
+                                "/api/v1/index.html": "v1 ok!",
+                                "/api/v2/index.html": "v2 ok!",
+                            },
+                        }
+                    ),
                 }
             ),
             "python-packages": "\n".join(["pydantic", "charmlibs-apt"]),
@@ -351,30 +360,8 @@ def k8s_ingress_requirer_fixture(
     yield INGRESS_REQUIRER_APP_NAME
 
 
-@pytest.fixture(scope="module", name="gateway_juju")
-def gateway_juju_fixture(
-    request: pytest.FixtureRequest, k8s_controller: str
-) -> Generator[jubilant.Juju, None, None]:
-    """Create a temporary Kubernetes Juju model for the gateway-route tests.
-
-    The gateway-route stack (gateway-api-integrator + ingress-configurator) is Kubernetes-only,
-    so the temporary model is created on the ``k8s`` cloud.
-
-    Args:
-        request: Pytest request used to read the ``--keep-models`` option.
-        k8s_controller: Name of the controller hosting the Kubernetes cloud.
-
-    Yields:
-        A :class:`jubilant.Juju` instance bound to a fresh temporary model.
-    """
-    keep_models = bool(request.config.getoption("--keep-models"))
-    with jubilant.temp_model(keep=keep_models, controller=k8s_controller, cloud="k8s") as juju:
-        juju.wait_timeout = JUJU_WAIT_TIMEOUT
-        yield juju
-
-
 @pytest.fixture(scope="module", name="gateway_api_integrator")
-def gateway_api_integrator_fixture(gateway_juju: jubilant.Juju) -> str:
+def gateway_api_integrator_fixture(juju_k8s: jubilant.Juju) -> str:
     """Deploy gateway-api-integrator as the shared gateway-route provider (HTTP by default).
 
     The provider is deployed with ``enforce-https=False`` (HTTP only). Tests needing HTTPS
@@ -382,12 +369,12 @@ def gateway_api_integrator_fixture(gateway_juju: jubilant.Juju) -> str:
     not wait for the application to settle.
 
     Args:
-        gateway_juju: Jubilant Juju instance for the Kubernetes model.
+        juju_k8s: Jubilant Juju instance for the Kubernetes model.
 
     Returns:
         The gateway-api-integrator application name.
     """
-    gateway_juju.deploy(
+    juju_k8s.deploy(
         charm=GATEWAY_API_INTEGRATOR_APP_NAME,
         channel=GATEWAY_API_INTEGRATOR_CHANNEL,
         revision=GATEWAY_API_INTEGRATOR_REVISION,
@@ -418,7 +405,7 @@ def deploy_gateway_route_configurator(
 
 
 @pytest.fixture(scope="module", name="backend_closed")
-def backend_closed_fixture(gateway_juju: jubilant.Juju) -> str:
+def backend_closed_fixture(juju_k8s: jubilant.Juju) -> str:
     """Deploy a flask-k8s workload that keeps its port closed (``is_port_open=False``).
 
     flask-k8s does not open its workload port, so a consumer relating over ``ingress`` sees
@@ -426,17 +413,17 @@ def backend_closed_fixture(gateway_juju: jubilant.Juju) -> str:
     fixture does not wait for the application to settle.
 
     Args:
-        gateway_juju: Jubilant Juju instance for the Kubernetes model.
+        juju_k8s: Jubilant Juju instance for the Kubernetes model.
 
     Returns:
         The deployed application name.
     """
-    gateway_juju.deploy(charm="flask-k8s", app=GATEWAY_BACKEND_CLOSED, channel="latest/edge")
+    juju_k8s.deploy(charm="flask-k8s", app=GATEWAY_BACKEND_CLOSED, channel="latest/edge")
     return GATEWAY_BACKEND_CLOSED
 
 
 @pytest.fixture(scope="module", name="backend_open")
-def backend_open_fixture(gateway_juju: jubilant.Juju) -> str:
+def backend_open_fixture(juju_k8s: jubilant.Juju) -> str:
     """Deploy an any-charm-k8s workload that opens its port (``is_port_open=True``).
 
     The backend declares ingress on a fixed port, opens that port (so the ingress databag
@@ -445,12 +432,12 @@ def backend_open_fixture(gateway_juju: jubilant.Juju) -> str:
     wait for the application to settle.
 
     Args:
-        gateway_juju: Jubilant Juju instance for the Kubernetes model.
+        juju_k8s: Jubilant Juju instance for the Kubernetes model.
 
     Returns:
         The deployed application name.
     """
-    gateway_juju.deploy(
+    juju_k8s.deploy(
         charm="any-charm-k8s",
         channel="beta",
         app=GATEWAY_BACKEND_OPEN,
@@ -462,8 +449,7 @@ def backend_open_fixture(gateway_juju: jubilant.Juju) -> str:
                     "config.json": json.dumps(
                         {
                             "port": INGRESS_BACKEND_PORT,
-                            "path": GATEWAY_BACKEND_OPEN_PATH,
-                            "body": GATEWAY_BACKEND_OPEN_BODY,
+                            "pages": {GATEWAY_BACKEND_OPEN_PATH: GATEWAY_BACKEND_OPEN_BODY},
                         }
                     ),
                 }
@@ -475,7 +461,7 @@ def backend_open_fixture(gateway_juju: jubilant.Juju) -> str:
 
 
 @pytest.fixture(scope="module", name="backend_integrator")
-def backend_integrator_fixture(gateway_juju: jubilant.Juju) -> str:
+def backend_integrator_fixture(juju_k8s: jubilant.Juju) -> str:
     """Deploy a flask-k8s workload to use as a config-described (integrator-mode) backend IP.
 
     The integrator mode has no ``ingress`` relation: the backend is referenced purely by IP via
@@ -483,10 +469,10 @@ def backend_integrator_fixture(gateway_juju: jubilant.Juju) -> str:
     application to settle.
 
     Args:
-        gateway_juju: Jubilant Juju instance for the Kubernetes model.
+        juju_k8s: Jubilant Juju instance for the Kubernetes model.
 
     Returns:
         The deployed application name.
     """
-    gateway_juju.deploy(charm="flask-k8s", app=GATEWAY_BACKEND_INTEGRATOR, channel="latest/edge")
+    juju_k8s.deploy(charm="flask-k8s", app=GATEWAY_BACKEND_INTEGRATOR, channel="latest/edge")
     return GATEWAY_BACKEND_INTEGRATOR

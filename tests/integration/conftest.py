@@ -395,7 +395,9 @@ def gateway_api_integrator_fixture(gateway_juju: jubilant.Juju) -> str:
     return GATEWAY_API_INTEGRATOR_APP_NAME
 
 
-def deploy_gateway_route_configurator(juju: jubilant.Juju, charm: str, app: str, gateway: str) -> str:
+def deploy_gateway_route_configurator(
+    juju: jubilant.Juju, charm: str, app: str, gateway: str
+) -> str:
     """Deploy an ingress-configurator instance (gateway-route requirer); does not wait.
 
     Args:

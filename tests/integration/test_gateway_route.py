@@ -81,20 +81,35 @@ def multi_relation_gateway_address_fixture(
     Returns:
         The gateway LoadBalancer address shared by all three relations.
     """
-    # Deploy one configurator per mode against the shared gateway.
+
+    # Deploy one configurator per mode with its config inline.
     deploy_gateway_route_configurator(
-        juju_k8s, charm, GATEWAY_CONFIGURATOR_CLOSED, gateway_api_integrator
+        juju_k8s,
+        charm,
+        GATEWAY_CONFIGURATOR_CLOSED,
+        gateway_api_integrator,
+        config={
+            "hostname": HOSTNAME_CLOSED,
+            "additional-hostnames": ADDITIONAL_HOSTNAME_CLOSED,
+            "paths": BACKEND_PATH,
+        },
     )
     deploy_gateway_route_configurator(
-        juju_k8s, charm, GATEWAY_CONFIGURATOR_OPEN, gateway_api_integrator
-    )
-    deploy_gateway_route_configurator(
-        juju_k8s, charm, GATEWAY_CONFIGURATOR_INTEGRATOR, gateway_api_integrator
+        juju_k8s,
+        charm,
+        GATEWAY_CONFIGURATOR_OPEN,
+        gateway_api_integrator,
+        config={
+            "hostname": HOSTNAME_OPEN,
+            "additional-hostnames": ADDITIONAL_HOSTNAME_OPEN,
+            "paths": BACKEND_PATH,
+        },
     )
     juju_k8s.integrate(f"{backend_closed}:ingress", f"{GATEWAY_CONFIGURATOR_CLOSED}:ingress")
     juju_k8s.integrate(f"{backend_open}:ingress", f"{GATEWAY_CONFIGURATOR_OPEN}:ingress")
 
-    # The integrator configurator is driven by config only, so read its backend pod IP first.
+    # The integrator backend is already deployed; wait for its pod IP before deploying
+    # the configurator so the address can be passed as config at deploy time.
     juju_k8s.wait(
         lambda status: any(unit.address for unit in status.apps[backend_integrator].units.values())
     )
@@ -104,25 +119,13 @@ def multi_relation_gateway_address_fixture(
         if unit.address
     )
     logger.info("integrator backend pod IP: %s", integrator_backend_address)
-    juju_k8s.config(
-        GATEWAY_CONFIGURATOR_CLOSED,
-        {
-            "hostname": HOSTNAME_CLOSED,
-            "additional-hostnames": ADDITIONAL_HOSTNAME_CLOSED,
-            "paths": BACKEND_PATH,
-        },
-    )
-    juju_k8s.config(
-        GATEWAY_CONFIGURATOR_OPEN,
-        {
-            "hostname": HOSTNAME_OPEN,
-            "additional-hostnames": ADDITIONAL_HOSTNAME_OPEN,
-            "paths": BACKEND_PATH,
-        },
-    )
-    juju_k8s.config(
+
+    deploy_gateway_route_configurator(
+        juju_k8s,
+        charm,
         GATEWAY_CONFIGURATOR_INTEGRATOR,
-        {
+        gateway_api_integrator,
+        config={
             "backend-addresses": integrator_backend_address,
             "backend-ports": INGRESS_BACKEND_PORT,
             "hostname": HOSTNAME_INTEGRATOR,

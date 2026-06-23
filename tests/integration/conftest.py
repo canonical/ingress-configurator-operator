@@ -386,7 +386,7 @@ def gateway_api_integrator_fixture(juju_k8s: jubilant.Juju) -> str:
 
 
 def deploy_gateway_route_configurator(
-    juju: jubilant.Juju, charm: str, app: str, gateway: str
+    juju: jubilant.Juju, charm: str, app: str, gateway: str, config: dict | None = None
 ) -> str:
     """Deploy an ingress-configurator instance (gateway-route requirer); does not wait.
 
@@ -395,11 +395,12 @@ def deploy_gateway_route_configurator(
         charm: Path to the packed ingress-configurator charm.
         app: Application name to deploy under.
         gateway: gateway-route provider app name to integrate with.
+        config: Optional charm config to apply at deploy time.
 
     Returns:
         The deployed application name.
     """
-    juju.deploy(charm=charm, app=app, trust=True)
+    juju.deploy(charm=charm, app=app, trust=True, config=config or {})
     juju.integrate(f"{app}:gateway-route", f"{gateway}:gateway-route")
     return app
 

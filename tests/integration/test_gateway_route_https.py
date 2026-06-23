@@ -27,7 +27,7 @@ from .conftest import (
     GATEWAY_CERTIFICATES_CHANNEL,
     GATEWAY_CONFIGURATOR_CLOSED,
     HOSTNAME_CLOSED,
-    deploy_gateway_route_configurator,
+    deploy_ingress_configurator_for_gateway_route,
 )
 from .helper import get_gateway_address, wait_for_gateway_response
 
@@ -52,7 +52,7 @@ def test_gateway_route_https_enforced(
     # Enforce HTTPS, relate the gateway to a TLS provider, and wire the configurator to the backend.
     juju_k8s.config(gateway_api_integrator, {"enforce-https": True})
     juju_k8s.deploy(charm=CERTIFICATES_APP_NAME, channel=GATEWAY_CERTIFICATES_CHANNEL)
-    deploy_gateway_route_configurator(
+    deploy_ingress_configurator_for_gateway_route(
         juju_k8s, charm, GATEWAY_CONFIGURATOR_CLOSED, gateway_api_integrator
     )
     juju_k8s.integrate(

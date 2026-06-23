@@ -40,7 +40,7 @@ from .conftest import (
     HOSTNAME_INTEGRATOR,
     HOSTNAME_OPEN,
     INGRESS_BACKEND_PORT,
-    deploy_gateway_route_configurator,
+    deploy_ingress_configurator_for_gateway_route,
 )
 from .helper import (
     get_gateway_address,
@@ -95,7 +95,7 @@ def multi_relation_gateway_stack_fixture(
         The gateway stack with the LoadBalancer address and all deployed app names.
     """
     # Deploy one configurator per mode with its config inline.
-    deploy_gateway_route_configurator(
+    deploy_ingress_configurator_for_gateway_route(
         juju_k8s,
         charm,
         GATEWAY_CONFIGURATOR_CLOSED,
@@ -106,7 +106,7 @@ def multi_relation_gateway_stack_fixture(
             "paths": BACKEND_PATH,
         },
     )
-    deploy_gateway_route_configurator(
+    deploy_ingress_configurator_for_gateway_route(
         juju_k8s,
         charm,
         GATEWAY_CONFIGURATOR_OPEN,
@@ -132,7 +132,7 @@ def multi_relation_gateway_stack_fixture(
     )
     logger.info("integrator backend pod IP: %s", integrator_backend_address)
 
-    deploy_gateway_route_configurator(
+    deploy_ingress_configurator_for_gateway_route(
         juju_k8s,
         charm,
         GATEWAY_CONFIGURATOR_INTEGRATOR,

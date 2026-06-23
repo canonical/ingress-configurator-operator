@@ -57,12 +57,6 @@ def wait_for_gateway_response(
 ) -> requests.Response:
     """Wait until the gateway returns a response matching the expectations and return it.
 
-    The dataplane (Gateway, HTTPRoute, EndpointSlice) can take a few seconds to converge after a
-    config or relation change, so this polls (retrying on connection errors and on responses that
-    do not match ``expected_status``/``body_contains``) until the expected response is observed
-    within 180 seconds. The matched :class:`requests.Response` is returned so callers can make
-    further assertions on it (e.g. inspect a redirect ``Location`` header).
-
     Args:
         gateway_address: The gateway LoadBalancer IP to send the request to.
         hostname: Value for the ``Host`` header; ``None`` sends no Host header.

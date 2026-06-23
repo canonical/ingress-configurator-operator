@@ -22,6 +22,7 @@ Each configurator is exposed on a distinct hostname. The test asserts that:
 """
 
 import logging
+from typing import NamedTuple
 
 import jubilant
 import pytest
@@ -55,15 +56,27 @@ BACKEND_PATH = GATEWAY_BACKEND_OPEN_PATH
 BACKEND_BODY = GATEWAY_BACKEND_OPEN_BODY
 
 
-@pytest.fixture(scope="module", name="multi_relation_gateway_address")
-def multi_relation_gateway_address_fixture(
+class GatewayStack(NamedTuple):
+    """All deployed app names and the shared gateway address for the multi-relation test."""
+
+    gateway_api_integrator: str
+    backend_closed: str
+    backend_open: str
+    backend_integrator: str
+    configurator_closed: str
+    configurator_open: str
+    configurator_integrator: str
+
+
+@pytest.fixture(scope="module", name="multi_relation_gateway_stack")
+def multi_relation_gateway_stack_fixture(
     juju_k8s: jubilant.Juju,
     gateway_api_integrator: str,
     backend_closed: str,
     backend_open: str,
     backend_integrator: str,
     charm: str,
-) -> str:
+) -> GatewayStack:
     """Deploy and configure three configurators on one gateway and return its address.
 
     Deploys one ingress-configurator per mode (closed-ports adapter, open-ports adapter and
@@ -79,9 +92,8 @@ def multi_relation_gateway_address_fixture(
         charm: Path to the packed ingress-configurator charm.
 
     Returns:
-        The gateway LoadBalancer address shared by all three relations.
+        The gateway stack with the LoadBalancer address and all deployed app names.
     """
-
     # Deploy one configurator per mode with its config inline.
     deploy_gateway_route_configurator(
         juju_k8s,
@@ -149,21 +161,30 @@ def multi_relation_gateway_address_fixture(
         error=jubilant.any_error,
     )
 
-    gateway_address = get_gateway_address(juju_k8s, gateway_api_integrator)
-    assert gateway_address, "gateway-api-integrator did not report a gateway address"
-    logger.info("gateway address: %s", gateway_address)
-    return gateway_address
+    return GatewayStack(
+        gateway_api_integrator=gateway_api_integrator,
+        backend_closed=backend_closed,
+        backend_open=backend_open,
+        backend_integrator=backend_integrator,
+        configurator_closed=GATEWAY_CONFIGURATOR_CLOSED,
+        configurator_open=GATEWAY_CONFIGURATOR_OPEN,
+        configurator_integrator=GATEWAY_CONFIGURATOR_INTEGRATOR,
+    )
 
 
 @pytest.mark.abort_on_fail
-def test_gateway_route_multiple_relations(multi_relation_gateway_address: str):
+def test_gateway_route_multiple_relations(
+    juju_k8s: jubilant.Juju, multi_relation_gateway_stack: GatewayStack
+):
     """Route three ingress-configurator instances through one gateway simultaneously.
 
     Args:
-        multi_relation_gateway_address: Shared gateway address with all three relations
-            deployed and configured.
+        multi_relation_gateway_stack: Shared gateway stack with all deployed app names
+            and the gateway address.
     """
-    gateway_address = multi_relation_gateway_address
+    gateway_address = get_gateway_address(
+        juju_k8s, multi_relation_gateway_stack.gateway_api_integrator
+    )
 
     # --- Closed-ports adapter (flask-k8s, is_port_open=False) ---
     # The configurator creates a selector Service targeting the backend pod; no body assertion

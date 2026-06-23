@@ -100,6 +100,7 @@ def k8s_controller_fixture() -> str:
     """
     return "localhost"
 
+
 @pytest.fixture(scope="session", name="k8s_model")
 def k8s_model_fixture() -> str:
     """Return the name of the machine model.

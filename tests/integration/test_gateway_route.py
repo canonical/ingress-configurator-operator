@@ -170,8 +170,14 @@ def test_gateway_route_multiple_relations(multi_relation_gateway_address: str):
     # independently: the restricted path returns 200, while "/" returns 404 per hostname.
     for configurator, primary in PRIMARY_HOSTNAMES.items():
         additional = ADDITIONAL_HOSTNAMES[configurator]
+        # Only the open-ports backend serves a known body; assert it to prove traffic reaches it.
+        body = "ok from open-ports backend" if configurator == GATEWAY_CONFIGURATOR_OPEN else None
         logger.info("checking routing for %s (%s, %s)", configurator, primary, additional)
-        wait_for_gateway_response(gateway_address, primary, "/restricted", expected_status=200)
+        wait_for_gateway_response(
+            gateway_address, primary, "/restricted", expected_status=200, body_contains=body
+        )
         wait_for_gateway_response(gateway_address, primary, "/", expected_status=404)
-        wait_for_gateway_response(gateway_address, additional, "/restricted", expected_status=200)
+        wait_for_gateway_response(
+            gateway_address, additional, "/restricted", expected_status=200, body_contains=body
+        )
         wait_for_gateway_response(gateway_address, additional, "/", expected_status=404)

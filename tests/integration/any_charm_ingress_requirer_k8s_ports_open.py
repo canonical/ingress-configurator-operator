@@ -10,11 +10,12 @@ gateway-api-integrator e2e ingress requirer, it installs apache2 in the charm co
 shares the pod network namespace with the workload, so a server bound there is reachable on the
 pod IP) and runs it as a managed service. It:
   * declares the ingress requirement on a fixed port,
-  * serves a catch-all HTTP response (200 on every path) on that port, and
+  * serves a known response at a single path (:data:`_PATH`) on that port, and
   * opens the port with ``open-port`` so the ``ingress`` databag reports ``is_port_open=True``.
 
-The catch-all behaviour mirrors the flask-k8s closed-ports backend, so the path restriction
-enforced upstream by the gateway is what gets tested regardless of which backend a test uses.
+A request to :data:`_PATH` returns :data:`_BODY` with a 200; any other path 404s, served
+directly by apache. This lets a test assert that the gateway routes the configured path to this
+backend (matching response body) while non-configured paths do not reach it.
 """
 
 import pathlib
@@ -26,6 +27,10 @@ from charmlibs import apt  # type: ignore
 from ingress import IngressPerAppRequirer  # type: ignore
 
 _PORT = 8000
+# Path this backend serves, and the body it returns there. Tests configure the gateway-route
+# with this same path and assert the body to prove traffic reaches this backend.
+_PATH = "/restricted"
+_BODY = "ok from open-ports backend"
 
 
 class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
@@ -46,26 +51,23 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
         self.framework.observe(self.on.update_status, self._configure)
 
     def _install(self, _: ops.InstallEvent) -> None:
-        """Install and configure apache2 as a catch-all backend on the ingress port.
+        """Install apache2 and publish the known response at :data:`_PATH`.
 
         Args:
             _: The triggering Juju event.
         """
         apt.update()
         apt.add_package(package_names="apache2")
-        # Listen on the ingress port and return 200 for every path (FallbackResource), so the
-        # path restriction enforced upstream by the gateway is what the test exercises.
+        # Listen on the ingress port and serve files from the document root; only _PATH is
+        # populated, so a request there returns _BODY and any other path 404s.
         pathlib.Path("/etc/apache2/ports.conf").write_text(f"Listen {_PORT}\n", encoding="utf-8")
         pathlib.Path("/etc/apache2/sites-available/000-default.conf").write_text(
-            f"<VirtualHost *:{_PORT}>\n"
-            "    DocumentRoot /var/www/html\n"
-            "    FallbackResource /index.html\n"
-            "</VirtualHost>\n",
+            f"<VirtualHost *:{_PORT}>\n    DocumentRoot /var/www/html\n</VirtualHost>\n",
             encoding="utf-8",
         )
-        pathlib.Path("/var/www/html/index.html").write_text(
-            "ok from open-ports backend", encoding="utf-8"
-        )
+        served_file = pathlib.Path("/var/www/html") / _PATH.lstrip("/")
+        served_file.parent.mkdir(parents=True, exist_ok=True)
+        served_file.write_text(_BODY, encoding="utf-8")
 
     def _configure(self, _: ops.EventBase) -> None:
         """Start apache2 and open the workload port.

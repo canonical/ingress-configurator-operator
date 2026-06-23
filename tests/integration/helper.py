@@ -9,9 +9,6 @@ from urllib.parse import urlparse
 import jubilant
 import requests
 import urllib3
-from lightkube import Client
-from lightkube.resources.core_v1 import Service
-from lightkube.resources.discovery_v1 import EndpointSlice
 from requests.adapters import DEFAULT_POOLBLOCK, DEFAULT_POOLSIZE, DEFAULT_RETRIES, HTTPAdapter
 from tenacity import retry, retry_if_exception_type, stop_after_delay, wait_fixed
 
@@ -98,49 +95,6 @@ def wait_for_gateway_response(
             f"body={response.text!r}"
         )
     return response
-
-
-def k8s_service_exists(namespace: str, name: str) -> bool:
-    """Return whether a Kubernetes Service with ``name`` exists in ``namespace``.
-
-    Used by the adapter-mode tests to distinguish the two routing branches: in the
-    closed-ports branch ingress-configurator creates a selector Service named
-    ``<configurator>-<backend>``; in the open-ports branch it does not (the route targets
-    the backend workload's own Service instead).
-
-    Args:
-        namespace: The Kubernetes namespace (Juju model name) to look in.
-        name: The Service name to check for.
-
-    Returns:
-        True if the Service exists, False otherwise.
-    """
-    client = Client()
-    return any(
-        service.metadata is not None and service.metadata.name == name
-        for service in client.list(Service, namespace=namespace)
-    )
-
-
-def k8s_endpoint_slice_exists(namespace: str, name: str) -> bool:
-    """Return whether a Kubernetes EndpointSlice with ``name`` exists in ``namespace``.
-
-    Used by the integrator-mode assertions: in integrator mode ingress-configurator creates a
-    headless Service and a matching EndpointSlice named ``<configurator>-headless`` that target
-    the configured backend IPs.
-
-    Args:
-        namespace: The Kubernetes namespace (Juju model name) to look in.
-        name: The EndpointSlice name to check for.
-
-    Returns:
-        True if the EndpointSlice exists, False otherwise.
-    """
-    client = Client()
-    return any(
-        slice_.metadata is not None and slice_.metadata.name == name
-        for slice_ in client.list(EndpointSlice, namespace=namespace)
-    )
 
 
 class DNSResolverAdapter(HTTPAdapter):

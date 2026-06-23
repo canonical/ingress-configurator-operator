@@ -21,7 +21,6 @@ Each configurator is exposed on a distinct hostname. The test asserts that:
     independently for each, with no cross-relation interference.
 """
 
-import json
 import logging
 
 import jubilant
@@ -31,6 +30,8 @@ from .conftest import (
     ADDITIONAL_HOSTNAME_CLOSED,
     ADDITIONAL_HOSTNAME_INTEGRATOR,
     ADDITIONAL_HOSTNAME_OPEN,
+    GATEWAY_BACKEND_OPEN_BODY,
+    GATEWAY_BACKEND_OPEN_PATH,
     GATEWAY_CONFIGURATOR_CLOSED,
     GATEWAY_CONFIGURATOR_INTEGRATOR,
     GATEWAY_CONFIGURATOR_OPEN,
@@ -47,11 +48,11 @@ from .helper import (
 
 logger = logging.getLogger(__name__)
 
-# Port, path and body served by the open-ports backend. Passed to the charm via RPC so
-# tests can assert the body to prove traffic genuinely reaches this backend.
-BACKEND_PORT = 80
-BACKEND_PATH = "/api/v1"
-BACKEND_BODY = "ok from open-ports backend"
+# Path and body served by the open-ports backend — must match config.json injected
+# into the backend-open deployment (defined in conftest).
+BACKEND_PORT = INGRESS_BACKEND_PORT
+BACKEND_PATH = GATEWAY_BACKEND_OPEN_PATH
+BACKEND_BODY = GATEWAY_BACKEND_OPEN_BODY
 
 
 @pytest.fixture(scope="module", name="multi_relation_gateway_address")
@@ -92,15 +93,6 @@ def multi_relation_gateway_address_fixture(
     )
     gateway_juju.integrate(f"{backend_closed}:ingress", f"{GATEWAY_CONFIGURATOR_CLOSED}:ingress")
     gateway_juju.integrate(f"{backend_open}:ingress", f"{GATEWAY_CONFIGURATOR_OPEN}:ingress")
-
-    # Configure the open-ports backend to serve BACKEND_BODY at BACKEND_PATH via RPC.
-    # We wait for the unit to be reachable before calling RPC.
-    gateway_juju.wait(lambda status: jubilant.all_agents_idle(status, backend_open))
-    gateway_juju.run(
-        f"{backend_open}/0",
-        "rpc",
-        {"method": "start_server", "args": json.dumps([BACKEND_PORT, BACKEND_PATH, BACKEND_BODY])},
-    )
 
     # The integrator configurator is driven by config only, so read its backend pod IP first.
     gateway_juju.wait(

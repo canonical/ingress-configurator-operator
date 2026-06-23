@@ -4,6 +4,7 @@
 """Integration tests configuration."""
 
 import json
+import os
 import pathlib
 from ipaddress import IPv4Address, IPv6Address, ip_address
 from typing import Callable, Generator
@@ -42,6 +43,8 @@ GATEWAY_CERTIFICATES_CHANNEL = "1/edge"
 
 # Kubernetes ingress backends.
 INGRESS_BACKEND_PORT = 8000
+GATEWAY_BACKEND_OPEN_PATH = "/api/v1"
+GATEWAY_BACKEND_OPEN_BODY = "ok from open-ports backend"
 
 # Per-instance app names and hostnames for the multi-relation gateway-route test. Each
 # ingress-configurator instance attaches to the same gateway-api-integrator over its own
@@ -99,7 +102,7 @@ def k8s_controller_fixture() -> str:
     Returns:
         The Kubernetes controller name.
     """
-    return "localhost"
+    return os.environ.get("K8S_CONTROLLER", "localhost")
 
 
 @pytest.fixture(scope="session", name="k8s_model")
@@ -459,6 +462,13 @@ def backend_open_fixture(gateway_juju: jubilant.Juju) -> str:
                 {
                     "any_charm.py": INGRESS_REQUIRER_SRC.read_text(encoding="utf-8"),
                     "ingress.py": INGRESS_LIB_SRC.read_text(encoding="utf-8"),
+                    "config.json": json.dumps(
+                        {
+                            "port": INGRESS_BACKEND_PORT,
+                            "path": GATEWAY_BACKEND_OPEN_PATH,
+                            "body": GATEWAY_BACKEND_OPEN_BODY,
+                        }
+                    ),
                 }
             ),
             "python-packages": "\n".join(["pydantic", "charmlibs-apt"]),

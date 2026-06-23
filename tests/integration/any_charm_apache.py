@@ -49,8 +49,16 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
             path = self._cfg.get("path", "/index.html")
             body = self._cfg.get("body", "Server Ready")
             open_port = self._cfg.get("open_port", True)
-            self.start_server(port=port, path=path, body=body, open_port=open_port)
+            self._start_server(port=port, path=path, body=body, open_port=open_port)
 
+    def _start_server(
+        self,
+        port: int = _PORT,
+        path: str = "/index.html",
+        body: str = "Server Ready",
+        open_port: bool = True,
+    ) -> None:
+        """Configure apache2 to serve ``body`` at ``path`` on ``port`` and open the port."""
         pathlib.Path("/etc/apache2/ports.conf").write_text(f"Listen {port}\n", encoding="utf-8")
         pathlib.Path("/etc/apache2/sites-available/000-default.conf").write_text(
             f"<VirtualHost *:{port}>\n    DocumentRoot /var/www/html\n</VirtualHost>\n",

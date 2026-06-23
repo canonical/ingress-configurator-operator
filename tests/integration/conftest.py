@@ -474,7 +474,7 @@ def backend_open_fixture(gateway_juju: jubilant.Juju) -> str:
                     "ingress.py": INGRESS_LIB_SRC.read_text(encoding="utf-8"),
                 }
             ),
-            "python-packages": "pydantic",
+            "python-packages": "\n".join(["pydantic", "charmlibs-apt"]),
         },
     )
     return GATEWAY_BACKEND_OPEN

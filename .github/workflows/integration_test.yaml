@@ -3,7 +3,7 @@ name: Integration tests
 on:
   pull_request:
   schedule:
-  - cron: "0 15 * * SAT"
+    - cron: "0 15 * * SAT"
 
 jobs:
   integration-tests:
@@ -16,11 +16,11 @@ jobs:
       provider: k8s
       juju-channel: 3/stable
       charmcraft-channel: latest/edge
-      modules: '["test_actions.py", "test_adapter.py", "test_integrator.py", "test_ingress_kubernetes.py", "test_haproxy_route_tcp.py"]'
+      modules: '["test_actions.py", "test_gateway_route.py", "test_gateway_route_https.py", "test_haproxy_adapter.py", "test_haproxy_integrator.py", "test_haproxy_route_tcp.py", "test_ingress_kubernetes.py"]'
       with-uv: true
       pre-run-script: tests/integration/prepare.sh
   allure-report:
     if: ${{ !cancelled() && github.event_name == 'schedule' }}
     needs:
-    - integration-tests
+      - integration-tests
     uses: canonical/operator-workflows/.github/workflows/allure_report.yaml@main

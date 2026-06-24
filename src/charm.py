@@ -560,9 +560,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
         try:
             self._haproxy_route_tcp.provide_haproxy_route_tcp_requirements(
+                port_mapping=charm_state.port_mapping,
                 hosts=charm_state.backend_addresses,
-                port=charm_state.port,
-                backend_port=charm_state.backend_port,
                 tls_terminate=charm_state.tls_terminate,
                 sni=charm_state.hostname,
                 retry_count=charm_state.retry.count if charm_state.retry else None,

@@ -4,12 +4,17 @@
 """HTTPRoute resource management for gateway-route mode."""
 
 import dataclasses
+import ipaddress
 import logging
+from typing import Literal
 
-from lightkube import Client
-from lightkube.exceptions import ApiError
+from lightkube import ApiError, Client
 from lightkube.generic_resource import create_namespaced_resource
+from lightkube.models.core_v1 import ServicePort, ServiceSpec
+from lightkube.models.discovery_v1 import Endpoint, EndpointPort
 from lightkube.models.meta_v1 import ObjectMeta
+from lightkube.resources.core_v1 import Service
+from lightkube.resources.discovery_v1 import EndpointSlice
 
 from helpers import truncate_k8s_resource_name
 from kubernetes import InvalidKubernetesPermissionError
@@ -19,10 +24,172 @@ logger = logging.getLogger(__name__)
 CUSTOM_RESOURCE_GROUP_NAME = "gateway.networking.k8s.io"
 HTTP_ROUTE_RESOURCE_NAME = "HTTPRoute"
 HTTP_ROUTE_PLURAL = "httproutes"
+MANAGED_BY_LABEL = "ingress-configurator.charm.juju.is/managed-by"
+
 
 HTTPRouteResource = create_namespaced_resource(
     CUSTOM_RESOURCE_GROUP_NAME, "v1", HTTP_ROUTE_RESOURCE_NAME, HTTP_ROUTE_PLURAL
 )
+
+
+def ensure_external_backend_service(
+    client: Client,
+    namespace: str,
+    name: str,
+    backend_addresses: list[ipaddress.IPv4Address] | list[ipaddress.IPv6Address],
+    port: int,
+    app_name: str,
+    address_type: Literal["IPv4", "IPv6"],
+) -> None:
+    """Create or update a headless Service and its associated EndpointSlice.
+
+    Both resources share ``name`` and are labelled with :data:`MANAGED_BY_LABEL`
+    so they can be found and cleaned up later.
+
+    Args:
+        client: The lightkube Client instance.
+        namespace: The Kubernetes namespace to create resources in.
+        name: Name for both the Service and the EndpointSlice.
+        backend_addresses: IP addresses for the endpoints. Must be non-empty.
+        port: The port to expose.
+        app_name: Owning charm name, used as the value of the :data:`MANAGED_BY_LABEL` label.
+        address_type: EndpointSlice addressType — ``"IPv4"`` or ``"IPv6"``.
+
+    Raises:
+        InvalidKubernetesPermissionError: When the charm lacks RBAC permissions.
+    """
+    service = Service(
+        metadata=ObjectMeta(
+            name=name,
+            namespace=namespace,
+            labels={MANAGED_BY_LABEL: app_name},
+        ),
+        spec=ServiceSpec(
+            clusterIP="None",
+            ports=[ServicePort(port=port)],
+        ),
+    )
+    try:
+        client.apply(service, field_manager=app_name, force=True)
+    except ApiError as e:
+        if e.status.code == 403:
+            raise InvalidKubernetesPermissionError(
+                "This charm needs --trust to run on k8s substrates"
+            ) from e
+        raise
+
+    endpoint_slice = EndpointSlice(
+        addressType=address_type,
+        metadata=ObjectMeta(
+            name=name,
+            namespace=namespace,
+            labels={
+                "kubernetes.io/service-name": name,
+                MANAGED_BY_LABEL: app_name,
+            },
+        ),
+        endpoints=[Endpoint(addresses=[str(addr)]) for addr in backend_addresses],
+        ports=[EndpointPort(port=port)],
+    )
+    try:
+        client.apply(endpoint_slice, field_manager=app_name, force=True)
+    except ApiError as e:
+        if e.status.code == 403:
+            raise InvalidKubernetesPermissionError(
+                "This charm needs --trust to run on k8s substrates"
+            ) from e
+        raise
+
+
+def ensure_workload_backend_service(
+    client: Client,
+    namespace: str,
+    name: str,
+    target_app_name: str,
+    port: int,
+    owner_app_name: str,
+) -> None:
+    """Create or update a selector-based Service routing to pods of ``target_app_name``.
+
+    Unlike the headless backend, this Service uses a pod selector rather than
+    explicit Endpoints, so it works even when the target application has not
+    opened its port in Juju.
+
+    Args:
+        client: The lightkube Client instance.
+        namespace: The Kubernetes namespace to create the Service in.
+        name: Name for the Service.
+        target_app_name: Pod label value for ``app.kubernetes.io/name`` on the
+            target application's pods.
+        port: The port to expose and target.
+        owner_app_name: Owning charm name, used as the value of the
+            :data:`MANAGED_BY_LABEL` label.
+
+    Raises:
+        InvalidKubernetesPermissionError: When the charm lacks RBAC permissions.
+    """
+    service = Service(
+        metadata=ObjectMeta(
+            name=name,
+            namespace=namespace,
+            labels={MANAGED_BY_LABEL: owner_app_name},
+        ),
+        spec=ServiceSpec(
+            selector={"app.kubernetes.io/name": target_app_name},
+            ports=[ServicePort(port=port, targetPort=port)],
+        ),
+    )
+    try:
+        client.apply(service, field_manager=owner_app_name, force=True)
+    except ApiError as e:
+        if e.status.code == 403:
+            raise InvalidKubernetesPermissionError(
+                "This charm needs --trust to run on k8s substrates"
+            ) from e
+        raise
+
+
+def delete_backend_services_owned_by(
+    client: Client,
+    namespace: str,
+    app_name: str,
+    exclude: set[str] | None = None,
+) -> None:
+    """Delete all backend EndpointSlices and Services owned by ``app_name``.
+
+    Resources are identified by a :data:`MANAGED_BY_LABEL` label matching ``app_name``.
+
+    Args:
+        client: The lightkube Client instance.
+        namespace: The Kubernetes namespace to search in.
+        app_name: The owning charm name to match.
+        exclude: Optional set of resource names to skip deletion.
+
+    Raises:
+        InvalidKubernetesPermissionError: When the charm lacks RBAC permissions.
+    """
+    exclude_set = exclude or set()
+    try:
+        for es in client.list(
+            EndpointSlice, namespace=namespace, labels={MANAGED_BY_LABEL: app_name}
+        ):
+            if es.metadata and es.metadata.name and es.metadata.name not in exclude_set:
+                client.delete(EndpointSlice, name=es.metadata.name, namespace=namespace)
+        for service in client.list(
+            Service, namespace=namespace, labels={MANAGED_BY_LABEL: app_name}
+        ):
+            if (
+                service.metadata
+                and service.metadata.name
+                and service.metadata.name not in exclude_set
+            ):
+                client.delete(Service, name=service.metadata.name, namespace=namespace)
+    except ApiError as e:
+        if e.status.code == 403:
+            raise InvalidKubernetesPermissionError(
+                "This charm needs --trust to run on k8s substrates"
+            ) from e
+        raise
 
 
 @dataclasses.dataclass
@@ -34,7 +201,7 @@ class HTTPRouteConfig:
         scheme: The scheme of the HTTPRoute ("http" or "https").
         gateway_name: parentRef gateway name.
         gateway_namespace: parentRef namespace.
-        listener_name: sectionName (e.g. "<gateway_name>-http-listener").
+        listener_name: sectionName (e.g. "<gateway_name>-http").
         hostnames: List of hostnames for the HTTPRoute.
         paths: List of path prefixes.
         backend_service_name: The workload K8s Service name.
@@ -181,8 +348,12 @@ class HTTPRouteManager:
                 if name not in exclude_set:
                     self.client.delete(HTTPRouteResource, name=name, namespace=self.namespace)
                     logger.info("Deleted stale HTTPRoute %s", name)
-        except ApiError:
-            logger.exception("Error cleaning up stale HTTPRoutes")
+        except ApiError as e:
+            if e.status.code == 403:
+                raise InvalidKubernetesPermissionError(
+                    "This charm needs `juju trust` to manage HTTPRoute resources"
+                ) from e
+            raise
 
 
 def create_http_routes(
@@ -200,14 +371,17 @@ def create_http_routes(
 
     Args:
         http_route_manager: The HTTPRouteManager to apply and clean up resources.
-        app_name: Application name used in managed HTTPRoute resource names.
+        app_name: Charm application name used in managed HTTPRoute resource names.
         gateway_name: Name of the Gateway K8s resource.
         gateway_model: Name of the model running the Gateway.
         https_mode: One of "disabled", "enabled", "enforced".
         hostnames: List of hostnames for the HTTPRoute.
         paths: List of path prefixes.
-        backend_service_name: Name of the backend K8s Service.
+        backend_service_name: Name of the K8s Service to route traffic to.
         backend_service_port: Port of the backend Service.
+
+    Raises:
+        InvalidKubernetesPermissionError: When the charm lacks RBAC permissions.
     """
     managed_names = []
 

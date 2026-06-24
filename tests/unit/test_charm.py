@@ -354,8 +354,7 @@ def test_haproxy_route(context_machine: ops.testing.Context["IngressConfigurator
 
     assert out.unit_status == ops.testing.ActiveStatus("Ready")
     application_data: dict = dict(out.get_relations("haproxy-route-tcp")[0].local_app_data)
-    assert application_data["port"] == "4000"
-    assert application_data["backend_port"] == "5000"
+    assert application_data["port_mapping"] == '"4000:5000"'
     assert application_data["hosts"] == '["10.0.0.1"]'
     assert application_data["sni"] == '"example.com"'
     assert json.loads(application_data["retry"]) == {"count": 3, "redispatch": True}

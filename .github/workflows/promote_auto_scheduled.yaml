@@ -1,0 +1,39 @@
+name: Automatically promote the ingress-configurator charm
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: 0 9 * * 1 # At 09:00 on Monday
+
+jobs:
+  require-approval:
+    environment: charmhub-stable-promote
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Workflow has been approved"
+
+  promote-ingress-configurator-charm-candidate-to-stable:
+    needs: [require-approval]
+    uses: canonical/operator-workflows/.github/workflows/promote_charm.yaml@main
+    secrets: inherit
+    with:
+      origin-channel: latest/candidate
+      destination-channel: latest/stable
+      working-directory: ./
+      base-channel: 24.04
+      base-name: ubuntu
+      base-architecture: amd64
+      tag-prefix: ingress-configurator
+
+  promote-ingress-configurator-charm-edge-to-candidate:
+    needs: [promote-ingress-configurator-charm-candidate-to-stable]
+    uses: canonical/operator-workflows/.github/workflows/promote_charm.yaml@main
+    secrets: inherit
+    with:
+      origin-channel: latest/edge
+      destination-channel: latest/candidate
+      working-directory: ./
+      base-channel: 24.04
+      base-name: ubuntu
+      base-architecture: amd64
+      tag-prefix: ingress-configurator

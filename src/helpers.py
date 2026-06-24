@@ -30,7 +30,7 @@ def truncate_k8s_resource_name(name: str) -> str:
     if len(name) <= _K8S_RESOURCE_NAME_MAX_LENGTH:
         return name
     # Use an 8-char hex digest for collision avoidance.
-    suffix = hashlib.md5(name.encode(), usedforsecurity=False).hexdigest()[:8]  # noqa: S324
+    suffix = hashlib.md5(name.encode(), usedforsecurity=False).hexdigest()[:8]
     # Truncate the name leaving room for a dash and the 8-char suffix.
     max_prefix_length = _K8S_RESOURCE_NAME_MAX_LENGTH - len(suffix) - 1
     truncated = name[:max_prefix_length].rstrip("-")

@@ -197,9 +197,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         ingress_relation: ops.Relation,
     ) -> None:
         """Reconcile haproxy-route in Kubernetes adapter mode."""
-        service_name = truncate_k8s_resource_name(
-            f"{self.model.name}-{self.app.name}-service"
-        )
+        service_name = truncate_k8s_resource_name(f"{self.model.name}-{self.app.name}-service")
         try:
             ensure_nodeport_service(
                 client=self.lightkube_client,

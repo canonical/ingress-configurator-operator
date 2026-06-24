@@ -3,8 +3,6 @@
 
 """Unit tests for the helpers module."""
 
-import pytest
-
 from helpers import truncate_k8s_resource_name
 
 

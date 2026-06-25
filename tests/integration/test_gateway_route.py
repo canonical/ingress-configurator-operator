@@ -183,5 +183,3 @@ def test_gateway_route_multiple_relations(
         body_contains=BACKEND_BODY,
     )
     wait_for_gateway_response(gateway_address, ADDITIONAL_HOSTNAME_OPEN, "/", expected_status=404)
-
-

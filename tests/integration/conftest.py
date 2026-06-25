@@ -452,6 +452,3 @@ def backend_open_fixture(juju_k8s: jubilant.Juju) -> str:
         },
     )
     return GATEWAY_BACKEND_OPEN
-
-
-

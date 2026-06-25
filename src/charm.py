@@ -453,17 +453,17 @@ class IngressConfiguratorCharm(ops.CharmBase):
             )
             return
 
-        if state.hostname:
+        gateway = state.hostname if state.hostname else provider_data.gateway_address
+        if gateway:
             scheme = (
                 "https"
                 if provider_data.https_mode in (HttpsMode.ENABLED, HttpsMode.ENFORCED)
                 else "http"
             )
             path = state.paths[0].lstrip("/")
-            endpoint = (
-                f"{scheme}://{state.hostname}/{path}" if path else f"{scheme}://{state.hostname}"
-            )
+            endpoint = f"{scheme}://{gateway}/{path}" if path else f"{scheme}://{gateway}"
             self._ingress.publish_url(ingress_relation, url=endpoint)
+
         self.unit.status = ops.ActiveStatus("Ready")
 
     def _reconcile_gateway_route_integrator(self) -> None:

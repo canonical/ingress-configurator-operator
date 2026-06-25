@@ -12,7 +12,7 @@ Each revision is versioned by the date of the revision.
 
 ### Added
 
-- Added suport IP based URL in `ingress` relation when integrated with `gateway-api-integrator` when
+- Added support IP based URL in `ingress` relation when integrated with `gateway-api-integrator` when
   no hostname is set.
 
 ## 2026-06-17

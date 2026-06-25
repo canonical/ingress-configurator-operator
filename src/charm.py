@@ -292,14 +292,11 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
         Mode selection:
         - Guard: not Kubernetes → blocked.
-        - Guard: ingress relation AND integrator config both set → ambiguous, blocked.
+        - Guard: integrator config set → blocked (not supported for gateway-route).
         - Guard: ingress relation present but requirer not ready → clean up stale headless
             backends and HTTPRoutes, then wait for data.
         - Adapter: ingress data available on Kubernetes substrate.
-        - Integrator: no ingress relation; backend-addresses (IPs) and a single backend-ports
-            value set in config.
-        - Blocked: neither ingress relation nor backend config is present; cleans up stale
-            resources before blocking.
+        - Blocked: no ingress relation present; cleans up stale resources before blocking.
         """
         self.unit.status = ops.MaintenanceStatus("Configuring gateway route")
         if not self.is_kubernetes():
@@ -317,9 +314,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
         ingress_relation = self.model.get_relation(self._ingress.relation_name)
         has_integrator_config = GatewayRouteState.has_integrator_config(self)
 
-        if ingress_relation and has_integrator_config:
+        if has_integrator_config:
             self.unit.status = ops.BlockedStatus(
-                "Remove backend config or the ingress relation - only one can be used at a time."
+                "Backend config not supported with gateway-route; use an ingress relation."
             )
             return
 
@@ -344,9 +341,6 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 self._ingress.get_data(ingress_relation), ingress_relation
             )
             return
-        if has_integrator_config:
-            self._reconcile_gateway_route_integrator()
-            return
 
         try:
             delete_backend_services_owned_by(self.lightkube_client, self.model.name, self.app.name)
@@ -357,7 +351,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 "Kubernetes API permission error. This charm needs --trust to run on k8s substrates."
             )
             return
-        self.unit.status = ops.BlockedStatus("Ingress relation or backend config required.")
+        self.unit.status = ops.BlockedStatus("Ingress relation required.")
 
     def _reconcile_gateway_route_adapter(
         self,

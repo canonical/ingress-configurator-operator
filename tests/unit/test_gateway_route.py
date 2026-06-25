@@ -243,9 +243,7 @@ def test_gateway_route_blocked_no_ingress_relation(
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert out.unit_status == ops.testing.BlockedStatus(
-        "Ingress relation or backend config required."
-    )
+    assert out.unit_status == ops.testing.BlockedStatus("Ingress relation required.")
 
 
 def test_gateway_route_https_mode_enforced(
@@ -618,6 +616,58 @@ GATEWAY_ROUTE_INTEGRATOR_CONFIG: dict[str, str | int | float | bool] = {
 }
 
 
+@pytest.mark.usefixtures("mock_lightkube")
+@pytest.mark.parametrize(
+    "relations",
+    [
+        pytest.param(
+            [
+                ops.testing.Relation(
+                    endpoint="gateway-route",
+                    remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
+                ),
+            ],
+            id="backend-config-only",
+        ),
+        pytest.param(
+            [
+                ops.testing.Relation(
+                    endpoint="ingress",
+                    remote_app_data=INGRESS_REMOTE_APP_DATA,
+                    remote_units_data=INGRESS_REMOTE_UNITS_DATA,
+                ),
+                ops.testing.Relation(
+                    endpoint="gateway-route",
+                    remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
+                ),
+            ],
+            id="backend-config-with-ingress",
+        ),
+    ],
+)
+def test_gateway_route_backend_config_blocked(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    relations: list,
+) -> None:
+    """
+    arrange: backend config set (with or without an ingress relation) alongside gateway-route.
+    act: trigger config-changed.
+    assert: status is Blocked with the message indicating backend config is unsupported.
+    """
+    state = ops.testing.State(
+        config=GATEWAY_ROUTE_INTEGRATOR_CONFIG,
+        relations=relations,
+        leader=True,
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.BlockedStatus(
+        "Backend config not supported with gateway-route; use an ingress relation."
+    )
+
+
+@pytest.mark.skip(reason="Integrator mode not supported for gateway-route")
 def test_gateway_route_integrator_happy_path(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
     mock_lightkube: "LightkubeClient",
@@ -679,6 +729,7 @@ def test_gateway_route_integrator_happy_path(
             assert backend_ref[0]["name"] == headless_name
 
 
+@pytest.mark.skip(reason="Integrator mode not supported for gateway-route")
 @pytest.mark.usefixtures("mock_lightkube")
 def test_gateway_route_integrator_blocked_ambiguous(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
@@ -711,6 +762,7 @@ def test_gateway_route_integrator_blocked_ambiguous(
     )
 
 
+@pytest.mark.skip(reason="Integrator mode not supported for gateway-route")
 @pytest.mark.usefixtures("mock_lightkube")
 def test_gateway_route_integrator_fqdn_rejected(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
@@ -742,6 +794,7 @@ def test_gateway_route_integrator_fqdn_rejected(
     assert "backend_addresses" in caplog.text
 
 
+@pytest.mark.skip(reason="Integrator mode not supported for gateway-route")
 @pytest.mark.usefixtures("mock_lightkube")
 def test_gateway_route_integrator_multiple_ports_blocked(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
@@ -773,6 +826,7 @@ def test_gateway_route_integrator_multiple_ports_blocked(
     assert "exactly one port" in caplog.text
 
 
+@pytest.mark.skip(reason="Integrator mode not supported for gateway-route")
 @pytest.mark.usefixtures("mock_lightkube")
 def test_gateway_route_integrator_mixed_ip_families_blocked(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
@@ -804,6 +858,7 @@ def test_gateway_route_integrator_mixed_ip_families_blocked(
     assert "backend_addresses" in caplog.text
 
 
+@pytest.mark.skip(reason="Integrator mode not supported for gateway-route")
 def test_gateway_route_integrator_ipv6(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
     mock_lightkube: "LightkubeClient",

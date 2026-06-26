@@ -665,6 +665,7 @@ def test_gateway_route_backend_config_blocked(
         "Backend config not supported with gateway-route; use an ingress relation."
     )
 
+
 @pytest.mark.usefixtures("mock_lightkube")
 def test_gateway_route_publishes_url_using_gateway_address_when_no_hostname(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"],

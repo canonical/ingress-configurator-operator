@@ -16,6 +16,7 @@ from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Service
 from lightkube.resources.discovery_v1 import EndpointSlice
 
+from helpers import truncate_k8s_resource_name
 from kubernetes import InvalidKubernetesPermissionError
 
 logger = logging.getLogger(__name__)
@@ -308,7 +309,9 @@ class HTTPRouteManager:
             The resource name.
         """
         spec = self._build_spec(config)
-        resource_name = f"{config.app_name}-{config.backend_service_name}-{config.scheme}"
+        resource_name = truncate_k8s_resource_name(
+            f"{config.app_name}-{config.backend_service_name}-{config.scheme}"
+        )
         resource = HTTPRouteResource(
             metadata=ObjectMeta(
                 name=resource_name,

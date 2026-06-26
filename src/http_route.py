@@ -4,18 +4,16 @@
 """HTTPRoute resource management for gateway-route mode."""
 
 import dataclasses
-import ipaddress
 import logging
-from typing import Literal
 
 from lightkube import ApiError, Client
 from lightkube.generic_resource import create_namespaced_resource
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
-from lightkube.models.discovery_v1 import Endpoint, EndpointPort
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Service
 from lightkube.resources.discovery_v1 import EndpointSlice
 
+from helpers import truncate_k8s_resource_name
 from kubernetes import InvalidKubernetesPermissionError
 
 logger = logging.getLogger(__name__)
@@ -29,75 +27,6 @@ MANAGED_BY_LABEL = "ingress-configurator.charm.juju.is/managed-by"
 HTTPRouteResource = create_namespaced_resource(
     CUSTOM_RESOURCE_GROUP_NAME, "v1", HTTP_ROUTE_RESOURCE_NAME, HTTP_ROUTE_PLURAL
 )
-
-
-def ensure_external_backend_service(
-    client: Client,
-    namespace: str,
-    name: str,
-    backend_addresses: list[ipaddress.IPv4Address] | list[ipaddress.IPv6Address],
-    port: int,
-    app_name: str,
-    address_type: Literal["IPv4", "IPv6"],
-) -> None:
-    """Create or update a headless Service and its associated EndpointSlice.
-
-    Both resources share ``name`` and are labelled with :data:`MANAGED_BY_LABEL`
-    so they can be found and cleaned up later.
-
-    Args:
-        client: The lightkube Client instance.
-        namespace: The Kubernetes namespace to create resources in.
-        name: Name for both the Service and the EndpointSlice.
-        backend_addresses: IP addresses for the endpoints. Must be non-empty.
-        port: The port to expose.
-        app_name: Owning charm name, used as the value of the :data:`MANAGED_BY_LABEL` label.
-        address_type: EndpointSlice addressType — ``"IPv4"`` or ``"IPv6"``.
-
-    Raises:
-        InvalidKubernetesPermissionError: When the charm lacks RBAC permissions.
-    """
-    service = Service(
-        metadata=ObjectMeta(
-            name=name,
-            namespace=namespace,
-            labels={MANAGED_BY_LABEL: app_name},
-        ),
-        spec=ServiceSpec(
-            clusterIP="None",
-            ports=[ServicePort(port=port)],
-        ),
-    )
-    try:
-        client.apply(service, field_manager=app_name, force=True)
-    except ApiError as e:
-        if e.status.code == 403:
-            raise InvalidKubernetesPermissionError(
-                "This charm needs --trust to run on k8s substrates"
-            ) from e
-        raise
-
-    endpoint_slice = EndpointSlice(
-        addressType=address_type,
-        metadata=ObjectMeta(
-            name=name,
-            namespace=namespace,
-            labels={
-                "kubernetes.io/service-name": name,
-                MANAGED_BY_LABEL: app_name,
-            },
-        ),
-        endpoints=[Endpoint(addresses=[str(addr)]) for addr in backend_addresses],
-        ports=[EndpointPort(port=port)],
-    )
-    try:
-        client.apply(endpoint_slice, field_manager=app_name, force=True)
-    except ApiError as e:
-        if e.status.code == 403:
-            raise InvalidKubernetesPermissionError(
-                "This charm needs --trust to run on k8s substrates"
-            ) from e
-        raise
 
 
 def ensure_workload_backend_service(
@@ -308,7 +237,9 @@ class HTTPRouteManager:
             The resource name.
         """
         spec = self._build_spec(config)
-        resource_name = f"{config.app_name}-{config.backend_service_name}-{config.scheme}"
+        resource_name = truncate_k8s_resource_name(
+            f"{config.app_name}-{config.backend_service_name}-{config.scheme}"
+        )
         resource = HTTPRouteResource(
             metadata=ObjectMeta(
                 name=resource_name,

@@ -12,8 +12,23 @@ The following route-provider interfaces are supported:
 - `haproxy-route` and `haproxy-route-tcp` for HAProxy-based deployments.
 - `gateway-route` for Kubernetes Gateway API deployments.
 
+## In this documentation
+
+```{list-table}
+   :header-rows: 1
+   :widths: 15 30
+
+* - 
+  - 
+* - **Get started**
+  - {ref}`tutorial_getting_started`
+* - **Operations**
+  - {ref}`Route HTTP traffic to a non-charmed workload <how_to_haproxy_integrate_non_charm_workload>` | {ref}`Route TCP traffic to a non-charmed workload <how_to_haproxy_integrate_tcp_non_charm_workload>` | {ref}`Add HAProxy features to an ingress requirer <how_to_add_haproxy_features_to_ingress_requirer>` | {ref}`Load balance a gRPC server <how_to_haproxy_loadbalancing_grpc>` | {ref}`Upgrade <how_to_upgrade>`
+```
+
 ```{toctree}
 :hidden:
+tutorial/index.md
 how-to/index.md
 release-notes/index.md
 changelog.md

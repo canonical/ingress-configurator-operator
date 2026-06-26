@@ -38,11 +38,11 @@ Use this section to link the Charmhub documentation for actions and configuratio
 
 You may also want to link to the `charmcraft.yaml` file here.
 -->
-The ingress-configurator charm supports adapter mode and integrator mode.
+The ingress-configurator charm supports two workflows.
 
-- Adapter mode: a workload charm relates over `ingress`, and ingress-configurator forwards requirements to a route provider.
-- Integrator mode: non-charm workloads are described by config and routed through route-provider relations.
-  The following configurations must be configured:
+- **Ingress relation workflow**: a workload charm relates over `ingress`, and ingress-configurator forwards the routing requirements to a route provider.
+- **Config-driven workflow**: non-charm workloads are described by config and routed through route-provider relations.
+  The following configurations must be set:
   - `backend-addresses`
   - `backend-ports`
 
@@ -50,7 +50,8 @@ The ingress-configurator charm supports adapter mode and integrator mode.
 
 HAProxy is supported through the `haproxy-route` or the `haproxy-route-tcp` relation.
 
-- Supports both adapter and integrator workflows.
+- `haproxy-route` supports both the ingress relation and config-driven workflows.
+- `haproxy-route-tcp` supports the config-driven workflow only.
 - Supports a broad set of haproxy-route related configurations:
   - paths
   - subdomains
@@ -59,7 +60,7 @@ HAProxy is supported through the `haproxy-route` or the `haproxy-route-tcp` rela
 
 Gateway API is supported through the `gateway-route` relation.
 
-- Supports only adapter mode.
+- Supports the ingress relation workflow only; config-driven backends are not supported.
 - Requires that the backend related through `ingress` has opened its ports.
 - `https` option for `backend-protocol` is not supported.
 

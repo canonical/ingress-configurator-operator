@@ -34,12 +34,12 @@ from charms.traefik_k8s.v2.ingress import DEFAULT_RELATION_NAME as INGRESS_RELAT
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider, IngressRequirerData
 from lightkube import Client
 
+from helpers import truncate_k8s_resource_name
 from http_route import (
     MANAGED_BY_LABEL,
     HTTPRouteManager,
     create_http_routes,
     delete_backend_services_owned_by,
-    ensure_external_backend_service,
     ensure_workload_backend_service,
 )
 from kubernetes import (
@@ -196,7 +196,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         ingress_relation: ops.Relation,
     ) -> None:
         """Reconcile haproxy-route in Kubernetes adapter mode."""
-        service_name = f"{self.model.name}-{self.app.name}-service"
+        service_name = truncate_k8s_resource_name(f"{self.model.name}-{self.app.name}-service")
         try:
             ensure_nodeport_service(
                 client=self.lightkube_client,
@@ -265,6 +265,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             "check_path": charm_state.health_check.path,
             "check_port": charm_state.health_check.port,
             "paths": charm_state.paths,
+            "deny_paths": charm_state.deny_paths,
             "ports": charm_state.backend_ports,
             "protocol": charm_state.backend_protocol,
             "retry_count": charm_state.retry.count if charm_state.retry else None,
@@ -292,14 +293,11 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
         Mode selection:
         - Guard: not Kubernetes → blocked.
-        - Guard: ingress relation AND integrator config both set → ambiguous, blocked.
+        - Guard: integrator config set → blocked (not supported for gateway-route).
         - Guard: ingress relation present but requirer not ready → clean up stale headless
             backends and HTTPRoutes, then wait for data.
         - Adapter: ingress data available on Kubernetes substrate.
-        - Integrator: no ingress relation; backend-addresses (IPs) and a single backend-ports
-            value set in config.
-        - Blocked: neither ingress relation nor backend config is present; cleans up stale
-            resources before blocking.
+        - Blocked: no ingress relation present; cleans up stale resources before blocking.
         """
         self.unit.status = ops.MaintenanceStatus("Configuring gateway route")
         if not self.is_kubernetes():
@@ -317,9 +315,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
         ingress_relation = self.model.get_relation(self._ingress.relation_name)
         has_integrator_config = GatewayRouteState.has_integrator_config(self)
 
-        if ingress_relation and has_integrator_config:
+        if has_integrator_config:
             self.unit.status = ops.BlockedStatus(
-                "Remove backend config or the ingress relation - only one can be used at a time."
+                "Backend config not supported with gateway-route; use an ingress relation."
             )
             return
 
@@ -344,9 +342,6 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 self._ingress.get_data(ingress_relation), ingress_relation
             )
             return
-        if has_integrator_config:
-            self._reconcile_gateway_route_integrator()
-            return
 
         try:
             delete_backend_services_owned_by(self.lightkube_client, self.model.name, self.app.name)
@@ -357,7 +352,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 "Kubernetes API permission error. This charm needs --trust to run on k8s substrates."
             )
             return
-        self.unit.status = ops.BlockedStatus("Ingress relation or backend config required.")
+        self.unit.status = ops.BlockedStatus("Ingress relation required.")
 
     def _reconcile_gateway_route_adapter(
         self,
@@ -452,91 +447,16 @@ class IngressConfiguratorCharm(ops.CharmBase):
             )
             return
 
-        if state.hostname:
+        host = state.hostname or provider_data.gateway_address
+        if host:
             scheme = (
                 "https"
                 if provider_data.https_mode in (HttpsMode.ENABLED, HttpsMode.ENFORCED)
                 else "http"
             )
             path = state.paths[0].lstrip("/")
-            endpoint = (
-                f"{scheme}://{state.hostname}/{path}" if path else f"{scheme}://{state.hostname}"
-            )
+            endpoint = f"{scheme}://{host}/{path}" if path else f"{scheme}://{host}"
             self._ingress.publish_url(ingress_relation, url=endpoint)
-        self.unit.status = ops.ActiveStatus("Ready")
-
-    def _reconcile_gateway_route_integrator(self) -> None:
-        """Reconcile gateway-route in integrator mode.
-
-        Traffic is routed to external backend IPs via a headless Service and
-        EndpointSlice.  There is no ingress relation; backend-addresses (IPs) and
-        a single backend-ports value must be set in config.
-        """
-        try:
-            state = GatewayRouteState.build_for_integrator_mode(self)
-        except InvalidGatewayRouteStateError as exc:
-            logger.exception("Invalid gateway-route integrator config: %s", exc)
-            self.unit.status = ops.BlockedStatus("Invalid gateway-route configuration")
-            return
-
-        try:
-            self._gateway_route.publish_requirer_data(
-                hostname=state.hostname,
-                additional_hostnames=list(state.additional_hostnames),
-            )
-        except GatewayRouteInvalidRelationDataError as exc:
-            logger.exception("Invalid gateway-route relation data: %s", exc)
-            self.unit.status = ops.BlockedStatus("Invalid gateway-route relation data")
-            return
-
-        try:
-            provider_data = self._gateway_route.get_provider_data()
-        except GatewayRouteInvalidRelationDataError:
-            logger.exception("Invalid gateway-route provider data.")
-            self.unit.status = ops.WaitingStatus("Invalid gateway-route provider data")
-            return
-
-        headless_svc_name = f"{self.app.name}-headless"
-        try:
-            ensure_external_backend_service(
-                self.lightkube_client,
-                self.model.name,
-                headless_svc_name,
-                state.integrator_state.backend_addresses,
-                state.backend_port,
-                self.app.name,
-                state.integrator_state.address_type,
-            )
-        except InvalidKubernetesPermissionError as exc:
-            logger.exception("Kubernetes API permission error: %s", exc)
-            self.unit.status = ops.BlockedStatus(
-                "Kubernetes API permission error. This charm needs --trust to run on k8s substrates."
-            )
-            return
-
-        route_manager = HTTPRouteManager(
-            client=self.lightkube_client,
-            namespace=self.model.name,
-            labels={MANAGED_BY_LABEL: self.app.name},
-        )
-        try:
-            create_http_routes(
-                http_route_manager=route_manager,
-                app_name=self.app.name,
-                gateway_name=provider_data.gateway_name,
-                gateway_model=provider_data.gateway_model,
-                https_mode=provider_data.https_mode,
-                hostnames=state.hostnames,
-                paths=state.paths,
-                backend_service_name=headless_svc_name,
-                backend_service_port=state.backend_port,
-            )
-        except InvalidKubernetesPermissionError as exc:
-            logger.exception("Kubernetes API permission error: %s", exc)
-            self.unit.status = ops.BlockedStatus(
-                "Kubernetes API permission error. This charm needs --trust to run on k8s substrates."
-            )
-            return
 
         self.unit.status = ops.ActiveStatus("Ready")
 
@@ -560,9 +480,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
         try:
             self._haproxy_route_tcp.provide_haproxy_route_tcp_requirements(
+                port_mapping=charm_state.port_mapping,
                 hosts=charm_state.backend_addresses,
-                port=charm_state.port,
-                backend_port=charm_state.backend_port,
                 tls_terminate=charm_state.tls_terminate,
                 sni=charm_state.hostname,
                 retry_count=charm_state.retry.count if charm_state.retry else None,

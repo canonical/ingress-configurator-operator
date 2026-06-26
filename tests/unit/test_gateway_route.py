@@ -10,7 +10,6 @@ from unittest.mock import ANY, MagicMock
 import ops.testing
 import pytest
 from lightkube.resources.core_v1 import Service
-from lightkube.resources.discovery_v1 import EndpointSlice
 
 from http_route import MANAGED_BY_LABEL
 
@@ -243,9 +242,7 @@ def test_gateway_route_blocked_no_ingress_relation(
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert out.unit_status == ops.testing.BlockedStatus(
-        "Ingress relation or backend config required."
-    )
+    assert out.unit_status == ops.testing.BlockedStatus("Ingress relation required.")
 
 
 def test_gateway_route_https_mode_enforced(
@@ -618,228 +615,55 @@ GATEWAY_ROUTE_INTEGRATOR_CONFIG: dict[str, str | int | float | bool] = {
 }
 
 
-def test_gateway_route_integrator_happy_path(
-    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
-    mock_lightkube: "LightkubeClient",
-) -> None:
-    """
-    arrange: no ingress relation; backend-addresses (IPv4 IPs) and single backend-ports
-        set in config; gateway-route relation with valid provider data.
-    act: trigger config-changed.
-    assert: status is Active; headless Service and EndpointSlice (addressType=IPv4,
-        IP endpoints) are applied; HTTPRoute backend references the headless Service.
-    """
-    state = ops.testing.State(
-        config=GATEWAY_ROUTE_INTEGRATOR_CONFIG,
-        relations=[
-            ops.testing.Relation(
-                endpoint="gateway-route",
-                remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
-            ),
-        ],
-        leader=True,
-    )
-
-    out = context_k8s.run(context_k8s.on.config_changed(), state)
-
-    assert out.unit_status == ops.testing.ActiveStatus("Ready")
-
-    apply_calls = mock_lightkube.apply.call_args_list  # type: ignore[attr-defined]
-    applied_types = [type(call.args[0]) for call in apply_calls]
-
-    assert Service in applied_types, "headless Service was not applied"
-    assert EndpointSlice in applied_types, "EndpointSlice was not applied"
-
-    svc = next(call.args[0] for call in apply_calls if isinstance(call.args[0], Service))
-    assert svc.metadata is not None
-    assert svc.spec is not None
-    assert svc.metadata.name == "ingress-configurator-headless"
-    assert svc.spec.clusterIP == "None"
-    assert svc.metadata.labels is not None
-    assert svc.metadata.labels.get(MANAGED_BY_LABEL) == "ingress-configurator"
-
-    es = next(call.args[0] for call in apply_calls if isinstance(call.args[0], EndpointSlice))
-    assert es.addressType == "IPv4"
-    endpoint_addrs = [ep.addresses[0] for ep in es.endpoints]
-    assert "10.0.0.1" in endpoint_addrs
-    assert "10.0.0.2" in endpoint_addrs
-    assert es.metadata is not None
-    assert es.metadata.labels is not None
-    assert es.metadata.labels.get("kubernetes.io/service-name") == "ingress-configurator-headless"
-
-    headless_name = "ingress-configurator-headless"
-    http_route_calls = [
-        call for call in apply_calls if type(call.args[0]) not in (Service, EndpointSlice)
-    ]
-    assert http_route_calls, "no HTTPRoute was applied"
-    for call in http_route_calls:
-        resource = call.args[0]
-        backend_ref = resource.spec["rules"][0].get("backendRefs")
-        if backend_ref is not None:
-            assert backend_ref[0]["name"] == headless_name
-
-
 @pytest.mark.usefixtures("mock_lightkube")
-def test_gateway_route_integrator_blocked_ambiguous(
+@pytest.mark.parametrize(
+    "relations",
+    [
+        pytest.param(
+            [
+                ops.testing.Relation(
+                    endpoint="gateway-route",
+                    remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
+                ),
+            ],
+            id="backend-config-only",
+        ),
+        pytest.param(
+            [
+                ops.testing.Relation(
+                    endpoint="ingress",
+                    remote_app_data=INGRESS_REMOTE_APP_DATA,
+                    remote_units_data=INGRESS_REMOTE_UNITS_DATA,
+                ),
+                ops.testing.Relation(
+                    endpoint="gateway-route",
+                    remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
+                ),
+            ],
+            id="backend-config-with-ingress",
+        ),
+    ],
+)
+def test_gateway_route_backend_config_blocked(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    relations: list,
 ) -> None:
     """
-    arrange: both ingress relation and backend-addresses config set simultaneously.
+    arrange: backend config set (with or without an ingress relation) alongside gateway-route.
     act: trigger config-changed.
-    assert: status is Blocked about only one mode at a time.
+    assert: status is Blocked with the message indicating backend config is unsupported.
     """
     state = ops.testing.State(
         config=GATEWAY_ROUTE_INTEGRATOR_CONFIG,
-        relations=[
-            ops.testing.Relation(
-                endpoint="ingress",
-                remote_app_data=INGRESS_REMOTE_APP_DATA,
-                remote_units_data=INGRESS_REMOTE_UNITS_DATA,
-            ),
-            ops.testing.Relation(
-                endpoint="gateway-route",
-                remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
-            ),
-        ],
+        relations=relations,
         leader=True,
     )
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
     assert out.unit_status == ops.testing.BlockedStatus(
-        "Remove backend config or the ingress relation - only one can be used at a time."
+        "Backend config not supported with gateway-route; use an ingress relation."
     )
-
-
-@pytest.mark.usefixtures("mock_lightkube")
-def test_gateway_route_integrator_fqdn_rejected(
-    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """
-    arrange: backend-addresses contains an FQDN instead of an IP.
-    act: trigger config-changed.
-    assert: status is Blocked and logs mention the invalid backend_addresses field.
-    """
-    state = ops.testing.State(
-        config={
-            "hostname": "example.com",
-            "backend-addresses": "backend.example.com",
-            "backend-ports": "8080",
-        },
-        relations=[
-            ops.testing.Relation(
-                endpoint="gateway-route",
-                remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
-            ),
-        ],
-        leader=True,
-    )
-
-    out = context_k8s.run(context_k8s.on.config_changed(), state)
-
-    assert out.unit_status == ops.testing.BlockedStatus("Invalid gateway-route configuration")
-    assert "backend_addresses" in caplog.text
-
-
-@pytest.mark.usefixtures("mock_lightkube")
-def test_gateway_route_integrator_multiple_ports_blocked(
-    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """
-    arrange: backend-ports contains multiple values.
-    act: trigger config-changed.
-    assert: status is Blocked and logs mention exactly one port requirement.
-    """
-    state = ops.testing.State(
-        config={
-            "hostname": "example.com",
-            "backend-addresses": "10.0.0.1",
-            "backend-ports": "8080,9090",
-        },
-        relations=[
-            ops.testing.Relation(
-                endpoint="gateway-route",
-                remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
-            ),
-        ],
-        leader=True,
-    )
-
-    out = context_k8s.run(context_k8s.on.config_changed(), state)
-
-    assert out.unit_status == ops.testing.BlockedStatus("Invalid gateway-route configuration")
-    assert "exactly one port" in caplog.text
-
-
-@pytest.mark.usefixtures("mock_lightkube")
-def test_gateway_route_integrator_mixed_ip_families_blocked(
-    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """
-    arrange: backend-addresses mixes IPv4 and IPv6 addresses.
-    act: trigger config-changed.
-    assert: status is Blocked and logs mention the invalid backend_addresses field.
-    """
-    state = ops.testing.State(
-        config={
-            "hostname": "example.com",
-            "backend-addresses": "10.0.0.1,::1",
-            "backend-ports": "8080",
-        },
-        relations=[
-            ops.testing.Relation(
-                endpoint="gateway-route",
-                remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
-            ),
-        ],
-        leader=True,
-    )
-
-    out = context_k8s.run(context_k8s.on.config_changed(), state)
-
-    assert out.unit_status == ops.testing.BlockedStatus("Invalid gateway-route configuration")
-    assert "backend_addresses" in caplog.text
-
-
-def test_gateway_route_integrator_ipv6(
-    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
-    mock_lightkube: "LightkubeClient",
-) -> None:
-    """
-    arrange: backend-addresses contains IPv6 addresses.
-    act: trigger config-changed.
-    assert: status is Active; EndpointSlice has addressType=IPv6.
-    """
-    state = ops.testing.State(
-        config={
-            "hostname": "example.com",
-            "backend-addresses": "::1,::2",
-            "backend-ports": "8080",
-        },
-        relations=[
-            ops.testing.Relation(
-                endpoint="gateway-route",
-                remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
-            ),
-        ],
-        leader=True,
-    )
-
-    out = context_k8s.run(context_k8s.on.config_changed(), state)
-
-    assert out.unit_status == ops.testing.ActiveStatus("Ready")
-
-    es_calls = [
-        call
-        for call in mock_lightkube.apply.call_args_list  # type: ignore[attr-defined]
-        if isinstance(call.args[0], EndpointSlice)
-    ]
-    assert es_calls, "no EndpointSlice was applied"
-    assert es_calls[0].args[0].addressType == "IPv6"
-
 
 @pytest.mark.usefixtures("mock_lightkube")
 def test_gateway_route_publishes_url_using_gateway_address_when_no_hostname(

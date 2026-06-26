@@ -11,7 +11,6 @@ from lightkube import ApiError
 from http_route import (
     MANAGED_BY_LABEL,
     delete_backend_services_owned_by,
-    ensure_external_backend_service,
     ensure_workload_backend_service,
 )
 from kubernetes import InvalidKubernetesPermissionError
@@ -34,112 +33,6 @@ def _make_endpoint_slice(name: str) -> MagicMock:
     es = MagicMock()
     es.metadata.name = name
     return es
-
-
-def test_ensure_external_backend_service_creates_correct_resources():
-    """
-    arrange: mock a lightkube client
-    act: call ensure_external_backend_service with name "my-app-headless", IPv4 addresses,
-        port 8080, charm_name "my-charm", and address_type "IPv4"
-    assert: client.apply is called twice — first with a headless Service (clusterIP=None,
-        correct labels/annotations/port), then with an EndpointSlice (addressType=IPv4,
-        correct endpoints, service-name label, owning-charm annotation)
-    """
-    from lightkube.resources.core_v1 import Service
-    from lightkube.resources.discovery_v1 import EndpointSlice
-
-    client = MagicMock()
-
-    ensure_external_backend_service(
-        client,
-        "testing-model",
-        "my-app-headless",
-        ["10.0.0.1", "10.0.0.2"],
-        8080,
-        "my-charm",
-        "IPv4",
-    )
-
-    assert client.apply.call_count == 2
-    svc = next(c.args[0] for c in client.apply.call_args_list if isinstance(c.args[0], Service))
-    es = next(
-        c.args[0] for c in client.apply.call_args_list if isinstance(c.args[0], EndpointSlice)
-    )
-
-    assert svc.metadata is not None
-    assert svc.metadata.name == "my-app-headless"
-    assert svc.metadata.labels is not None
-    assert svc.metadata.labels.get(MANAGED_BY_LABEL) == "my-charm"
-    assert svc.spec is not None
-    assert svc.spec.clusterIP == "None"
-    assert svc.spec.ports is not None
-    assert svc.spec.ports[0].port == 8080
-
-    assert es.addressType == "IPv4"
-    assert len(es.endpoints) == 2
-    assert es.endpoints[0].addresses == ["10.0.0.1"]
-    assert es.endpoints[1].addresses == ["10.0.0.2"]
-    assert es.ports is not None
-    assert es.ports[0].port == 8080
-    assert es.metadata is not None
-    assert es.metadata.labels is not None
-    assert es.metadata.labels.get("kubernetes.io/service-name") == "my-app-headless"
-    assert es.metadata.labels.get(MANAGED_BY_LABEL) == "my-charm"
-
-
-def test_ensure_external_backend_service_raises_on_service_403():
-    """
-    arrange: client raises ApiError 403 when applying the Service
-    act: call ensure_external_backend_service
-    assert: InvalidKubernetesPermissionError is raised; EndpointSlice is never applied
-    """
-    client = MagicMock()
-    client.apply.side_effect = _make_api_error(403)
-
-    with pytest.raises(InvalidKubernetesPermissionError, match="--trust"):
-        ensure_external_backend_service(
-            client, "testing-model", "my-app-headless", ["10.0.0.1"], 8080, "my-charm", "IPv4"
-        )
-
-    assert client.apply.call_count == 1
-
-
-def test_ensure_external_backend_service_raises_on_endpoint_slice_403():
-    """
-    arrange: Service apply succeeds but EndpointSlice apply raises ApiError 403
-    act: call ensure_external_backend_service
-    assert: InvalidKubernetesPermissionError is raised
-    """
-    from lightkube.resources.core_v1 import Service
-
-    client = MagicMock()
-
-    def apply_side_effect(resource: object, **_: object) -> MagicMock:
-        if isinstance(resource, Service):
-            return MagicMock()
-        raise _make_api_error(403)
-
-    client.apply.side_effect = apply_side_effect
-
-    with pytest.raises(InvalidKubernetesPermissionError, match="--trust"):
-        ensure_external_backend_service(
-            client, "testing-model", "my-app-headless", ["10.0.0.1"], 8080, "my-charm", "IPv4"
-        )
-
-
-def test_ensure_external_backend_service_reraises_other_api_errors():
-    """
-    arrange: client raises ApiError 500 on apply
-    act: call ensure_external_backend_service
-    assert: the ApiError is re-raised
-    """
-    client = MagicMock()
-    client.apply.side_effect = _make_api_error(500)
-
-    with pytest.raises(ApiError):
-        ensure_external_backend_service(
-            client, "testing-model", "my-app-headless", ["10.0.0.1"], 8080, "my-charm", "IPv4"
-        )
 
 
 def test_delete_backend_services_owned_by_deletes_matching_resources():

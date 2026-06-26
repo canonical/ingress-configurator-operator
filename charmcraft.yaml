@@ -82,6 +82,9 @@ config:
     paths:
       type: string
       description: Comma-separated list of URL paths to route to the service.
+    deny-paths:
+      type: string
+      description: Comma-separated list of URL paths that should not be routed to the service.
     retry-count:
       type: int
       description: Number of times to retry failed requests.

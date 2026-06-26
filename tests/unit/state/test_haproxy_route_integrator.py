@@ -90,6 +90,22 @@ def test_state_from_charm_invalid_paths():
         _make_integrator_state(charm)
 
 
+def test_state_from_charm_invalid_deny_paths():
+    """
+    arrange: mock a charm with invalid deny-paths configuration
+    act: instantiate a State via build_for_integrator_mode
+    assert: a InvalidStateError is raised
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1,127.0.0.2",
+        "backend-ports": "8080",
+        "deny-paths": "invalid path",
+    }
+    with pytest.raises(InvalidHaproxyRouteStateError):
+        _make_integrator_state(charm)
+
+
 def test_state_from_charm_invalid_port():
     """
     arrange: mock a charm with an out-of-range backend port

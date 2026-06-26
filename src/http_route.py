@@ -13,7 +13,7 @@ from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Service
 from lightkube.resources.discovery_v1 import EndpointSlice
 
-from helpers import https_listener_name, truncate_k8s_resource_name
+from helpers import truncate_k8s_resource_name
 from kubernetes import InvalidKubernetesPermissionError
 
 logger = logging.getLogger(__name__)
@@ -337,7 +337,7 @@ def create_http_routes(
                 scheme="https",
                 gateway_name=gateway_name,
                 gateway_namespace=gateway_model,
-                listener_name=https_listener_name(gateway_name, hostname),
+                listener_name=f"{gateway_name}-https-{hostname.replace('.', '-')}",
                 hostnames=[hostname],
                 paths=paths,
                 backend_service_name=backend_service_name,

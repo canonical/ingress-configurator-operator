@@ -40,7 +40,6 @@ from http_route import (
     HTTPRouteManager,
     create_http_routes,
     delete_backend_services_owned_by,
-    ensure_external_backend_service,
     ensure_workload_backend_service,
 )
 from kubernetes import (
@@ -458,81 +457,6 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 f"{scheme}://{state.hostname}/{path}" if path else f"{scheme}://{state.hostname}"
             )
             self._ingress.publish_url(ingress_relation, url=endpoint)
-        self.unit.status = ops.ActiveStatus("Ready")
-
-    def _reconcile_gateway_route_integrator(self) -> None:
-        """Reconcile gateway-route in integrator mode.
-
-        Traffic is routed to external backend IPs via a headless Service and
-        EndpointSlice.  There is no ingress relation; backend-addresses (IPs) and
-        a single backend-ports value must be set in config.
-        """
-        try:
-            state = GatewayRouteState.build_for_integrator_mode(self)
-        except InvalidGatewayRouteStateError as exc:
-            logger.exception("Invalid gateway-route integrator config: %s", exc)
-            self.unit.status = ops.BlockedStatus("Invalid gateway-route configuration")
-            return
-
-        try:
-            self._gateway_route.publish_requirer_data(
-                hostname=state.hostname,
-                additional_hostnames=list(state.additional_hostnames),
-            )
-        except GatewayRouteInvalidRelationDataError as exc:
-            logger.exception("Invalid gateway-route relation data: %s", exc)
-            self.unit.status = ops.BlockedStatus("Invalid gateway-route relation data")
-            return
-
-        try:
-            provider_data = self._gateway_route.get_provider_data()
-        except GatewayRouteInvalidRelationDataError:
-            logger.exception("Invalid gateway-route provider data.")
-            self.unit.status = ops.WaitingStatus("Invalid gateway-route provider data")
-            return
-
-        headless_svc_name = f"{self.app.name}-headless"
-        try:
-            ensure_external_backend_service(
-                self.lightkube_client,
-                self.model.name,
-                headless_svc_name,
-                state.integrator_state.backend_addresses,
-                state.backend_port,
-                self.app.name,
-                state.integrator_state.address_type,
-            )
-        except InvalidKubernetesPermissionError as exc:
-            logger.exception("Kubernetes API permission error: %s", exc)
-            self.unit.status = ops.BlockedStatus(
-                "Kubernetes API permission error. This charm needs --trust to run on k8s substrates."
-            )
-            return
-
-        route_manager = HTTPRouteManager(
-            client=self.lightkube_client,
-            namespace=self.model.name,
-            labels={MANAGED_BY_LABEL: self.app.name},
-        )
-        try:
-            create_http_routes(
-                http_route_manager=route_manager,
-                app_name=self.app.name,
-                gateway_name=provider_data.gateway_name,
-                gateway_model=provider_data.gateway_model,
-                https_mode=provider_data.https_mode,
-                hostnames=state.hostnames,
-                paths=state.paths,
-                backend_service_name=headless_svc_name,
-                backend_service_port=state.backend_port,
-            )
-        except InvalidKubernetesPermissionError as exc:
-            logger.exception("Kubernetes API permission error: %s", exc)
-            self.unit.status = ops.BlockedStatus(
-                "Kubernetes API permission error. This charm needs --trust to run on k8s substrates."
-            )
-            return
-
         self.unit.status = ops.ActiveStatus("Ready")
 
     def _reconcile_haproxy_route_tcp(self) -> None:

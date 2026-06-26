@@ -10,7 +10,6 @@ from unittest.mock import ANY, MagicMock
 import ops.testing
 import pytest
 from lightkube.resources.core_v1 import Service
-from lightkube.resources.discovery_v1 import EndpointSlice
 
 from http_route import MANAGED_BY_LABEL
 

@@ -453,15 +453,15 @@ class IngressConfiguratorCharm(ops.CharmBase):
             )
             return
 
-        url_base = state.hostname or provider_data.gateway_address
-        if url_base:
+        host = state.hostname or provider_data.gateway_address
+        if host:
             scheme = (
                 "https"
                 if provider_data.https_mode in (HttpsMode.ENABLED, HttpsMode.ENFORCED)
                 else "http"
             )
             path = state.paths[0].lstrip("/")
-            endpoint = f"{scheme}://{url_base}/{path}" if path else f"{scheme}://{url_base}"
+            endpoint = f"{scheme}://{host}/{path}" if path else f"{scheme}://{host}"
             self._ingress.publish_url(ingress_relation, url=endpoint)
 
         self.unit.status = ops.ActiveStatus("Ready")

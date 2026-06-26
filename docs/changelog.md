@@ -10,6 +10,10 @@ Each revision is versioned by the date of the revision.
 
 ## 2026-06-26
 
+### Fixed
+
+- Fixed a bug where multiple `gateway-route` relations with enforced HTTPS caused the gateway to become unreachable. The fix creates one HTTPS HTTPRoute per hostname, each referencing its dedicated Gateway listener.
+
 ### Removed
 
 - Removed support for config-driven (external) backends with `gateway-route`, as the use case that originally motivated this feature no longer exists.

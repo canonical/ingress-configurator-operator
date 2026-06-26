@@ -10,6 +10,11 @@ Each revision is versioned by the date of the revision.
 
 ## 2026-06-26
 
+### Added
+
+- Added support IP based URL in `ingress` relation when integrated with `gateway-api-integrator` when
+  no hostname is set.
+  
 ### Removed
 
 - Removed support for config-driven (external) backends with `gateway-route`, as the use case that originally motivated this feature no longer exists.

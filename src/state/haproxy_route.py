@@ -106,6 +106,7 @@ class HaproxyRouteState:
         timeout: The timeout configuration.
         service: The service name.
         paths: List of URL paths to route to the service.
+        deny_paths: List of URL paths that should not be routed to the service.
         hostname: The hostname to route to the service.
         additional_hostnames: List of additional hostnames to route to the service.
         load_balancing_configuration: Load balancing configuration.
@@ -124,6 +125,9 @@ class HaproxyRouteState:
     timeout: TimeoutConfiguration
     service: str = Field(..., min_length=1)
     paths: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(default=[])
+    deny_paths: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(
+        default=[]
+    )
     hostname: Optional[Annotated[str, BeforeValidator(valid_domain_with_wildcard)]] = Field(
         default=None
     )
@@ -308,6 +312,11 @@ class HaproxyRouteState:
                 if charm.config.get("paths")
                 else []
             )
+            deny_paths = (
+                cast(str, charm.config.get("deny-paths")).split(CHARM_CONFIG_DELIMITER)
+                if charm.config.get("deny-paths")
+                else []
+            )
             hostname = cast(Optional[str], charm.config.get("hostname"))
             additional_hostnames = (
                 cast(str, charm.config.get("additional-hostnames")).split(CHARM_CONFIG_DELIMITER)
@@ -379,6 +388,7 @@ class HaproxyRouteState:
                 backend_ports=backend_ports,
                 backend_protocol=backend_protocol,
                 paths=paths,
+                deny_paths=deny_paths,
                 health_check=HealthCheck.from_charm(charm),
                 retry=retry,
                 timeout=timeout,

@@ -265,6 +265,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             "check_path": charm_state.health_check.path,
             "check_port": charm_state.health_check.port,
             "paths": charm_state.paths,
+            "deny_paths": charm_state.deny_paths,
             "ports": charm_state.backend_ports,
             "protocol": charm_state.backend_protocol,
             "retry_count": charm_state.retry.count if charm_state.retry else None,

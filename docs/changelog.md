@@ -12,7 +12,7 @@ Each revision is versioned by the date of the revision.
 
 ### Removed
 
-- Removed integrator mode support for `gateway-route`
+- Removed support for config-driven (external) backends with `gateway-route`, as the use case that originally motivated this feature no longer exists.
 
 ## 2026-06-17
 

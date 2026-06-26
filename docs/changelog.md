@@ -14,11 +14,6 @@ Each revision is versioned by the date of the revision.
 
 - Added support for `gateway-route` in adapter mode when the workload port is not open.
 
-## 2026-06-15
-
-### Added
-
-- Added support for `gateway-route` in integrator mode for external backends.
 
 ## 2026-06-01
 

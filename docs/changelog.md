@@ -8,12 +8,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Each revision is versioned by the date of the revision.
 
+## 2026-06-26
+
+### Removed
+
+- Removed integrator mode support for `gateway-route`
+
 ## 2026-06-17
 
 ### Added
 
 - Added support for `gateway-route` in adapter mode when the workload port is not open.
-
 
 ## 2026-06-01
 

@@ -664,3 +664,42 @@ def test_gateway_route_backend_config_blocked(
     assert out.unit_status == ops.testing.BlockedStatus(
         "Backend config not supported with gateway-route; use an ingress relation."
     )
+
+
+@pytest.mark.usefixtures("mock_lightkube")
+def test_gateway_route_publishes_url_using_gateway_address_when_no_hostname(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: no hostname in config; provider data includes gateway_address.
+    act: trigger config-changed.
+    assert: the ingress URL is published using the gateway_address.
+    """
+    state = ops.testing.State(
+        config={"paths": "/app"},
+        relations=[
+            ops.testing.Relation(
+                endpoint="ingress",
+                remote_app_data=INGRESS_REMOTE_APP_DATA,
+                remote_units_data=INGRESS_REMOTE_UNITS_DATA,
+            ),
+            ops.testing.Relation(
+                endpoint="gateway-route",
+                remote_app_data={
+                    "gateway_name": '"my-gateway"',
+                    "gateway_model": '"gateway-model"',
+                    "https_mode": '"disabled"',
+                    "gateway_address": '"10.0.0.100"',
+                    "endpoints": json.dumps([]),
+                },
+            ),
+        ],
+        leader=True,
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
+    ingress_app_data: dict[str, str] = out.get_relations("ingress")[0].local_app_data
+    published = json.loads(ingress_app_data["ingress"])
+    assert published["url"] == "http://10.0.0.100/app"

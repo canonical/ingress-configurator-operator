@@ -447,17 +447,17 @@ class IngressConfiguratorCharm(ops.CharmBase):
             )
             return
 
-        if state.hostname:
+        host = state.hostname or provider_data.gateway_address
+        if host:
             scheme = (
                 "https"
                 if provider_data.https_mode in (HttpsMode.ENABLED, HttpsMode.ENFORCED)
                 else "http"
             )
             path = state.paths[0].lstrip("/")
-            endpoint = (
-                f"{scheme}://{state.hostname}/{path}" if path else f"{scheme}://{state.hostname}"
-            )
+            endpoint = f"{scheme}://{host}/{path}" if path else f"{scheme}://{host}"
             self._ingress.publish_url(ingress_relation, url=endpoint)
+
         self.unit.status = ops.ActiveStatus("Ready")
 
     def _reconcile_haproxy_route_tcp(self) -> None:

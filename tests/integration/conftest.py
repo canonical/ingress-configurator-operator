@@ -56,12 +56,6 @@ INGRESS_BACKEND_PORT = 8000
 GATEWAY_BACKEND_OPEN_PATH = "/api/v1"
 GATEWAY_BACKEND_OPEN_BODY = "ok from open-ports backend"
 
-# Integrator-mode backend (flask-k8s, referenced by IP only via config).
-GATEWAY_CONFIGURATOR_INTEGRATOR = "configurator-integrator"
-GATEWAY_BACKEND_INTEGRATOR = "backend-integrator"
-HOSTNAME_INTEGRATOR = "integrator.gateway.internal"
-ADDITIONAL_HOSTNAME_INTEGRATOR = "alt-integrator.gateway.internal"
-
 
 @pytest.fixture(scope="session", name="charm")
 def charm_fixture(pytestconfig: pytest.Config):
@@ -458,21 +452,3 @@ def backend_open_fixture(juju_k8s: jubilant.Juju) -> str:
         },
     )
     return GATEWAY_BACKEND_OPEN
-
-
-@pytest.fixture(scope="module", name="backend_integrator")
-def backend_integrator_fixture(juju_k8s: jubilant.Juju) -> str:
-    """Deploy a flask-k8s workload to use as a config-described (integrator-mode) backend IP.
-
-    The integrator mode has no ``ingress`` relation: the backend is referenced purely by IP via
-    config. This fixture provides a conveniently reachable backend pod and does not wait for the
-    application to settle.
-
-    Args:
-        juju_k8s: Jubilant Juju instance for the Kubernetes model.
-
-    Returns:
-        The deployed application name.
-    """
-    juju_k8s.deploy(charm="flask-k8s", app=GATEWAY_BACKEND_INTEGRATOR, channel="latest/edge")
-    return GATEWAY_BACKEND_INTEGRATOR

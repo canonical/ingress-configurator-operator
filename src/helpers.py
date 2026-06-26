@@ -12,6 +12,29 @@ from pydantic import ValidationError
 logger = logging.getLogger()
 
 _K8S_RESOURCE_NAME_MAX_LENGTH = 63
+_GATEWAY_API_SECTION_NAME_MAX_LENGTH = 253
+
+
+def https_listener_name(gateway_name: str, hostname: str) -> str:
+    """Build the per-hostname HTTPS listener name / sectionName.
+
+    The name follows the convention ``{gateway_name}-https-{sanitized_hostname}``
+    where dots in the hostname are replaced with hyphens.  The result is capped at
+    253 characters (Gateway API SectionName limit).
+
+    This function must produce output **identical** to the equivalent helper in the
+    ``gateway-api-integrator`` provider so that the requirer's ``sectionName`` always
+    matches the provider's Gateway listener ``name``.
+
+    Args:
+        gateway_name: The name of the Gateway K8s resource.
+        hostname: The hostname for this listener.
+
+    Returns:
+        A listener name of at most 253 characters.
+    """
+    name = f"{gateway_name}-https-{hostname.replace('.', '-')}"
+    return name[:_GATEWAY_API_SECTION_NAME_MAX_LENGTH]
 
 
 def truncate_k8s_resource_name(name: str) -> str:

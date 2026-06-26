@@ -290,9 +290,9 @@ def test_gateway_route_https_mode_enforced(
     assert http_rule["filters"][0]["requestRedirect"]["statusCode"] == 301
     assert "backendRefs" not in http_rule
 
-    # HTTPS route: forwards to backend, https-listener
+    # HTTPS route: forwards to backend, per-hostname https-listener
     assert https_resource.metadata.name == "ingress-configurator-testing-app-https"
-    assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https"
+    assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https-example-com"
     https_rule = https_resource.spec["rules"][0]
     assert https_rule["backendRefs"][0]["port"] == 8080
     assert "filters" not in https_rule
@@ -417,7 +417,7 @@ def test_gateway_route_https_mode_enabled(
     assert "filters" not in http_rule
 
     assert https_resource.metadata.name == "ingress-configurator-testing-app-https"
-    assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https"
+    assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https-example-com"
     https_rule = https_resource.spec["rules"][0]
     assert https_rule["backendRefs"][0]["port"] == 8080
     assert "filters" not in https_rule

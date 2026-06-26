@@ -10,6 +10,9 @@ from lightkube import ApiError
 
 from http_route import (
     MANAGED_BY_LABEL,
+    HTTPRouteConfig,
+    HTTPRouteManager,
+    create_http_routes,
     delete_backend_services_owned_by,
     ensure_workload_backend_service,
 )
@@ -222,3 +225,214 @@ def test_ensure_workload_backend_service_reraises_other_api_errors():
         ensure_workload_backend_service(
             client, "testing-model", "charm-my-app", "my-app", 8080, "charm"
         )
+
+
+# ---------------------------------------------------------------------------
+# create_http_routes tests
+# ---------------------------------------------------------------------------
+
+GW_NAME = "my-gateway"
+GW_MODEL = "my-model"
+BACKEND_SVC = "backend-svc"
+BACKEND_PORT = 8080
+APP_NAME = "my-app"
+PATHS = ["/"]
+
+
+def _make_http_route_manager() -> tuple[HTTPRouteManager, MagicMock]:
+    """Return an HTTPRouteManager backed by a MagicMock client.
+
+    The manager's ``apply`` method returns the resource_name argument passed to
+    HTTPRouteConfig so callers can inspect what was applied.
+    """
+    mock_client = MagicMock()
+
+    # apply() is called inside HTTPRouteManager.apply() — patch it so we capture
+    # the config objects rather than actually calling the K8s API.
+    applied: list[HTTPRouteConfig] = []
+
+    def _fake_apply(config: HTTPRouteConfig) -> str:
+        applied.append(config)
+        # Return a stable resource name so delete_stale() has something to exclude.
+        return f"{config.app_name}-{config.backend_service_name}-{config.scheme}"
+
+    manager = HTTPRouteManager(
+        client=mock_client,
+        namespace=GW_MODEL,
+        labels={MANAGED_BY_LABEL: APP_NAME},
+    )
+    manager.apply = _fake_apply  # type: ignore[method-assign]
+    manager.delete_stale = MagicMock()  # type: ignore[method-assign]
+    # Expose applied list through the mock for assertions
+    mock_client._applied = applied
+    return manager, mock_client
+
+
+def test_create_http_routes_http_only():
+    """
+    arrange: https_mode=disabled, two hostnames.
+    act: call create_http_routes.
+    assert: only one HTTP route is created targeting the single HTTP listener.
+    """
+    manager, mock = _make_http_route_manager()
+
+    create_http_routes(
+        manager,
+        APP_NAME,
+        GW_NAME,
+        GW_MODEL,
+        "disabled",
+        ["a.example.com", "b.example.com"],
+        PATHS,
+        BACKEND_SVC,
+        BACKEND_PORT,
+    )
+
+    applied = mock._applied
+    assert len(applied) == 1
+    assert applied[0].scheme == "http"
+    assert applied[0].listener_name == f"{GW_NAME}-http"
+    assert applied[0].redirect_https is False
+
+
+def test_create_http_routes_https_enabled_single_hostname():
+    """
+    arrange: https_mode=enabled, one hostname.
+    act: call create_http_routes.
+    assert: 2 routes created — 1 HTTP (all hostnames, no redirect) + 1 HTTPS (the hostname).
+    """
+    manager, mock = _make_http_route_manager()
+
+    create_http_routes(
+        manager,
+        APP_NAME,
+        GW_NAME,
+        GW_MODEL,
+        "enabled",
+        ["app.example.com"],
+        PATHS,
+        BACKEND_SVC,
+        BACKEND_PORT,
+    )
+
+    applied = mock._applied
+    assert len(applied) == 2
+
+    http_route = next(r for r in applied if r.scheme == "http")
+    https_route = next(r for r in applied if r.scheme == "https")
+
+    assert http_route.redirect_https is False
+    assert https_route.listener_name == f"{GW_NAME}-https-app-example-com"
+    assert https_route.hostnames == ["app.example.com"]
+
+
+def test_create_http_routes_https_enabled_multiple_hostnames():
+    """
+    arrange: https_mode=enabled, two hostnames.
+    act: call create_http_routes.
+    assert: 3 routes — 1 HTTP covering both hostnames + 2 HTTPS each covering one hostname
+        with its own per-hostname listener.
+    """
+    manager, mock = _make_http_route_manager()
+    hostnames = ["alpha.example.com", "beta.example.com"]
+
+    create_http_routes(
+        manager,
+        APP_NAME,
+        GW_NAME,
+        GW_MODEL,
+        "enabled",
+        hostnames,
+        PATHS,
+        BACKEND_SVC,
+        BACKEND_PORT,
+    )
+
+    applied = mock._applied
+    assert len(applied) == 3
+
+    http_routes = [r for r in applied if r.scheme == "http"]
+    https_routes = [r for r in applied if r.scheme == "https"]
+
+    assert len(http_routes) == 1
+    assert len(https_routes) == 2
+
+    # HTTP route covers all hostnames
+    assert set(http_routes[0].hostnames) == set(hostnames)
+
+    # Each HTTPS route targets exactly one hostname with its own listener
+    https_listener_names = {r.listener_name for r in https_routes}
+    assert https_listener_names == {
+        f"{GW_NAME}-https-alpha-example-com",
+        f"{GW_NAME}-https-beta-example-com",
+    }
+    https_hostname_sets = [set(r.hostnames) for r in https_routes]
+    assert {"alpha.example.com"} in https_hostname_sets
+    assert {"beta.example.com"} in https_hostname_sets
+
+    for r in https_routes:
+        assert r.redirect_https is False
+
+
+def test_create_http_routes_https_enforced_multiple_hostnames():
+    """
+    arrange: https_mode=enforced, two hostnames.
+    act: call create_http_routes.
+    assert: 3 routes — 1 HTTP redirect (all hostnames) + 2 HTTPS per hostname.
+        The HTTP route has redirect_https=True; HTTPS routes have redirect_https=False.
+    """
+    manager, mock = _make_http_route_manager()
+    hostnames = ["alpha.example.com", "beta.example.com"]
+
+    create_http_routes(
+        manager,
+        APP_NAME,
+        GW_NAME,
+        GW_MODEL,
+        "enforced",
+        hostnames,
+        PATHS,
+        BACKEND_SVC,
+        BACKEND_PORT,
+    )
+
+    applied = mock._applied
+    assert len(applied) == 3
+
+    http_routes = [r for r in applied if r.scheme == "http"]
+    https_routes = [r for r in applied if r.scheme == "https"]
+
+    assert len(http_routes) == 1
+    assert len(https_routes) == 2
+
+    assert http_routes[0].redirect_https is True
+    assert set(http_routes[0].hostnames) == set(hostnames)
+
+    for r in https_routes:
+        assert r.redirect_https is False
+        assert len(r.hostnames) == 1
+
+
+def test_create_http_routes_empty_hostnames():
+    """
+    arrange: https_mode=enabled but hostnames=[].
+    act: call create_http_routes.
+    assert: only 1 HTTP route is created (no HTTPS routes when there are no hostnames).
+    """
+    manager, mock = _make_http_route_manager()
+
+    create_http_routes(
+        manager,
+        APP_NAME,
+        GW_NAME,
+        GW_MODEL,
+        "enabled",
+        [],
+        PATHS,
+        BACKEND_SVC,
+        BACKEND_PORT,
+    )
+
+    applied = mock._applied
+    assert len(applied) == 1
+    assert applied[0].scheme == "http"

@@ -13,7 +13,7 @@ from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Service
 from lightkube.resources.discovery_v1 import EndpointSlice
 
-from helpers import truncate_k8s_resource_name
+from helpers import https_listener_name, truncate_k8s_resource_name
 from kubernetes import InvalidKubernetesPermissionError
 
 logger = logging.getLogger(__name__)
@@ -313,23 +313,37 @@ def create_http_routes(
     """
     managed_names = []
 
-    route_specs: list[str] = ["http"]
-    if https_mode in ("enabled", "enforced"):
-        route_specs.append("https")
+    # HTTP route (including redirect for enforced mode) covers all hostnames and
+    # targets the single hostname-less HTTP listener.
+    http_config = HTTPRouteConfig(
+        app_name=app_name,
+        scheme="http",
+        gateway_name=gateway_name,
+        gateway_namespace=gateway_model,
+        listener_name=f"{gateway_name}-http",
+        hostnames=hostnames,
+        paths=paths,
+        backend_service_name=backend_service_name,
+        backend_service_port=backend_service_port,
+        redirect_https=https_mode == "enforced",
+    )
+    managed_names.append(http_route_manager.apply(http_config))
 
-    for scheme in route_specs:
-        config = HTTPRouteConfig(
-            app_name=app_name,
-            scheme=scheme,
-            gateway_name=gateway_name,
-            gateway_namespace=gateway_model,
-            listener_name=f"{gateway_name}-{scheme}",
-            hostnames=hostnames,
-            paths=paths,
-            backend_service_name=backend_service_name,
-            backend_service_port=backend_service_port,
-            redirect_https=https_mode == "enforced" and scheme == "http",
-        )
-        managed_names.append(http_route_manager.apply(config))
+    # HTTPS routes: one per hostname, each targeting its own per-hostname listener.
+    if https_mode in ("enabled", "enforced"):
+        for hostname in hostnames:
+            https_config = HTTPRouteConfig(
+                app_name=app_name,
+                scheme="https",
+                gateway_name=gateway_name,
+                gateway_namespace=gateway_model,
+                listener_name=https_listener_name(gateway_name, hostname),
+                hostnames=[hostname],
+                paths=paths,
+                backend_service_name=backend_service_name,
+                backend_service_port=backend_service_port,
+                redirect_https=False,
+            )
+            managed_names.append(http_route_manager.apply(https_config))
 
     http_route_manager.delete_stale(exclude=managed_names)

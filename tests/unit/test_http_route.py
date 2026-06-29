@@ -272,7 +272,7 @@ def test_create_http_routes_http_only():
     """
     arrange: https_mode=disabled, two hostnames.
     act: call create_http_routes.
-    assert: only one HTTP route is created targeting the single HTTP listener.
+    assert: a single HTTP route covering both hostnames, attaching to both per-hostname HTTP listeners.
     """
     manager, mock = _make_http_route_manager()
 
@@ -291,8 +291,12 @@ def test_create_http_routes_http_only():
     applied = mock._applied
     assert len(applied) == 1
     assert applied[0].scheme == "http"
-    assert applied[0].listener_name == f"{GW_NAME}-http"
     assert applied[0].redirect_https is False
+    assert set(applied[0].hostnames) == {"a.example.com", "b.example.com"}
+    assert set(applied[0].listener_names) == {
+        f"{GW_NAME}-http-a-example-com",
+        f"{GW_NAME}-http-b-example-com",
+    }
 
 
 def test_create_http_routes_https_enabled_single_hostname():
@@ -322,7 +326,9 @@ def test_create_http_routes_https_enabled_single_hostname():
     https_route = next(r for r in applied if r.scheme == "https")
 
     assert http_route.redirect_https is False
-    assert https_route.listener_name == f"{GW_NAME}-https-app-example-com"
+    assert http_route.listener_names == [f"{GW_NAME}-http-app-example-com"]
+    assert http_route.hostnames == ["app.example.com"]
+    assert https_route.listener_names == [f"{GW_NAME}-https-app-example-com"]
     assert https_route.hostnames == ["app.example.com"]
 
 
@@ -330,8 +336,8 @@ def test_create_http_routes_https_enabled_multiple_hostnames():
     """
     arrange: https_mode=enabled, two hostnames.
     act: call create_http_routes.
-    assert: 3 routes — 1 HTTP covering both hostnames + 2 HTTPS each covering one hostname
-        with its own per-hostname listener.
+    assert: 3 routes — 1 HTTP covering both hostnames (attaching to both HTTP listeners)
+        + 2 HTTPS each covering one hostname with its own per-hostname listener.
     """
     manager, mock = _make_http_route_manager()
     hostnames = ["alpha.example.com", "beta.example.com"]
@@ -357,11 +363,15 @@ def test_create_http_routes_https_enabled_multiple_hostnames():
     assert len(http_routes) == 1
     assert len(https_routes) == 2
 
-    # HTTP route covers all hostnames
+    # HTTP route covers all hostnames and attaches to both per-hostname HTTP listeners
     assert set(http_routes[0].hostnames) == set(hostnames)
+    assert set(http_routes[0].listener_names) == {
+        f"{GW_NAME}-http-alpha-example-com",
+        f"{GW_NAME}-http-beta-example-com",
+    }
 
     # Each HTTPS route targets exactly one hostname with its own listener
-    https_listener_names = {r.listener_name for r in https_routes}
+    https_listener_names = {r.listener_names[0] for r in https_routes}
     assert https_listener_names == {
         f"{GW_NAME}-https-alpha-example-com",
         f"{GW_NAME}-https-beta-example-com",
@@ -370,7 +380,7 @@ def test_create_http_routes_https_enabled_multiple_hostnames():
     assert {"alpha.example.com"} in https_hostname_sets
     assert {"beta.example.com"} in https_hostname_sets
 
-    for r in https_routes:
+    for r in http_routes + https_routes:
         assert r.redirect_https is False
 
 
@@ -417,7 +427,8 @@ def test_create_http_routes_empty_hostnames():
     """
     arrange: https_mode=enabled but hostnames=[].
     act: call create_http_routes.
-    assert: only 1 HTTP route is created (no HTTPS routes when there are no hostnames).
+    assert: only 1 HTTP route is created targeting the hostname-less HTTP listener
+        (no HTTPS routes when there are no hostnames).
     """
     manager, mock = _make_http_route_manager()
 
@@ -436,3 +447,4 @@ def test_create_http_routes_empty_hostnames():
     applied = mock._applied
     assert len(applied) == 1
     assert applied[0].scheme == "http"
+    assert applied[0].listener_names == [f"{GW_NAME}-http"]

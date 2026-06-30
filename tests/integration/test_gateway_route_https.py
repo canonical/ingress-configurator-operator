@@ -7,11 +7,11 @@ Topology:
 
     self-signed-certificates ──certificates──▶ gateway-api-integrator (enforce-https=True)
                                                           ▲
-    flask-k8s (backend-closed)  ──ingress──▶ configurator-closed ─┤ gateway-route
-    any-charm-k8s (backend-open) ──ingress──▶ configurator-open  ─┘
+    flask-k8s (closed-ports)       ──ingress──▶ configurator-closed ─┤ gateway-route
+    any-charm-k8s (open-ports)    ──ingress──▶ configurator-open  ─┘
 
 The provider creates one per-hostname HTTPS Gateway listener per relation (one for
-``HOSTNAME_CLOSED``, one for ``HOSTNAME_OPEN``). Each listener has its own ``hostname``
+``HOSTNAME_CLOSED_PORTS``, one for ``HOSTNAME_OPEN_PORTS``). Each listener has its own ``hostname``
 field, so Cilium can assign a distinct SNI match to each Envoy filter chain, avoiding
 the "duplicate matcher" error that broke multi-relation HTTPS in the previous design.
 
@@ -31,10 +31,10 @@ import pytest
 from .conftest import (
     CERTIFICATES_APP_NAME,
     GATEWAY_CERTIFICATES_CHANNEL,
-    GATEWAY_CONFIGURATOR_CLOSED,
-    GATEWAY_CONFIGURATOR_OPEN,
-    HOSTNAME_CLOSED,
-    HOSTNAME_OPEN,
+    GATEWAY_CONFIGURATOR_CLOSED_PORTS,
+    GATEWAY_CONFIGURATOR_OPEN_PORTS,
+    HOSTNAME_BACKEND_CLOSED_PORTS,
+    HOSTNAME_BACKEND_OPEN_PORTS,
     deploy_ingress_configurator_for_gateway_route,
 )
 from .helper import assert_gateway_response, get_gateway_address
@@ -84,25 +84,25 @@ def multi_relation_https_stack_fixture(
     deploy_ingress_configurator_for_gateway_route(
         juju_k8s,
         charm,
-        GATEWAY_CONFIGURATOR_CLOSED,
+        GATEWAY_CONFIGURATOR_CLOSED_PORTS,
         gateway_api_integrator,
-        config={"hostname": HOSTNAME_CLOSED},
+        config={"hostname": HOSTNAME_BACKEND_CLOSED_PORTS},
     )
     deploy_ingress_configurator_for_gateway_route(
         juju_k8s,
         charm,
-        GATEWAY_CONFIGURATOR_OPEN,
+        GATEWAY_CONFIGURATOR_OPEN_PORTS,
         gateway_api_integrator,
-        config={"hostname": HOSTNAME_OPEN},
+        config={"hostname": HOSTNAME_BACKEND_OPEN_PORTS},
     )
-    juju_k8s.integrate(f"{backend_closed}:ingress", f"{GATEWAY_CONFIGURATOR_CLOSED}:ingress")
-    juju_k8s.integrate(f"{backend_open}:ingress", f"{GATEWAY_CONFIGURATOR_OPEN}:ingress")
+    juju_k8s.integrate(f"{backend_closed}:ingress", f"{GATEWAY_CONFIGURATOR_CLOSED_PORTS}:ingress")
+    juju_k8s.integrate(f"{backend_open}:ingress", f"{GATEWAY_CONFIGURATOR_OPEN_PORTS}:ingress")
 
     all_apps = (
         gateway_api_integrator,
         CERTIFICATES_APP_NAME,
-        GATEWAY_CONFIGURATOR_CLOSED,
-        GATEWAY_CONFIGURATOR_OPEN,
+        GATEWAY_CONFIGURATOR_CLOSED_PORTS,
+        GATEWAY_CONFIGURATOR_OPEN_PORTS,
         backend_closed,
         backend_open,
     )
@@ -115,8 +115,8 @@ def multi_relation_https_stack_fixture(
         gateway_api_integrator=gateway_api_integrator,
         backend_closed=backend_closed,
         backend_open=backend_open,
-        configurator_closed=GATEWAY_CONFIGURATOR_CLOSED,
-        configurator_open=GATEWAY_CONFIGURATOR_OPEN,
+        configurator_closed=GATEWAY_CONFIGURATOR_CLOSED_PORTS,
+        configurator_open=GATEWAY_CONFIGURATOR_OPEN_PORTS,
     )
 
 
@@ -143,7 +143,7 @@ def test_gateway_route_https_enforced_multi_relation(
     assert gateway_address, "gateway-api-integrator did not report a gateway address"
     logger.info("gateway address: %s", gateway_address)
 
-    for hostname in (HOSTNAME_CLOSED, HOSTNAME_OPEN):
+    for hostname in (HOSTNAME_BACKEND_CLOSED_PORTS, HOSTNAME_BACKEND_OPEN_PORTS):
         logger.info("checking enforced-HTTPS routing for %s", hostname)
 
         # HTTP must issue a 301 redirect to HTTPS.

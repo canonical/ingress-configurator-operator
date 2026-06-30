@@ -7,8 +7,8 @@ A headline goal of the gateway-api redesign is supporting multiple ``gateway-rou
 a single gateway-api-integrator, with one ingress-configurator per relation. This test proves
 that by deploying two ingress-configurator instances against the same gateway at once:
 
-    flask-k8s (closed)   ──ingress──▶  configurator-closed  ─┐  gateway-route
-    any-charm-k8s (open) ──ingress──▶  configurator-open    ─┘──────────────▶ gateway-api-integrator
+    flask-k8s (backendclosed-ports)   ──ingress──▶  configurator-closed  ─┐  gateway-route
+    any-charm-k8s (backend-open-ports) ──ingress──▶  configurator-open    ─┘──────────────▶ gateway-api-integrator
                                                                                        │
                                                                                Gateway + HTTPRoutes
                                                                                (one LoadBalancer address)
@@ -27,14 +27,14 @@ import jubilant
 import pytest
 
 from .conftest import (
-    ADDITIONAL_HOSTNAME_CLOSED,
-    ADDITIONAL_HOSTNAME_OPEN,
+    ADDITIONAL_HOSTNAME_BACKEND_CLOSED_PORTS,
+    ADDITIONAL_HOSTNAME_BACKEND_OPEN_PORTS,
     GATEWAY_BACKEND_OPEN_BODY,
     GATEWAY_BACKEND_OPEN_PATH,
-    GATEWAY_CONFIGURATOR_CLOSED,
-    GATEWAY_CONFIGURATOR_OPEN,
-    HOSTNAME_CLOSED,
-    HOSTNAME_OPEN,
+    GATEWAY_CONFIGURATOR_CLOSED_PORTS,
+    GATEWAY_CONFIGURATOR_OPEN_PORTS,
+    HOSTNAME_BACKEND_CLOSED_PORTS,
+    HOSTNAME_BACKEND_OPEN_PORTS,
     INGRESS_BACKEND_PORT,
     deploy_ingress_configurator_for_gateway_route,
 )
@@ -90,33 +90,33 @@ def multi_relation_gateway_stack_fixture(
     deploy_ingress_configurator_for_gateway_route(
         juju_k8s,
         charm,
-        GATEWAY_CONFIGURATOR_CLOSED,
+        GATEWAY_CONFIGURATOR_CLOSED_PORTS,
         gateway_api_integrator,
         config={
-            "hostname": HOSTNAME_CLOSED,
-            "additional-hostnames": ADDITIONAL_HOSTNAME_CLOSED,
+            "hostname": HOSTNAME_BACKEND_CLOSED_PORTS,
+            "additional-hostnames": ADDITIONAL_HOSTNAME_BACKEND_CLOSED_PORTS,
             "paths": BACKEND_PATH,
         },
     )
     deploy_ingress_configurator_for_gateway_route(
         juju_k8s,
         charm,
-        GATEWAY_CONFIGURATOR_OPEN,
+        GATEWAY_CONFIGURATOR_OPEN_PORTS,
         gateway_api_integrator,
         config={
-            "hostname": HOSTNAME_OPEN,
-            "additional-hostnames": ADDITIONAL_HOSTNAME_OPEN,
+            "hostname": HOSTNAME_BACKEND_OPEN_PORTS,
+            "additional-hostnames": ADDITIONAL_HOSTNAME_BACKEND_OPEN_PORTS,
             "paths": BACKEND_PATH,
         },
     )
-    juju_k8s.integrate(f"{backend_closed}:ingress", f"{GATEWAY_CONFIGURATOR_CLOSED}:ingress")
-    juju_k8s.integrate(f"{backend_open}:ingress", f"{GATEWAY_CONFIGURATOR_OPEN}:ingress")
+    juju_k8s.integrate(f"{backend_closed}:ingress", f"{GATEWAY_CONFIGURATOR_CLOSED_PORTS}:ingress")
+    juju_k8s.integrate(f"{backend_open}:ingress", f"{GATEWAY_CONFIGURATOR_OPEN_PORTS}:ingress")
 
     # Wait for the whole stack to settle.
     all_apps = (
         gateway_api_integrator,
-        GATEWAY_CONFIGURATOR_CLOSED,
-        GATEWAY_CONFIGURATOR_OPEN,
+        GATEWAY_CONFIGURATOR_CLOSED_PORTS,
+        GATEWAY_CONFIGURATOR_OPEN_PORTS,
         backend_closed,
         backend_open,
     )
@@ -129,8 +129,8 @@ def multi_relation_gateway_stack_fixture(
         gateway_api_integrator=gateway_api_integrator,
         backend_closed=backend_closed,
         backend_open=backend_open,
-        configurator_closed=GATEWAY_CONFIGURATOR_CLOSED,
-        configurator_open=GATEWAY_CONFIGURATOR_OPEN,
+        configurator_closed=GATEWAY_CONFIGURATOR_CLOSED_PORTS,
+        configurator_open=GATEWAY_CONFIGURATOR_OPEN_PORTS,
     )
 
 
@@ -152,32 +152,49 @@ def test_gateway_route_multiple_relations(
     # The configurator creates a selector Service targeting the backend pod; no body assertion
     # since flask-k8s serves its own response.
     logger.info(
-        "checking closed-ports routing (%s, %s)", HOSTNAME_CLOSED, ADDITIONAL_HOSTNAME_CLOSED
+        "checking closed-ports routing (%s, %s)",
+        HOSTNAME_BACKEND_CLOSED_PORTS,
+        ADDITIONAL_HOSTNAME_BACKEND_CLOSED_PORTS,
     )
-    assert_gateway_response(gateway_address, HOSTNAME_CLOSED, BACKEND_PATH, expected_status=200)
-    assert_gateway_response(gateway_address, HOSTNAME_CLOSED, "/", expected_status=404)
     assert_gateway_response(
-        gateway_address, ADDITIONAL_HOSTNAME_CLOSED, BACKEND_PATH, expected_status=200
+        gateway_address, HOSTNAME_BACKEND_CLOSED_PORTS, BACKEND_PATH, expected_status=200
     )
-    assert_gateway_response(gateway_address, ADDITIONAL_HOSTNAME_CLOSED, "/", expected_status=404)
+    assert_gateway_response(
+        gateway_address, HOSTNAME_BACKEND_CLOSED_PORTS, "/", expected_status=404
+    )
+    assert_gateway_response(
+        gateway_address,
+        ADDITIONAL_HOSTNAME_BACKEND_CLOSED_PORTS,
+        BACKEND_PATH,
+        expected_status=200,
+    )
+    assert_gateway_response(
+        gateway_address, ADDITIONAL_HOSTNAME_BACKEND_CLOSED_PORTS, "/", expected_status=404
+    )
 
     # --- Open-ports adapter (any-charm-k8s, is_port_open=True) ---
     # The configurator routes directly to the pod IP; assert BACKEND_BODY to prove traffic
     # reaches this specific backend rather than any other 200 source.
-    logger.info("checking open-ports routing (%s, %s)", HOSTNAME_OPEN, ADDITIONAL_HOSTNAME_OPEN)
+    logger.info(
+        "checking open-ports routing (%s, %s)",
+        HOSTNAME_BACKEND_OPEN_PORTS,
+        ADDITIONAL_HOSTNAME_BACKEND_OPEN_PORTS,
+    )
     assert_gateway_response(
         gateway_address,
-        HOSTNAME_OPEN,
+        HOSTNAME_BACKEND_OPEN_PORTS,
         BACKEND_PATH,
         expected_status=200,
         body_contains=BACKEND_BODY,
     )
-    assert_gateway_response(gateway_address, HOSTNAME_OPEN, "/", expected_status=404)
+    assert_gateway_response(gateway_address, HOSTNAME_BACKEND_OPEN_PORTS, "/", expected_status=404)
     assert_gateway_response(
         gateway_address,
-        ADDITIONAL_HOSTNAME_OPEN,
+        ADDITIONAL_HOSTNAME_BACKEND_OPEN_PORTS,
         BACKEND_PATH,
         expected_status=200,
         body_contains=BACKEND_BODY,
     )
-    assert_gateway_response(gateway_address, ADDITIONAL_HOSTNAME_OPEN, "/", expected_status=404)
+    assert_gateway_response(
+        gateway_address, ADDITIONAL_HOSTNAME_BACKEND_OPEN_PORTS, "/", expected_status=404
+    )

@@ -281,18 +281,18 @@ def test_gateway_route_https_mode_enforced(
     http_resource = http_call.args[0]
     https_resource = https_call.args[0]
 
-    # HTTP route: 301 redirect to HTTPS, http-listener
+    # HTTP route: 301 redirect to HTTPS, per-hostname http-listener
     assert http_resource.metadata.name == "ingress-configurator-testing-app-http"
-    assert http_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http"
+    assert http_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http-example-com"
     http_rule = http_resource.spec["rules"][0]
     assert http_rule["filters"][0]["type"] == "RequestRedirect"
     assert http_rule["filters"][0]["requestRedirect"]["scheme"] == "https"
     assert http_rule["filters"][0]["requestRedirect"]["statusCode"] == 301
     assert "backendRefs" not in http_rule
 
-    # HTTPS route: forwards to backend, https-listener
+    # HTTPS route: forwards to backend, per-hostname https-listener
     assert https_resource.metadata.name == "ingress-configurator-testing-app-https"
-    assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https"
+    assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https-example-com"
     https_rule = https_resource.spec["rules"][0]
     assert https_rule["backendRefs"][0]["port"] == 8080
     assert "filters" not in https_rule
@@ -366,7 +366,7 @@ def test_gateway_route_https_mode_disabled(
     resource = single_call.args[0]
 
     assert resource.metadata.name == "ingress-configurator-testing-app-http"
-    assert resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http"
+    assert resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http-example-com"
     rule = resource.spec["rules"][0]
     assert rule["backendRefs"][0]["port"] == 8080
     assert "filters" not in rule
@@ -411,13 +411,13 @@ def test_gateway_route_https_mode_enabled(
 
     # Both routes forward to the backend
     assert http_resource.metadata.name == "ingress-configurator-testing-app-http"
-    assert http_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http"
+    assert http_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-http-example-com"
     http_rule = http_resource.spec["rules"][0]
     assert http_rule["backendRefs"][0]["port"] == 8080
     assert "filters" not in http_rule
 
     assert https_resource.metadata.name == "ingress-configurator-testing-app-https"
-    assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https"
+    assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https-example-com"
     https_rule = https_resource.spec["rules"][0]
     assert https_rule["backendRefs"][0]["port"] == 8080
     assert "filters" not in https_rule

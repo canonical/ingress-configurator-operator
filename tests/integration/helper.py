@@ -42,7 +42,7 @@ def get_gateway_address(juju: jubilant.Juju, gateway_api_integrator: str) -> str
     retry=retry_if_exception_type((AssertionError, requests.exceptions.RequestException)),
     reraise=True,
 )
-def wait_for_gateway_response(
+def assert_gateway_response(
     gateway_address: str,
     hostname: str | None,
     path: str,

@@ -34,7 +34,7 @@ APP_NAME = "ingress-configurator"
 # Gateway-route (Kubernetes Gateway API) test configuration.
 GATEWAY_API_INTEGRATOR_APP_NAME = "gateway-api-integrator"
 GATEWAY_API_INTEGRATOR_CHANNEL = "1/edge"
-GATEWAY_API_INTEGRATOR_REVISION = 160
+GATEWAY_API_INTEGRATOR_REVISION = 163
 # GatewayClass provided by the Canonical Kubernetes used in CI.
 GATEWAY_CLASS = "ck-gateway"
 EXTERNAL_HOSTNAME = "gateway.internal"
@@ -42,16 +42,16 @@ GATEWAY_CERTIFICATES_CHANNEL = "1/edge"
 
 # Closed-ports backend (flask-k8s, is_port_open=False).
 # Also reused by the enforced-HTTPS test, which runs in a separate model.
-GATEWAY_CONFIGURATOR_CLOSED = "configurator-closed"
-GATEWAY_BACKEND_CLOSED = "backend-closed"
-HOSTNAME_CLOSED = "closed.gateway.internal"
-ADDITIONAL_HOSTNAME_CLOSED = "alt-closed.gateway.internal"
+GATEWAY_CONFIGURATOR_CLOSED_PORTS = "configurator-closed"
+GATEWAY_BACKEND_CLOSED_PORTS = "backend-closed"
+HOSTNAME_BACKEND_CLOSED_PORTS = "closed.gateway.internal"
+ADDITIONAL_HOSTNAME_BACKEND_CLOSED_PORTS = "alt-closed.gateway.internal"
 
 # Open-ports backend (any-charm-k8s, is_port_open=True).
-GATEWAY_CONFIGURATOR_OPEN = "configurator-open"
-GATEWAY_BACKEND_OPEN = "backend-open"
-HOSTNAME_OPEN = "open.gateway.internal"
-ADDITIONAL_HOSTNAME_OPEN = "alt-open.gateway.internal"
+GATEWAY_CONFIGURATOR_OPEN_PORTS = "configurator-open"
+GATEWAY_BACKEND_OPEN_PORTS = "backend-open"
+HOSTNAME_BACKEND_OPEN_PORTS = "open.gateway.internal"
+ADDITIONAL_HOSTNAME_BACKEND_OPEN_PORTS = "alt-open.gateway.internal"
 INGRESS_BACKEND_PORT = 8000
 GATEWAY_BACKEND_OPEN_PATH = "/api/v1"
 GATEWAY_BACKEND_OPEN_BODY = "ok from open-ports backend"
@@ -412,8 +412,8 @@ def backend_closed_fixture(juju_k8s: jubilant.Juju) -> str:
     Returns:
         The deployed application name.
     """
-    juju_k8s.deploy(charm="flask-k8s", app=GATEWAY_BACKEND_CLOSED, channel="latest/edge")
-    return GATEWAY_BACKEND_CLOSED
+    juju_k8s.deploy(charm="flask-k8s", app=GATEWAY_BACKEND_CLOSED_PORTS, channel="latest/edge")
+    return GATEWAY_BACKEND_CLOSED_PORTS
 
 
 @pytest.fixture(scope="module", name="backend_open")
@@ -434,7 +434,7 @@ def backend_open_fixture(juju_k8s: jubilant.Juju) -> str:
     juju_k8s.deploy(
         charm="any-charm-k8s",
         channel="beta",
-        app=GATEWAY_BACKEND_OPEN,
+        app=GATEWAY_BACKEND_OPEN_PORTS,
         config={
             "src-overwrite": json.dumps(
                 {
@@ -451,4 +451,4 @@ def backend_open_fixture(juju_k8s: jubilant.Juju) -> str:
             "python-packages": "\n".join(["pydantic", "charmlibs-apt"]),
         },
     )
-    return GATEWAY_BACKEND_OPEN
+    return GATEWAY_BACKEND_OPEN_PORTS

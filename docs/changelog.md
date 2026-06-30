@@ -10,6 +10,10 @@ Each revision is versioned by the date of the revision.
 
 ## 2026-06-26
 
+### Fixed
+
+- Fixed a bug where multiple `gateway-route` relations with enforced HTTPS caused the gateway to become unreachable. The fix creates one HTTPS HTTPRoute and one HTTP HTTPRoute per hostname, each referencing its dedicated Gateway listener.
+
 ### Added
 
 - Added support IP based URL in `ingress` relation when integrated with `gateway-api-integrator` when

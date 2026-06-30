@@ -29,6 +29,40 @@ HTTPRouteResource = create_namespaced_resource(
 )
 
 
+def http_listener_name(gateway_name: str, hostname: str) -> str:
+    """Build the per-hostname HTTP listener name / sectionName.
+
+    The name follows the convention ``{gateway_name}-http-{sanitized_hostname}``
+    where dots in the hostname are replaced with hyphens. This mirrors the
+    gateway-api-integrator's HTTP listener naming so HTTPRoutes reference the
+    correct per-hostname listener.
+
+    Args:
+        gateway_name: The name of the Gateway K8s resource.
+        hostname: The hostname for this listener.
+
+    Returns:
+        The listener name.
+    """
+    return f"{gateway_name}-http-{hostname.replace('.', '-')}"
+
+
+def https_listener_name(gateway_name: str, hostname: str) -> str:
+    """Build the per-hostname HTTPS listener name / sectionName.
+
+    The name follows the convention ``{gateway_name}-https-{sanitized_hostname}``
+    where dots in the hostname are replaced with hyphens.
+
+    Args:
+        gateway_name: The name of the Gateway K8s resource.
+        hostname: The hostname for this listener.
+
+    Returns:
+        The listener name.
+    """
+    return f"{gateway_name}-https-{hostname.replace('.', '-')}"
+
+
 def ensure_workload_backend_service(
     client: Client,
     namespace: str,
@@ -129,7 +163,8 @@ class HTTPRouteConfig:
         scheme: The scheme of the HTTPRoute ("http" or "https").
         gateway_name: parentRef gateway name.
         gateway_namespace: parentRef namespace.
-        listener_name: sectionName (e.g. "<gateway_name>-http").
+        listener_names: List of sectionNames this route attaches to (e.g.
+            per-hostname HTTP listener names, or a single HTTPS listener name).
         hostnames: List of hostnames for the HTTPRoute.
         paths: List of path prefixes.
         backend_service_name: The workload K8s Service name.
@@ -141,7 +176,7 @@ class HTTPRouteConfig:
     scheme: str
     gateway_name: str
     gateway_namespace: str
-    listener_name: str
+    listener_names: list[str]
     hostnames: list[str]
     paths: list[str]
     backend_service_name: str
@@ -180,11 +215,14 @@ class HTTPRouteManager:
         Returns:
             A dict representing the HTTPRoute spec.
         """
-        parent_ref: dict[str, str] = {
-            "name": config.gateway_name,
-            "namespace": config.gateway_namespace,
-            "sectionName": config.listener_name,
-        }
+        parent_refs: list[dict[str, str]] = [
+            {
+                "name": config.gateway_name,
+                "namespace": config.gateway_namespace,
+                "sectionName": listener_name,
+            }
+            for listener_name in config.listener_names
+        ]
 
         if config.redirect_https:
             rules: list[dict[str, object]] = [
@@ -216,7 +254,7 @@ class HTTPRouteManager:
             ]
 
         spec: dict = {
-            "parentRefs": [parent_ref],
+            "parentRefs": parent_refs,
             "rules": rules,
         }
         if config.hostnames:
@@ -313,23 +351,46 @@ def create_http_routes(
     """
     managed_names = []
 
-    route_specs: list[str] = ["http"]
-    if https_mode in ("enabled", "enforced"):
-        route_specs.append("https")
+    # HTTP route: a single route covering all hostnames, attaching to every
+    # per-hostname HTTP listener via multiple parentRefs. When there are no
+    # hostnames, fall back to the single hostname-less HTTP listener (mirrors
+    # the gateway-api-integrator's empty-hostnames listener fallback).
+    if hostnames:
+        http_listener_names = [
+            http_listener_name(gateway_name, hostname) for hostname in hostnames
+        ]
+    else:
+        http_listener_names = [f"{gateway_name}-http"]
 
-    for scheme in route_specs:
-        config = HTTPRouteConfig(
-            app_name=app_name,
-            scheme=scheme,
-            gateway_name=gateway_name,
-            gateway_namespace=gateway_model,
-            listener_name=f"{gateway_name}-{scheme}",
-            hostnames=hostnames,
-            paths=paths,
-            backend_service_name=backend_service_name,
-            backend_service_port=backend_service_port,
-            redirect_https=https_mode == "enforced" and scheme == "http",
-        )
-        managed_names.append(http_route_manager.apply(config))
+    http_config = HTTPRouteConfig(
+        app_name=app_name,
+        scheme="http",
+        gateway_name=gateway_name,
+        gateway_namespace=gateway_model,
+        listener_names=http_listener_names,
+        hostnames=hostnames,
+        paths=paths,
+        backend_service_name=backend_service_name,
+        backend_service_port=backend_service_port,
+        redirect_https=https_mode == "enforced",
+    )
+    managed_names.append(http_route_manager.apply(http_config))
+
+    # HTTPS routes: one per hostname, each targeting its own per-hostname listener.
+    if https_mode in ("enabled", "enforced"):
+        for hostname in hostnames:
+            https_config = HTTPRouteConfig(
+                app_name=app_name,
+                scheme="https",
+                gateway_name=gateway_name,
+                gateway_namespace=gateway_model,
+                listener_names=[https_listener_name(gateway_name, hostname)],
+                hostnames=[hostname],
+                paths=paths,
+                backend_service_name=backend_service_name,
+                backend_service_port=backend_service_port,
+                redirect_https=False,
+            )
+            managed_names.append(http_route_manager.apply(https_config))
 
     http_route_manager.delete_stale(exclude=managed_names)

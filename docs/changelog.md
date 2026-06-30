@@ -12,7 +12,7 @@ Each revision is versioned by the date of the revision.
 
 ### Fixed
 
-- Fixed a bug where multiple `gateway-route` relations with enforced HTTPS caused the gateway to become unreachable. The fix creates one HTTPS HTTPRoute per hostname, each referencing its dedicated Gateway listener.
+- Fixed a bug where multiple `gateway-route` relations with enforced HTTPS caused the gateway to become unreachable. The fix creates one HTTPS HTTPRoute and one HTTP HTTPRoute per hostname, each referencing its dedicated Gateway listener.
 
 ### Added
 

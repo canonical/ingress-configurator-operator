@@ -37,7 +37,7 @@ from .conftest import (
     HOSTNAME_OPEN,
     deploy_ingress_configurator_for_gateway_route,
 )
-from .helper import get_gateway_address, wait_for_gateway_response
+from .helper import assert_gateway_response, get_gateway_address
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +147,7 @@ def test_gateway_route_https_enforced_multi_relation(
         logger.info("checking enforced-HTTPS routing for %s", hostname)
 
         # HTTP must issue a 301 redirect to HTTPS.
-        redirect = wait_for_gateway_response(
+        redirect = assert_gateway_response(
             gateway_address,
             hostname,
             "/",
@@ -161,7 +161,7 @@ def test_gateway_route_https_enforced_multi_relation(
         )
 
         # HTTPS must reach the backend (SNI carries the hostname; self-signed cert not verified).
-        wait_for_gateway_response(
+        assert_gateway_response(
             gateway_address,
             hostname,
             "/",

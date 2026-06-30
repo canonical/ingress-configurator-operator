@@ -39,8 +39,8 @@ from .conftest import (
     deploy_ingress_configurator_for_gateway_route,
 )
 from .helper import (
+    assert_gateway_response,
     get_gateway_address,
-    wait_for_gateway_response,
 )
 
 logger = logging.getLogger(__name__)
@@ -154,32 +154,30 @@ def test_gateway_route_multiple_relations(
     logger.info(
         "checking closed-ports routing (%s, %s)", HOSTNAME_CLOSED, ADDITIONAL_HOSTNAME_CLOSED
     )
-    wait_for_gateway_response(gateway_address, HOSTNAME_CLOSED, BACKEND_PATH, expected_status=200)
-    wait_for_gateway_response(gateway_address, HOSTNAME_CLOSED, "/", expected_status=404)
-    wait_for_gateway_response(
+    assert_gateway_response(gateway_address, HOSTNAME_CLOSED, BACKEND_PATH, expected_status=200)
+    assert_gateway_response(gateway_address, HOSTNAME_CLOSED, "/", expected_status=404)
+    assert_gateway_response(
         gateway_address, ADDITIONAL_HOSTNAME_CLOSED, BACKEND_PATH, expected_status=200
     )
-    wait_for_gateway_response(
-        gateway_address, ADDITIONAL_HOSTNAME_CLOSED, "/", expected_status=404
-    )
+    assert_gateway_response(gateway_address, ADDITIONAL_HOSTNAME_CLOSED, "/", expected_status=404)
 
     # --- Open-ports adapter (any-charm-k8s, is_port_open=True) ---
     # The configurator routes directly to the pod IP; assert BACKEND_BODY to prove traffic
     # reaches this specific backend rather than any other 200 source.
     logger.info("checking open-ports routing (%s, %s)", HOSTNAME_OPEN, ADDITIONAL_HOSTNAME_OPEN)
-    wait_for_gateway_response(
+    assert_gateway_response(
         gateway_address,
         HOSTNAME_OPEN,
         BACKEND_PATH,
         expected_status=200,
         body_contains=BACKEND_BODY,
     )
-    wait_for_gateway_response(gateway_address, HOSTNAME_OPEN, "/", expected_status=404)
-    wait_for_gateway_response(
+    assert_gateway_response(gateway_address, HOSTNAME_OPEN, "/", expected_status=404)
+    assert_gateway_response(
         gateway_address,
         ADDITIONAL_HOSTNAME_OPEN,
         BACKEND_PATH,
         expected_status=200,
         body_contains=BACKEND_BODY,
     )
-    wait_for_gateway_response(gateway_address, ADDITIONAL_HOSTNAME_OPEN, "/", expected_status=404)
+    assert_gateway_response(gateway_address, ADDITIONAL_HOSTNAME_OPEN, "/", expected_status=404)

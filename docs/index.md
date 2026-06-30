@@ -24,12 +24,15 @@ The following route-provider interfaces are supported:
   - {ref}`tutorial_getting_started`
 * - **Operations**
   - {ref}`Route HTTP traffic to a non-charmed workload <how_to_haproxy_integrate_non_charm_workload>` | {ref}`Route TCP traffic to a non-charmed workload <how_to_haproxy_integrate_tcp_non_charm_workload>` | {ref}`Add HAProxy features to an ingress requirer <how_to_add_haproxy_features_to_ingress_requirer>` | {ref}`Load balance a gRPC server <how_to_haproxy_loadbalancing_grpc>` | {ref}`Upgrade <how_to_upgrade>`
+* - **Explanation**
+  - {ref}`How gateway-route works <explanation_gateway_route>`
 ```
 
 ```{toctree}
 :hidden:
 tutorial/index.md
 how-to/index.md
+explanation/index.md
 release-notes/index.md
 changelog.md
 ```

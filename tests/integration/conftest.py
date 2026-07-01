@@ -90,7 +90,7 @@ def k8s_controller_fixture() -> str:
     Returns:
         The Kubernetes controller name.
     """
-    return "concierge-lxd"
+    return "concierge-k8s"
 
 
 @pytest.fixture(scope="session", name="k8s_model")

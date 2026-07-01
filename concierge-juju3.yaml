@@ -13,7 +13,9 @@ providers:
     bootstrap: true
   k8s:
     enable: true
-    bootstrap: false
+    bootstrap: true
+    bootstrap-constraints:
+      root-disk: "2G"
     features:
       load-balancer:
         l2-mode: "true"

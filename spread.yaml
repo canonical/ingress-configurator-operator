@@ -28,4 +28,3 @@ integration-suites:
       mkdir -p /home/ubuntu/.kube
       k8s config > /home/ubuntu/.kube/config
       chown ubuntu:ubuntu /home/ubuntu/.kube/config
-      sudo -u ubuntu juju add-k8s k8s --controller concierge-lxd

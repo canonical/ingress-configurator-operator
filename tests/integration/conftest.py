@@ -58,11 +58,9 @@ GATEWAY_BACKEND_OPEN_BODY = "ok from open-ports backend"
 
 
 @pytest.fixture(scope="session", name="charm")
-def charm_fixture(pytestconfig: pytest.Config):
-    """Pytest fixture that packs the charm and returns the filename, or --charm-file if set."""
-    charm = pytestconfig.getoption("--charm-file")
-    assert charm, "--charm-file must be set"
-    yield charm
+def charm_fixture(charm_paths) -> str:
+    """Get the built ingress-configurator charm path."""
+    return charm_paths["ingress-configurator"].path
 
 
 @pytest.fixture(scope="session", name="lxd_controller")
@@ -72,7 +70,7 @@ def lxd_controller_fixture() -> str:
     Returns:
         The machine controller name.
     """
-    return "localhost"
+    return "concierge-lxd"
 
 
 @pytest.fixture(scope="session", name="lxd_model")
@@ -92,7 +90,7 @@ def k8s_controller_fixture() -> str:
     Returns:
         The Kubernetes controller name.
     """
-    return "localhost"
+    return "concierge-k8s"
 
 
 @pytest.fixture(scope="session", name="k8s_model")

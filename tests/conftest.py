@@ -4,15 +4,6 @@
 """Fixtures for charm tests."""
 
 
-def pytest_addoption(parser):
-    """Parse additional pytest options.
-
-    Args:
-        parser: Pytest parser.
-    """
-    parser.addoption("--charm-file", action="store")
-
-
 def pytest_configure(config):
     """Adds config options.
 

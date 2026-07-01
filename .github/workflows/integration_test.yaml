@@ -7,18 +7,31 @@ on:
 
 jobs:
   integration-tests:
-    uses: canonical/operator-workflows/.github/workflows/integration_test.yaml@main
+    permissions:
+      contents: read
+      packages: write
+      actions: read
+    uses: canonical/charm-ci/.github/workflows/integration-test.yml@main
     secrets: inherit
     with:
-      channel: 1.35-classic/stable
-      extra-arguments: '-x --log-format="%(asctime)s %(levelname)s %(message)s"'
-      use-canonical-k8s: true
-      provider: k8s
-      juju-channel: 3/stable
-      charmcraft-channel: latest/edge
-      modules: '["test_actions.py", "test_gateway_route.py", "test_gateway_route_https.py", "test_haproxy_adapter.py", "test_haproxy_integrator.py", "test_haproxy_route_tcp.py", "test_ingress_kubernetes.py"]'
-      with-uv: true
-      pre-run-script: tests/integration/prepare.sh
+      working-directory: .
+  required_status_checks:
+    name: Required Integration Test Status Checks
+    runs-on: ubuntu-latest
+    needs:
+      - integration-tests
+    if: always() && !cancelled()
+    timeout-minutes: 5
+    steps:
+      - name: Check integration-test status
+        run: |
+          RESULT="${{ needs.integration-tests.result }}"
+          if [ "$RESULT" = "success" ] || [ "$RESULT" = "skipped" ]; then
+            exit 0
+          else
+            echo "integration-test failed with status: $RESULT"
+            exit 1
+          fi
   allure-report:
     if: ${{ !cancelled() && github.event_name == 'schedule' }}
     needs:

@@ -24,3 +24,8 @@ __pycache__/
 # END VALE WORKFLOW IGNORE
 
 .worktrees/
+
+# opcli/spread generated files
+.spread-reuse.*
+.spread-run-*/
+artifacts.build.yaml

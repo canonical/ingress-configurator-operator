@@ -316,8 +316,8 @@ def application_with_tcp_server_fixture(application: str, juju: jubilant.Juju):
     juju.wait(
         lambda status: jubilant.all_agents_idle(status, application),
     )
-    command = "sudo snap install ping-pong-tcp; sudo snap set ping-pong-tcp host=0.0.0.0"
-    juju.ssh(target=f"{application}/leader", command=command)
+    juju.exec("sudo snap install ping-pong-tcp", unit=f"{application}/leader")
+    juju.exec("sudo snap set ping-pong-tcp host=0.0.0.0", unit=f"{application}/leader")
     yield application
 
 

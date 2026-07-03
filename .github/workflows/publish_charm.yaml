@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
   push:
     branches:
-    - main
+      - main
 
 jobs:
   publish-to-edge:
-    uses: canonical/charm-ci/.github/workflows/publish-artifacts.yml@main
+    uses: canonical/charm-ci/.github/workflows/integration-test.yml@v0.0.1-alpha.6
     permissions:
       actions: read
       contents: write

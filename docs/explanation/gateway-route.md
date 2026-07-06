@@ -14,7 +14,7 @@ which manages a Kubernetes [Gateway API](https://gateway-api.sigs.k8s.io/)
 `Gateway` resource. The Ingress Configurator charm connects a workload that
 only speaks the `ingress` relation to that `Gateway`, while also exposing
 configuration options - such as `hostname` and `paths` - that can be tuned
-without modifying either the workload or the `gateway-api-integrator`.
+without modifying either the workload or the `gateway-api-integrator` charm.
 
 ```{note}
 The Gateway API is a Kubernetes-native concept, so the `gateway-route`
@@ -111,9 +111,9 @@ application databag exchange:
 | Direction           | Fields                                                           | Description                                                                                                                                    |
 |---------------------|------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
 | Requirer → Provider | `hostname`, `additional_hostnames`                               | The FQDN(s) the workload should be reachable on. Used by the provider to request TLS certificates and DNS records.                             |
-| Provider → Requirer | `gateway_name`, `gateway_model`, `https_mode`, `gateway_address` | The identity of the `Gateway` resource so the requirer can build `HTTPRoute` `parentRefs`. `https_mode` tells the requirer how TLS is handled. |
+| Provider → Requirer | `gateway_name`, `gateway_model`, `https_mode`, `gateway_address` | The identity of the `Gateway` resource so the requirer can build `HTTPRoute` `parentRefs`. |
 
-The `https_mode` field is one of:
+The `https_mode` field tells the requirer how TLS is handled. The field has three available modes:
 
 | Mode       | Meaning                                                        |
 |------------|----------------------------------------------------------------|
@@ -139,23 +139,23 @@ configuration:
   to every per-hostname HTTP listener on the `Gateway` via multiple
   `parentRefs`. When no hostnames are configured, it falls back to the
   `Gateway`'s hostname-less HTTP listener.
-- When `https_mode` is **`enabled`** or **`enforced`**, **one HTTPS route per
+- When `https_mode` is `enabled` or `enforced`, **one HTTPS route per
   hostname** is created, each attaching to its corresponding per-hostname HTTPS
   listener.
-- When `https_mode` is **`enforced`**, the HTTP route does **not** forward to
+- When `https_mode` is `enforced`, the HTTP route does **not** forward to
   the backend. Instead it issues a `301` HTTPS redirect using a
   `RequestRedirect` filter.
 
 (explanation_backend_service_selection)=
 
-## Backend Service selection
+## Backend service selection
 
 The `HTTPRoute` forwards traffic to a Kubernetes `Service`. Which `Service` is
 used depends on whether the workload charm has opened its port in Juju:
 
 - **Port is open**: the workload's own `Service` is referenced directly by the
   `HTTPRoute`'s `backendRefs`.
-- **Port is not open**: the Ingress Configurator creates a selector-based
+- **Port is closed**: the Ingress Configurator creates a selector-based
   `Service` that targets the workload's pods by the
   `app.kubernetes.io/name` label. This allows routing even when the workload
   has not declared its port to Juju.
@@ -166,13 +166,13 @@ cleaned up on relation departure.
 
 ## Constraints and limitations
 
-- **Kubernetes only**: the Gateway API is a Kubernetes-native concept, so the
+- **Kubernetes only**: The Gateway API is a Kubernetes-native concept, so the
   `gateway-route` relation should only be used on a Kubernetes substrate.
-- **HTTP backend protocol only**: the `backend-protocol` configuration option
+- **HTTP backend protocol only**: The `backend-protocol` configuration option
   only accepts `http` with `gateway-route`. TLS termination happens at the
   `Gateway`, not at the backend.
-- **One route relation at a time**: the charm blocks if more than one of
+- **One route relation at a time**: The charm blocks if more than one of
   `haproxy-route`, `haproxy-route-tcp`, or `gateway-route` is related
   simultaneously.
-- **`--trust` required**: the charm needs Kubernetes RBAC permissions to
+- **`--trust` required**: The charm needs Kubernetes RBAC permissions to
   manage `HTTPRoute` and `Service` resources.

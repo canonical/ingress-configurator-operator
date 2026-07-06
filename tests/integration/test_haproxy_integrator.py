@@ -47,11 +47,13 @@ def test_config_hostnames_and_paths(
         },
     )
     juju.wait(
-        lambda status: jubilant.all_active(
-            status, haproxy, application, any_charm_backend, CERTIFICATES_APP_NAME
-        )
-        and jubilant.all_agents_idle(
-            status, haproxy, application, any_charm_backend, CERTIFICATES_APP_NAME
+        lambda status: (
+            jubilant.all_active(
+                status, haproxy, application, any_charm_backend, CERTIFICATES_APP_NAME
+            )
+            and jubilant.all_agents_idle(
+                status, haproxy, application, any_charm_backend, CERTIFICATES_APP_NAME
+            )
         ),
         error=jubilant.any_error,
     )
@@ -81,8 +83,10 @@ def test_config_hostnames_and_paths(
         },
     )
     juju.wait(
-        lambda status: jubilant.all_active(status, haproxy, application, any_charm_backend)
-        and jubilant.all_agents_idle(status, haproxy, application, any_charm_backend),
+        lambda status: (
+            jubilant.all_active(status, haproxy, application, any_charm_backend)
+            and jubilant.all_agents_idle(status, haproxy, application, any_charm_backend)
+        ),
         error=jubilant.any_error,
     )
 

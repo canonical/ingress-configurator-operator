@@ -127,7 +127,10 @@ def juju_k8s_fixture(juju: jubilant.Juju, k8s_controller: str, k8s_model: str):
         # Juju 3 surfaces this as a friendly "already exists" message;
         # Juju 4 surfaces the underlying DB error: "UNIQUE constraint failed: cloud.name".
         exc_str = str(exc)
-        if "already exists" not in exc_str and "UNIQUE constraint failed: cloud.name" not in exc_str:
+        if (
+            "already exists" not in exc_str
+            and "UNIQUE constraint failed: cloud.name" not in exc_str
+        ):
             raise
     try:
         juju.cli(
@@ -144,7 +147,10 @@ def juju_k8s_fixture(juju: jubilant.Juju, k8s_controller: str, k8s_model: str):
         # Juju 3 surfaces this as a friendly "already exists" message;
         # Juju 4 surfaces the underlying DB error: "UNIQUE constraint failed: model.name".
         exc_str = str(exc)
-        if "already exists" not in exc_str and "UNIQUE constraint failed: model.name" not in exc_str:
+        if (
+            "already exists" not in exc_str
+            and "UNIQUE constraint failed: model.name" not in exc_str
+        ):
             raise
     new_juju = jubilant.Juju(model=f"{k8s_controller}:{k8s_model}")
     new_juju.wait_timeout = JUJU_WAIT_TIMEOUT

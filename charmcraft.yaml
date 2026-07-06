@@ -82,6 +82,9 @@ config:
     paths:
       type: string
       description: Comma-separated list of URL paths to route to the service.
+    deny-paths:
+      type: string
+      description: Comma-separated list of URL paths that should not be routed to the service.
     retry-count:
       type: int
       description: Number of times to retry failed requests.
@@ -148,10 +151,23 @@ config:
       description: (integrator mode, TCP) Comma-separated list of IP addresses of the TCP backend.
     tcp-backend-port:
       type: int
-      description: (integrator mode, TCP) Port of the TCP backend.
+      description: |
+        (deprecated) (integrator mode, TCP) Port of the TCP backend.
+        This config option is deprecated in favor of tcp-port-mapping.
     tcp-frontend-port:
       type: int
-      description: Port opened on the haproxy charm.
+      description: |
+        (deprecated) (integrator mode, TCP) Port opened on the haproxy charm.
+        This config option is deprecated in favor of tcp-port-mapping.
+    tcp-port-mapping:
+      type: string
+      description: |
+        (integrator mode, TCP) Port range mapping from frontend to backend, in the format
+        '{frontend_start}-{frontend_end}:{backend_start}-{backend_end}'
+        (e.g. '4000-4499:20000-20499'). The frontend range is exposed on the load balancer,
+        and backend ports are computed by adding the offset between the two ranges.
+        Mutually exclusive with tcp-frontend-port and tcp-backend-port.
+        Specifying a single port is also supported, e.g. '4000:20000'.
     tcp-tls-terminate:
       type: boolean
       default: true

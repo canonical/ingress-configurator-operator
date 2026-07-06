@@ -1,7 +1,7 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Test the charm in integrator mode."""
+"""Test the charm in adapter mode."""
 
 from typing import Callable
 
@@ -18,7 +18,7 @@ def test_adapter_end_to_end_routing(
     ingress_requirer: str,
     http_session: Callable[..., Session],
 ):
-    """Test for integrator mode.
+    """Test for adapter mode.
 
     Args:
         juju: Jubilant juju fixture

@@ -75,6 +75,14 @@ To restrict routing to specific URL paths, configure `paths`:
 juju config ingress-configurator paths=<path1>,<path2>
 ```
 
+### (Optional) Deny path-based routing
+
+To prevent specific URL paths from being routed to the workload, configure `deny-paths`:
+
+```sh
+juju config ingress-configurator deny-paths=<path1>,<path2>
+```
+
 ## Verify proxied endpoints
 
 Use the `get-proxied-endpoints` action on `ingress-configurator`:

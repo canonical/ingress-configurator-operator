@@ -16,15 +16,13 @@ from requests import Session
 from .helper import DNSResolverAdapter
 
 MOCK_HAPROXY_HOSTNAME = "haproxy.internal"
-HAPROXY_HTTP_REQUIRER_SRC = "tests/integration/any_charm_http_requirer.py"
-HAPROXY_INGRESS_REQUIRER_SRC = "tests/integration/any_charm_ingress_requirer.py"
-HELPER_SRC = "tests/integration/helper.py"
-INGRESS_LIB_SRC = "lib/charms/traefik_k8s/v2/ingress.py"
-APT_LIB_SRC = "lib/charms/operator_libs_linux/v0/apt.py"
+INGRESS_REQUIRER_SRC = pathlib.Path("tests/integration/any_charm_apache.py")
+HELPER_SRC = pathlib.Path("tests/integration/helper.py")
+INGRESS_LIB_SRC = pathlib.Path("lib/charms/traefik_k8s/v2/ingress.py")
 JUJU_WAIT_TIMEOUT = 10 * 60
 HAPROXY_APP_NAME = "haproxy"
 HAPROXY_CHANNEL = "2.8/edge"
-HAPROXY_REVISION = 450
+HAPROXY_REVISION = 473
 HAPROXY_BASE = "ubuntu@24.04"
 CERTIFICATES_APP_NAME = "self-signed-certificates"
 CERTIFICATES_CHANNEL = "1/stable"
@@ -33,13 +31,36 @@ ANY_CHARM_APP_NAME = "any-charm-backend"
 INGRESS_REQUIRER_APP_NAME = "ingress-requirer"
 APP_NAME = "ingress-configurator"
 
+# Gateway-route (Kubernetes Gateway API) test configuration.
+GATEWAY_API_INTEGRATOR_APP_NAME = "gateway-api-integrator"
+GATEWAY_API_INTEGRATOR_CHANNEL = "1/edge"
+GATEWAY_API_INTEGRATOR_REVISION = 163
+# GatewayClass provided by the Canonical Kubernetes used in CI.
+GATEWAY_CLASS = "ck-gateway"
+EXTERNAL_HOSTNAME = "gateway.internal"
+GATEWAY_CERTIFICATES_CHANNEL = "1/edge"
+
+# Closed-ports backend (flask-k8s, is_port_open=False).
+# Also reused by the enforced-HTTPS test, which runs in a separate model.
+GATEWAY_CONFIGURATOR_CLOSED_PORTS = "configurator-closed"
+GATEWAY_BACKEND_CLOSED_PORTS = "backend-closed"
+HOSTNAME_BACKEND_CLOSED_PORTS = "closed.gateway.internal"
+ADDITIONAL_HOSTNAME_BACKEND_CLOSED_PORTS = "alt-closed.gateway.internal"
+
+# Open-ports backend (any-charm-k8s, is_port_open=True).
+GATEWAY_CONFIGURATOR_OPEN_PORTS = "configurator-open"
+GATEWAY_BACKEND_OPEN_PORTS = "backend-open"
+HOSTNAME_BACKEND_OPEN_PORTS = "open.gateway.internal"
+ADDITIONAL_HOSTNAME_BACKEND_OPEN_PORTS = "alt-open.gateway.internal"
+INGRESS_BACKEND_PORT = 8000
+GATEWAY_BACKEND_OPEN_PATH = "/api/v1"
+GATEWAY_BACKEND_OPEN_BODY = "ok from open-ports backend"
+
 
 @pytest.fixture(scope="session", name="charm")
-def charm_fixture(pytestconfig: pytest.Config):
-    """Pytest fixture that packs the charm and returns the filename, or --charm-file if set."""
-    charm = pytestconfig.getoption("--charm-file")
-    assert charm, "--charm-file must be set"
-    yield charm
+def charm_fixture(charm_paths) -> str:
+    """Get the built ingress-configurator charm path."""
+    return charm_paths["ingress-configurator"].path
 
 
 @pytest.fixture(scope="session", name="lxd_controller")
@@ -49,7 +70,7 @@ def lxd_controller_fixture() -> str:
     Returns:
         The machine controller name.
     """
-    return "localhost"
+    return "concierge-lxd"
 
 
 @pytest.fixture(scope="session", name="lxd_model")
@@ -69,7 +90,7 @@ def k8s_controller_fixture() -> str:
     Returns:
         The Kubernetes controller name.
     """
-    return "localhost"
+    return "concierge-k8s"
 
 
 @pytest.fixture(scope="session", name="k8s_model")
@@ -94,23 +115,24 @@ def juju_fixture(lxd_controller: str, lxd_model: str):
 def juju_k8s_fixture(juju: jubilant.Juju, k8s_controller: str, k8s_model: str):
     """Pytest fixture that wraps :meth:`jubilant.with_model`."""
     try:
+        juju.cli("show-cloud", "--controller", k8s_controller, "k8s", include_model=False)
+    except jubilant.CLIError:
+        # Cloud not yet registered on this controller; add it now.
+        juju.cli("add-cloud", "--controller", k8s_controller, "k8s", include_model=False)
+    try:
+        juju.show_model(f"{k8s_controller}:{k8s_model}")
+    except jubilant.CLIError:
+        # Model not yet created on this controller; create it now.
+        # Use cli() directly to avoid add_model() mutating juju.model on this instance.
         juju.cli(
-            "add-cloud",
+            "add-model",
+            "--no-switch",
             "--controller",
             k8s_controller,
+            k8s_model,
             "k8s",
             include_model=False,
         )
-    except jubilant.CLIError as exc:
-        # Ignore the error only if the cloud already exists; re-raise for all other failures.
-        if "already exists" not in str(exc):
-            raise
-    try:
-        juju.add_model(k8s_model, "k8s")
-    except jubilant.CLIError as exc:
-        # Ignore the error only if the model already exists; re-raise for all other failures.
-        if "already exists" not in str(exc):
-            raise
     new_juju = jubilant.Juju(model=f"{k8s_controller}:{k8s_model}")
     new_juju.wait_timeout = JUJU_WAIT_TIMEOUT
     yield new_juju
@@ -191,11 +213,20 @@ def any_charm_backend_fixture(
         config={
             "src-overwrite": json.dumps(
                 {
-                    "any_charm.py": pathlib.Path(HAPROXY_HTTP_REQUIRER_SRC).read_text(
-                        encoding="utf-8"
-                    )
+                    "any_charm.py": INGRESS_REQUIRER_SRC.read_text(encoding="utf-8"),
+                    "ingress.py": INGRESS_LIB_SRC.read_text(encoding="utf-8"),
+                    "config.json": json.dumps(
+                        {
+                            "port": 80,
+                            "pages": {
+                                "/api/v1/index.html": "v1 ok!",
+                                "/api/v2/index.html": "v2 ok!",
+                            },
+                        }
+                    ),
                 }
             ),
+            "python-packages": "\n".join(["pydantic", "charmlibs-apt"]),
         },
         num_units=2,
     )
@@ -236,13 +267,11 @@ def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, a
         config={
             "src-overwrite": json.dumps(
                 {
-                    "any_charm.py": pathlib.Path(HAPROXY_INGRESS_REQUIRER_SRC).read_text(
-                        encoding="utf-8"
-                    ),
-                    "ingress.py": pathlib.Path(INGRESS_LIB_SRC).read_text(encoding="utf-8"),
+                    "any_charm.py": INGRESS_REQUIRER_SRC.read_text(encoding="utf-8"),
+                    "ingress.py": INGRESS_LIB_SRC.read_text(encoding="utf-8"),
                 }
             ),
-            "python-packages": "pydantic",
+            "python-packages": "\n".join(["pydantic", "charmlibs-apt"]),
         },
     )
     juju.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{application}:ingress")
@@ -280,8 +309,8 @@ def application_with_tcp_server_fixture(application: str, juju: jubilant.Juju):
     juju.wait(
         lambda status: jubilant.all_agents_idle(status, application),
     )
-    command = "sudo snap install ping-pong-tcp; sudo snap set ping-pong-tcp host=0.0.0.0"
-    juju.ssh(target=f"{application}/leader", command=command)
+    juju.exec("sudo snap install ping-pong-tcp", unit=f"{application}/leader")
+    juju.exec("sudo snap set ping-pong-tcp host=0.0.0.0", unit=f"{application}/leader")
     yield application
 
 
@@ -321,3 +350,104 @@ def k8s_ingress_requirer_fixture(
         lambda status: jubilant.all_agents_idle(status, APP_NAME, INGRESS_REQUIRER_APP_NAME)
     )
     yield INGRESS_REQUIRER_APP_NAME
+
+
+@pytest.fixture(scope="module", name="gateway_api_integrator")
+def gateway_api_integrator_fixture(juju_k8s: jubilant.Juju) -> str:
+    """Deploy gateway-api-integrator as the shared gateway-route provider (HTTP by default).
+
+    The provider is deployed with ``enforce-https=False`` (HTTP only). Tests needing HTTPS
+    reconfigure it (``enforce-https=True`` plus a ``certificates`` relation). This fixture does
+    not wait for the application to settle.
+
+    Args:
+        juju_k8s: Jubilant Juju instance for the Kubernetes model.
+
+    Returns:
+        The gateway-api-integrator application name.
+    """
+    juju_k8s.deploy(
+        charm=GATEWAY_API_INTEGRATOR_APP_NAME,
+        channel=GATEWAY_API_INTEGRATOR_CHANNEL,
+        revision=GATEWAY_API_INTEGRATOR_REVISION,
+        base="ubuntu@24.04",
+        trust=True,
+        config={"gateway-class": GATEWAY_CLASS, "enforce-https": False},
+    )
+    return GATEWAY_API_INTEGRATOR_APP_NAME
+
+
+def deploy_ingress_configurator_for_gateway_route(
+    juju: jubilant.Juju, charm: str, app: str, gateway: str, config: dict | None = None
+) -> str:
+    """Deploy an ingress-configurator instance (gateway-route requirer); does not wait.
+
+    Args:
+        juju: Jubilant Juju instance for the Kubernetes model.
+        charm: Path to the packed ingress-configurator charm.
+        app: Application name to deploy under.
+        gateway: gateway-route provider app name to integrate with.
+        config: Optional charm config to apply at deploy time.
+
+    Returns:
+        The deployed application name.
+    """
+    juju.deploy(charm=charm, app=app, trust=True, config=config or {})
+    juju.integrate(f"{app}:gateway-route", f"{gateway}:gateway-route")
+    return app
+
+
+@pytest.fixture(scope="module", name="backend_closed")
+def backend_closed_fixture(juju_k8s: jubilant.Juju) -> str:
+    """Deploy a flask-k8s workload that keeps its port closed (``is_port_open=False``).
+
+    flask-k8s does not open its workload port, so a consumer relating over ``ingress`` sees
+    ``is_port_open=False``, driving the closed-ports branch of the adapter decision tree. This
+    fixture does not wait for the application to settle.
+
+    Args:
+        juju_k8s: Jubilant Juju instance for the Kubernetes model.
+
+    Returns:
+        The deployed application name.
+    """
+    juju_k8s.deploy(charm="flask-k8s", app=GATEWAY_BACKEND_CLOSED_PORTS, channel="latest/edge")
+    return GATEWAY_BACKEND_CLOSED_PORTS
+
+
+@pytest.fixture(scope="module", name="backend_open")
+def backend_open_fixture(juju_k8s: jubilant.Juju) -> str:
+    """Deploy an any-charm-k8s workload that opens its port (``is_port_open=True``).
+
+    The backend declares ingress on a fixed port, opens that port (so the ingress databag
+    reports ``is_port_open=True``) and serves a catch-all HTTP response from its workload
+    container, driving the open-ports branch of the adapter decision tree. This fixture does not
+    wait for the application to settle.
+
+    Args:
+        juju_k8s: Jubilant Juju instance for the Kubernetes model.
+
+    Returns:
+        The deployed application name.
+    """
+    juju_k8s.deploy(
+        charm="any-charm-k8s",
+        channel="beta",
+        app=GATEWAY_BACKEND_OPEN_PORTS,
+        config={
+            "src-overwrite": json.dumps(
+                {
+                    "any_charm.py": INGRESS_REQUIRER_SRC.read_text(encoding="utf-8"),
+                    "ingress.py": INGRESS_LIB_SRC.read_text(encoding="utf-8"),
+                    "config.json": json.dumps(
+                        {
+                            "port": INGRESS_BACKEND_PORT,
+                            "pages": {GATEWAY_BACKEND_OPEN_PATH: GATEWAY_BACKEND_OPEN_BODY},
+                        }
+                    ),
+                }
+            ),
+            "python-packages": "\n".join(["pydantic", "charmlibs-apt"]),
+        },
+    )
+    return GATEWAY_BACKEND_OPEN_PORTS

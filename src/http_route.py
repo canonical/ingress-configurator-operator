@@ -4,18 +4,16 @@
 """HTTPRoute resource management for gateway-route mode."""
 
 import dataclasses
-import ipaddress
 import logging
-from typing import Literal
 
 from lightkube import ApiError, Client
 from lightkube.generic_resource import create_namespaced_resource
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
-from lightkube.models.discovery_v1 import Endpoint, EndpointPort
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Service
 from lightkube.resources.discovery_v1 import EndpointSlice
 
+from helpers import truncate_k8s_resource_name
 from kubernetes import InvalidKubernetesPermissionError
 
 logger = logging.getLogger(__name__)
@@ -31,73 +29,38 @@ HTTPRouteResource = create_namespaced_resource(
 )
 
 
-def ensure_external_backend_service(
-    client: Client,
-    namespace: str,
-    name: str,
-    backend_addresses: list[ipaddress.IPv4Address] | list[ipaddress.IPv6Address],
-    port: int,
-    app_name: str,
-    address_type: Literal["IPv4", "IPv6"],
-) -> None:
-    """Create or update a headless Service and its associated EndpointSlice.
+def http_listener_name(gateway_name: str, hostname: str) -> str:
+    """Build the per-hostname HTTP listener name / sectionName.
 
-    Both resources share ``name`` and are labelled with :data:`MANAGED_BY_LABEL`
-    so they can be found and cleaned up later.
+    The name follows the convention ``{gateway_name}-http-{sanitized_hostname}``
+    where dots in the hostname are replaced with hyphens. This mirrors the
+    gateway-api-integrator's HTTP listener naming so HTTPRoutes reference the
+    correct per-hostname listener.
 
     Args:
-        client: The lightkube Client instance.
-        namespace: The Kubernetes namespace to create resources in.
-        name: Name for both the Service and the EndpointSlice.
-        backend_addresses: IP addresses for the endpoints. Must be non-empty.
-        port: The port to expose.
-        app_name: Owning charm name, used as the value of the :data:`MANAGED_BY_LABEL` label.
-        address_type: EndpointSlice addressType — ``"IPv4"`` or ``"IPv6"``.
+        gateway_name: The name of the Gateway K8s resource.
+        hostname: The hostname for this listener.
 
-    Raises:
-        InvalidKubernetesPermissionError: When the charm lacks RBAC permissions.
+    Returns:
+        The listener name.
     """
-    service = Service(
-        metadata=ObjectMeta(
-            name=name,
-            namespace=namespace,
-            labels={MANAGED_BY_LABEL: app_name},
-        ),
-        spec=ServiceSpec(
-            clusterIP="None",
-            ports=[ServicePort(port=port)],
-        ),
-    )
-    try:
-        client.apply(service, field_manager=app_name, force=True)
-    except ApiError as e:
-        if e.status.code == 403:
-            raise InvalidKubernetesPermissionError(
-                "This charm needs --trust to run on k8s substrates"
-            ) from e
-        raise
+    return f"{gateway_name}-http-{hostname.replace('.', '-')}"
 
-    endpoint_slice = EndpointSlice(
-        addressType=address_type,
-        metadata=ObjectMeta(
-            name=name,
-            namespace=namespace,
-            labels={
-                "kubernetes.io/service-name": name,
-                MANAGED_BY_LABEL: app_name,
-            },
-        ),
-        endpoints=[Endpoint(addresses=[str(addr)]) for addr in backend_addresses],
-        ports=[EndpointPort(port=port)],
-    )
-    try:
-        client.apply(endpoint_slice, field_manager=app_name, force=True)
-    except ApiError as e:
-        if e.status.code == 403:
-            raise InvalidKubernetesPermissionError(
-                "This charm needs --trust to run on k8s substrates"
-            ) from e
-        raise
+
+def https_listener_name(gateway_name: str, hostname: str) -> str:
+    """Build the per-hostname HTTPS listener name / sectionName.
+
+    The name follows the convention ``{gateway_name}-https-{sanitized_hostname}``
+    where dots in the hostname are replaced with hyphens.
+
+    Args:
+        gateway_name: The name of the Gateway K8s resource.
+        hostname: The hostname for this listener.
+
+    Returns:
+        The listener name.
+    """
+    return f"{gateway_name}-https-{hostname.replace('.', '-')}"
 
 
 def ensure_workload_backend_service(
@@ -200,7 +163,8 @@ class HTTPRouteConfig:
         scheme: The scheme of the HTTPRoute ("http" or "https").
         gateway_name: parentRef gateway name.
         gateway_namespace: parentRef namespace.
-        listener_name: sectionName (e.g. "<gateway_name>-http").
+        listener_names: List of sectionNames this route attaches to (e.g.
+            per-hostname HTTP listener names, or a single HTTPS listener name).
         hostnames: List of hostnames for the HTTPRoute.
         paths: List of path prefixes.
         backend_service_name: The workload K8s Service name.
@@ -212,7 +176,7 @@ class HTTPRouteConfig:
     scheme: str
     gateway_name: str
     gateway_namespace: str
-    listener_name: str
+    listener_names: list[str]
     hostnames: list[str]
     paths: list[str]
     backend_service_name: str
@@ -251,11 +215,14 @@ class HTTPRouteManager:
         Returns:
             A dict representing the HTTPRoute spec.
         """
-        parent_ref: dict[str, str] = {
-            "name": config.gateway_name,
-            "namespace": config.gateway_namespace,
-            "sectionName": config.listener_name,
-        }
+        parent_refs: list[dict[str, str]] = [
+            {
+                "name": config.gateway_name,
+                "namespace": config.gateway_namespace,
+                "sectionName": listener_name,
+            }
+            for listener_name in config.listener_names
+        ]
 
         if config.redirect_https:
             rules: list[dict[str, object]] = [
@@ -287,7 +254,7 @@ class HTTPRouteManager:
             ]
 
         spec: dict = {
-            "parentRefs": [parent_ref],
+            "parentRefs": parent_refs,
             "rules": rules,
         }
         if config.hostnames:
@@ -308,7 +275,9 @@ class HTTPRouteManager:
             The resource name.
         """
         spec = self._build_spec(config)
-        resource_name = f"{config.app_name}-{config.backend_service_name}-{config.scheme}"
+        resource_name = truncate_k8s_resource_name(
+            f"{config.app_name}-{config.backend_service_name}-{config.scheme}"
+        )
         resource = HTTPRouteResource(
             metadata=ObjectMeta(
                 name=resource_name,
@@ -382,23 +351,46 @@ def create_http_routes(
     """
     managed_names = []
 
-    route_specs: list[str] = ["http"]
-    if https_mode in ("enabled", "enforced"):
-        route_specs.append("https")
+    # HTTP route: a single route covering all hostnames, attaching to every
+    # per-hostname HTTP listener via multiple parentRefs. When there are no
+    # hostnames, fall back to the single hostname-less HTTP listener (mirrors
+    # the gateway-api-integrator's empty-hostnames listener fallback).
+    if hostnames:
+        http_listener_names = [
+            http_listener_name(gateway_name, hostname) for hostname in hostnames
+        ]
+    else:
+        http_listener_names = [f"{gateway_name}-http"]
 
-    for scheme in route_specs:
-        config = HTTPRouteConfig(
-            app_name=app_name,
-            scheme=scheme,
-            gateway_name=gateway_name,
-            gateway_namespace=gateway_model,
-            listener_name=f"{gateway_name}-{scheme}",
-            hostnames=hostnames,
-            paths=paths,
-            backend_service_name=backend_service_name,
-            backend_service_port=backend_service_port,
-            redirect_https=https_mode == "enforced" and scheme == "http",
-        )
-        managed_names.append(http_route_manager.apply(config))
+    http_config = HTTPRouteConfig(
+        app_name=app_name,
+        scheme="http",
+        gateway_name=gateway_name,
+        gateway_namespace=gateway_model,
+        listener_names=http_listener_names,
+        hostnames=hostnames,
+        paths=paths,
+        backend_service_name=backend_service_name,
+        backend_service_port=backend_service_port,
+        redirect_https=https_mode == "enforced",
+    )
+    managed_names.append(http_route_manager.apply(http_config))
+
+    # HTTPS routes: one per hostname, each targeting its own per-hostname listener.
+    if https_mode in ("enabled", "enforced"):
+        for hostname in hostnames:
+            https_config = HTTPRouteConfig(
+                app_name=app_name,
+                scheme="https",
+                gateway_name=gateway_name,
+                gateway_namespace=gateway_model,
+                listener_names=[https_listener_name(gateway_name, hostname)],
+                hostnames=[hostname],
+                paths=paths,
+                backend_service_name=backend_service_name,
+                backend_service_port=backend_service_port,
+                redirect_https=False,
+            )
+            managed_names.append(http_route_manager.apply(https_config))
 
     http_route_manager.delete_stale(exclude=managed_names)

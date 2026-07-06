@@ -10,8 +10,10 @@ from lightkube import ApiError
 
 from http_route import (
     MANAGED_BY_LABEL,
+    HTTPRouteConfig,
+    HTTPRouteManager,
+    create_http_routes,
     delete_backend_services_owned_by,
-    ensure_external_backend_service,
     ensure_workload_backend_service,
 )
 from kubernetes import InvalidKubernetesPermissionError
@@ -34,112 +36,6 @@ def _make_endpoint_slice(name: str) -> MagicMock:
     es = MagicMock()
     es.metadata.name = name
     return es
-
-
-def test_ensure_external_backend_service_creates_correct_resources():
-    """
-    arrange: mock a lightkube client
-    act: call ensure_external_backend_service with name "my-app-headless", IPv4 addresses,
-        port 8080, charm_name "my-charm", and address_type "IPv4"
-    assert: client.apply is called twice — first with a headless Service (clusterIP=None,
-        correct labels/annotations/port), then with an EndpointSlice (addressType=IPv4,
-        correct endpoints, service-name label, owning-charm annotation)
-    """
-    from lightkube.resources.core_v1 import Service
-    from lightkube.resources.discovery_v1 import EndpointSlice
-
-    client = MagicMock()
-
-    ensure_external_backend_service(
-        client,
-        "testing-model",
-        "my-app-headless",
-        ["10.0.0.1", "10.0.0.2"],
-        8080,
-        "my-charm",
-        "IPv4",
-    )
-
-    assert client.apply.call_count == 2
-    svc = next(c.args[0] for c in client.apply.call_args_list if isinstance(c.args[0], Service))
-    es = next(
-        c.args[0] for c in client.apply.call_args_list if isinstance(c.args[0], EndpointSlice)
-    )
-
-    assert svc.metadata is not None
-    assert svc.metadata.name == "my-app-headless"
-    assert svc.metadata.labels is not None
-    assert svc.metadata.labels.get(MANAGED_BY_LABEL) == "my-charm"
-    assert svc.spec is not None
-    assert svc.spec.clusterIP == "None"
-    assert svc.spec.ports is not None
-    assert svc.spec.ports[0].port == 8080
-
-    assert es.addressType == "IPv4"
-    assert len(es.endpoints) == 2
-    assert es.endpoints[0].addresses == ["10.0.0.1"]
-    assert es.endpoints[1].addresses == ["10.0.0.2"]
-    assert es.ports is not None
-    assert es.ports[0].port == 8080
-    assert es.metadata is not None
-    assert es.metadata.labels is not None
-    assert es.metadata.labels.get("kubernetes.io/service-name") == "my-app-headless"
-    assert es.metadata.labels.get(MANAGED_BY_LABEL) == "my-charm"
-
-
-def test_ensure_external_backend_service_raises_on_service_403():
-    """
-    arrange: client raises ApiError 403 when applying the Service
-    act: call ensure_external_backend_service
-    assert: InvalidKubernetesPermissionError is raised; EndpointSlice is never applied
-    """
-    client = MagicMock()
-    client.apply.side_effect = _make_api_error(403)
-
-    with pytest.raises(InvalidKubernetesPermissionError, match="--trust"):
-        ensure_external_backend_service(
-            client, "testing-model", "my-app-headless", ["10.0.0.1"], 8080, "my-charm", "IPv4"
-        )
-
-    assert client.apply.call_count == 1
-
-
-def test_ensure_external_backend_service_raises_on_endpoint_slice_403():
-    """
-    arrange: Service apply succeeds but EndpointSlice apply raises ApiError 403
-    act: call ensure_external_backend_service
-    assert: InvalidKubernetesPermissionError is raised
-    """
-    from lightkube.resources.core_v1 import Service
-
-    client = MagicMock()
-
-    def apply_side_effect(resource: object, **_: object) -> MagicMock:
-        if isinstance(resource, Service):
-            return MagicMock()
-        raise _make_api_error(403)
-
-    client.apply.side_effect = apply_side_effect
-
-    with pytest.raises(InvalidKubernetesPermissionError, match="--trust"):
-        ensure_external_backend_service(
-            client, "testing-model", "my-app-headless", ["10.0.0.1"], 8080, "my-charm", "IPv4"
-        )
-
-
-def test_ensure_external_backend_service_reraises_other_api_errors():
-    """
-    arrange: client raises ApiError 500 on apply
-    act: call ensure_external_backend_service
-    assert: the ApiError is re-raised
-    """
-    client = MagicMock()
-    client.apply.side_effect = _make_api_error(500)
-
-    with pytest.raises(ApiError):
-        ensure_external_backend_service(
-            client, "testing-model", "my-app-headless", ["10.0.0.1"], 8080, "my-charm", "IPv4"
-        )
 
 
 def test_delete_backend_services_owned_by_deletes_matching_resources():
@@ -329,3 +225,226 @@ def test_ensure_workload_backend_service_reraises_other_api_errors():
         ensure_workload_backend_service(
             client, "testing-model", "charm-my-app", "my-app", 8080, "charm"
         )
+
+
+# ---------------------------------------------------------------------------
+# create_http_routes tests
+# ---------------------------------------------------------------------------
+
+GW_NAME = "my-gateway"
+GW_MODEL = "my-model"
+BACKEND_SVC = "backend-svc"
+BACKEND_PORT = 8080
+APP_NAME = "my-app"
+PATHS = ["/"]
+
+
+def _make_http_route_manager() -> tuple[HTTPRouteManager, MagicMock]:
+    """Return an HTTPRouteManager backed by a MagicMock client.
+
+    The manager's ``apply`` method returns the resource_name argument passed to
+    HTTPRouteConfig so callers can inspect what was applied.
+    """
+    mock_client = MagicMock()
+
+    # apply() is called inside HTTPRouteManager.apply() — patch it so we capture
+    # the config objects rather than actually calling the K8s API.
+    applied: list[HTTPRouteConfig] = []
+
+    def _fake_apply(config: HTTPRouteConfig) -> str:
+        applied.append(config)
+        # Return a stable resource name so delete_stale() has something to exclude.
+        return f"{config.app_name}-{config.backend_service_name}-{config.scheme}"
+
+    manager = HTTPRouteManager(
+        client=mock_client,
+        namespace=GW_MODEL,
+        labels={MANAGED_BY_LABEL: APP_NAME},
+    )
+    manager.apply = _fake_apply  # type: ignore[method-assign]
+    manager.delete_stale = MagicMock()  # type: ignore[method-assign]
+    # Expose applied list through the mock for assertions
+    mock_client._applied = applied
+    return manager, mock_client
+
+
+def test_create_http_routes_http_only():
+    """
+    arrange: https_mode=disabled, two hostnames.
+    act: call create_http_routes.
+    assert: a single HTTP route covering both hostnames, attaching to both per-hostname HTTP listeners.
+    """
+    manager, mock = _make_http_route_manager()
+
+    create_http_routes(
+        manager,
+        APP_NAME,
+        GW_NAME,
+        GW_MODEL,
+        "disabled",
+        ["a.example.com", "b.example.com"],
+        PATHS,
+        BACKEND_SVC,
+        BACKEND_PORT,
+    )
+
+    applied = mock._applied
+    assert len(applied) == 1
+    assert applied[0].scheme == "http"
+    assert applied[0].redirect_https is False
+    assert set(applied[0].hostnames) == {"a.example.com", "b.example.com"}
+    assert set(applied[0].listener_names) == {
+        f"{GW_NAME}-http-a-example-com",
+        f"{GW_NAME}-http-b-example-com",
+    }
+
+
+def test_create_http_routes_https_enabled_single_hostname():
+    """
+    arrange: https_mode=enabled, one hostname.
+    act: call create_http_routes.
+    assert: 2 routes created — 1 HTTP (all hostnames, no redirect) + 1 HTTPS (the hostname).
+    """
+    manager, mock = _make_http_route_manager()
+
+    create_http_routes(
+        manager,
+        APP_NAME,
+        GW_NAME,
+        GW_MODEL,
+        "enabled",
+        ["app.example.com"],
+        PATHS,
+        BACKEND_SVC,
+        BACKEND_PORT,
+    )
+
+    applied = mock._applied
+    assert len(applied) == 2
+
+    http_route = next(r for r in applied if r.scheme == "http")
+    https_route = next(r for r in applied if r.scheme == "https")
+
+    assert http_route.redirect_https is False
+    assert http_route.listener_names == [f"{GW_NAME}-http-app-example-com"]
+    assert http_route.hostnames == ["app.example.com"]
+    assert https_route.listener_names == [f"{GW_NAME}-https-app-example-com"]
+    assert https_route.hostnames == ["app.example.com"]
+
+
+def test_create_http_routes_https_enabled_multiple_hostnames():
+    """
+    arrange: https_mode=enabled, two hostnames.
+    act: call create_http_routes.
+    assert: 3 routes — 1 HTTP covering both hostnames (attaching to both HTTP listeners)
+        + 2 HTTPS each covering one hostname with its own per-hostname listener.
+    """
+    manager, mock = _make_http_route_manager()
+    hostnames = ["alpha.example.com", "beta.example.com"]
+
+    create_http_routes(
+        manager,
+        APP_NAME,
+        GW_NAME,
+        GW_MODEL,
+        "enabled",
+        hostnames,
+        PATHS,
+        BACKEND_SVC,
+        BACKEND_PORT,
+    )
+
+    applied = mock._applied
+    assert len(applied) == 3
+
+    http_routes = [r for r in applied if r.scheme == "http"]
+    https_routes = [r for r in applied if r.scheme == "https"]
+
+    assert len(http_routes) == 1
+    assert len(https_routes) == 2
+
+    # HTTP route covers all hostnames and attaches to both per-hostname HTTP listeners
+    assert set(http_routes[0].hostnames) == set(hostnames)
+    assert set(http_routes[0].listener_names) == {
+        f"{GW_NAME}-http-alpha-example-com",
+        f"{GW_NAME}-http-beta-example-com",
+    }
+
+    # Each HTTPS route targets exactly one hostname with its own listener
+    https_listener_names = {r.listener_names[0] for r in https_routes}
+    assert https_listener_names == {
+        f"{GW_NAME}-https-alpha-example-com",
+        f"{GW_NAME}-https-beta-example-com",
+    }
+    https_hostname_sets = [set(r.hostnames) for r in https_routes]
+    assert {"alpha.example.com"} in https_hostname_sets
+    assert {"beta.example.com"} in https_hostname_sets
+
+    for r in http_routes + https_routes:
+        assert r.redirect_https is False
+
+
+def test_create_http_routes_https_enforced_multiple_hostnames():
+    """
+    arrange: https_mode=enforced, two hostnames.
+    act: call create_http_routes.
+    assert: 3 routes — 1 HTTP redirect (all hostnames) + 2 HTTPS per hostname.
+        The HTTP route has redirect_https=True; HTTPS routes have redirect_https=False.
+    """
+    manager, mock = _make_http_route_manager()
+    hostnames = ["alpha.example.com", "beta.example.com"]
+
+    create_http_routes(
+        manager,
+        APP_NAME,
+        GW_NAME,
+        GW_MODEL,
+        "enforced",
+        hostnames,
+        PATHS,
+        BACKEND_SVC,
+        BACKEND_PORT,
+    )
+
+    applied = mock._applied
+    assert len(applied) == 3
+
+    http_routes = [r for r in applied if r.scheme == "http"]
+    https_routes = [r for r in applied if r.scheme == "https"]
+
+    assert len(http_routes) == 1
+    assert len(https_routes) == 2
+
+    assert http_routes[0].redirect_https is True
+    assert set(http_routes[0].hostnames) == set(hostnames)
+
+    for r in https_routes:
+        assert r.redirect_https is False
+        assert len(r.hostnames) == 1
+
+
+def test_create_http_routes_empty_hostnames():
+    """
+    arrange: https_mode=enabled but hostnames=[].
+    act: call create_http_routes.
+    assert: only 1 HTTP route is created targeting the hostname-less HTTP listener
+        (no HTTPS routes when there are no hostnames).
+    """
+    manager, mock = _make_http_route_manager()
+
+    create_http_routes(
+        manager,
+        APP_NAME,
+        GW_NAME,
+        GW_MODEL,
+        "enabled",
+        [],
+        PATHS,
+        BACKEND_SVC,
+        BACKEND_PORT,
+    )
+
+    applied = mock._applied
+    assert len(applied) == 1
+    assert applied[0].scheme == "http"
+    assert applied[0].listener_names == [f"{GW_NAME}-http"]

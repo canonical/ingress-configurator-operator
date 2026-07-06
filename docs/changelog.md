@@ -8,17 +8,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Each revision is versioned by the date of the revision.
 
+## 2026-06-26
+
+### Fixed
+
+- Fixed a bug where multiple `gateway-route` relations with enforced HTTPS caused the gateway to become unreachable. The fix creates one HTTPS HTTPRoute and one HTTP HTTPRoute per hostname, each referencing its dedicated Gateway listener.
+
+### Added
+
+- Added support IP based URL in `ingress` relation when integrated with `gateway-api-integrator` when
+  no hostname is set.
+  
+### Removed
+
+- Removed support for config-driven (external) backends with `gateway-route`, as the use case that originally motivated this feature no longer exists.
+
 ## 2026-06-17
 
 ### Added
 
 - Added support for `gateway-route` in adapter mode when the workload port is not open.
-
-## 2026-06-15
-
-### Added
-
-- Added support for `gateway-route` in integrator mode for external backends.
 
 ## 2026-06-01
 

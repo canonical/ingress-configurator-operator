@@ -39,6 +39,7 @@ def test_adapter_state_from_charm():
         "timeout-connect": 12,
         "timeout-queue": 13,
         "paths": "/api/v1,/api/v2",
+        "deny-paths": "/admin,/internal",
         "hostname": "api.example.com",
         "additional-hostnames": "api2.example.com,api3.example.com",
         "http-server-close": True,
@@ -66,6 +67,7 @@ def test_adapter_state_from_charm():
     assert charm_state.timeout.connect == charm.config.get("timeout-connect")
     assert charm_state.timeout.queue == charm.config.get("timeout-queue")
     assert charm_state.paths == charm.config.get("paths").split(",")
+    assert charm_state.deny_paths == charm.config.get("deny-paths").split(",")
     assert charm_state.hostname == charm.config.get("hostname")
     assert charm_state.additional_hostnames == charm.config.get("additional-hostnames").split(",")
     assert charm_state.http_server_close == charm.config.get("http-server-close")

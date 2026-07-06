@@ -15,7 +15,7 @@ classifiers = [
 ]
 dependencies = [
   "lightkube>=0.15.0",
-  "ops==3.7.1",
+  "ops==3.8.0",
   "pydantic==2.13.4",
   "validators>=0.35.0",
 ]
@@ -33,6 +33,7 @@ lint = [
   "pytest",
   "requests",
   "ruff",
+  "tenacity",
   "types-pyyaml",
   "types-requests",
 ]
@@ -52,9 +53,11 @@ integration = [
   "allure-pytest>=2.8.18",
   "allure-pytest-collection-report @ git+https://github.com/canonical/data-platform-workflows@v24.0.0#subdirectory=python/pytest_plugins/allure_pytest_collection_report",
   "jubilant",
+  "opcli @ git+https://github.com/canonical/charm-ci.git@v0.0.1-alpha.6",
   "pytest",
-  "pytest-jubilant",
+  "pytest-jubilant<2",
   "requests",
+  "tenacity",
 ]
 
 [tool.uv]

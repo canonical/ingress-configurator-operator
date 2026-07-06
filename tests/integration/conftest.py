@@ -115,24 +115,15 @@ def juju_fixture(lxd_controller: str, lxd_model: str):
 def juju_k8s_fixture(juju: jubilant.Juju, k8s_controller: str, k8s_model: str):
     """Pytest fixture that wraps :meth:`jubilant.with_model`."""
     try:
-        juju.cli(
-            "add-cloud",
-            "--controller",
-            k8s_controller,
-            "k8s",
-            include_model=False,
-        )
-    except jubilant.CLIError as exc:
-        # Ignore the error only if the cloud already exists; re-raise for all other failures.
-        # Juju 3 surfaces this as a friendly "already exists" message;
-        # Juju 4 surfaces the underlying DB error: "UNIQUE constraint failed: cloud.name".
-        exc_str = str(exc)
-        if (
-            "already exists" not in exc_str
-            and "UNIQUE constraint failed: cloud.name" not in exc_str
-        ):
-            raise
+        juju.cli("show-cloud", "--controller", k8s_controller, "k8s", include_model=False)
+    except jubilant.CLIError:
+        # Cloud not yet registered on this controller; add it now.
+        juju.cli("add-cloud", "--controller", k8s_controller, "k8s", include_model=False)
     try:
+        juju.show_model(f"{k8s_controller}:{k8s_model}")
+    except jubilant.CLIError:
+        # Model not yet created on this controller; create it now.
+        # Use cli() directly to avoid add_model() mutating juju.model on this instance.
         juju.cli(
             "add-model",
             "--no-switch",
@@ -142,16 +133,6 @@ def juju_k8s_fixture(juju: jubilant.Juju, k8s_controller: str, k8s_model: str):
             "k8s",
             include_model=False,
         )
-    except jubilant.CLIError as exc:
-        # Ignore the error only if the model already exists; re-raise for all other failures.
-        # Juju 3 surfaces this as a friendly "already exists" message;
-        # Juju 4 surfaces the underlying DB error: "UNIQUE constraint failed: model.name".
-        exc_str = str(exc)
-        if (
-            "already exists" not in exc_str
-            and "UNIQUE constraint failed: model.name" not in exc_str
-        ):
-            raise
     new_juju = jubilant.Juju(model=f"{k8s_controller}:{k8s_model}")
     new_juju.wait_timeout = JUJU_WAIT_TIMEOUT
     yield new_juju

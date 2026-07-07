@@ -19,7 +19,7 @@ MOCK_HAPROXY_HOSTNAME = "haproxy.internal"
 INGRESS_REQUIRER_SRC = pathlib.Path("tests/integration/any_charm_apache.py")
 HELPER_SRC = pathlib.Path("tests/integration/helper.py")
 INGRESS_LIB_SRC = pathlib.Path("lib/charms/traefik_k8s/v2/ingress.py")
-JUJU_WAIT_TIMEOUT = 5 * 60
+JUJU_WAIT_TIMEOUT = 10 * 60
 HAPROXY_APP_NAME = "haproxy"
 HAPROXY_CHANNEL = "2.8/edge"
 HAPROXY_REVISION = 473
@@ -115,18 +115,15 @@ def juju_fixture(lxd_controller: str, lxd_model: str):
 def juju_k8s_fixture(juju: jubilant.Juju, k8s_controller: str, k8s_model: str):
     """Pytest fixture that wraps :meth:`jubilant.with_model`."""
     try:
-        juju.cli(
-            "add-cloud",
-            "--controller",
-            k8s_controller,
-            "k8s",
-            include_model=False,
-        )
-    except jubilant.CLIError as exc:
-        # Ignore the error only if the cloud already exists; re-raise for all other failures.
-        if "already exists" not in str(exc):
-            raise
+        juju.cli("show-cloud", "--controller", k8s_controller, "k8s", include_model=False)
+    except jubilant.CLIError:
+        # Cloud not yet registered on this controller; add it now.
+        juju.cli("add-cloud", "--controller", k8s_controller, "k8s", include_model=False)
     try:
+        juju.show_model(f"{k8s_controller}:{k8s_model}")
+    except jubilant.CLIError:
+        # Model not yet created on this controller; create it now.
+        # Use cli() directly to avoid add_model() mutating juju.model on this instance.
         juju.cli(
             "add-model",
             "--no-switch",
@@ -136,10 +133,6 @@ def juju_k8s_fixture(juju: jubilant.Juju, k8s_controller: str, k8s_model: str):
             "k8s",
             include_model=False,
         )
-    except jubilant.CLIError as exc:
-        # Ignore the error only if the model already exists; re-raise for all other failures.
-        if "already exists" not in str(exc):
-            raise
     new_juju = jubilant.Juju(model=f"{k8s_controller}:{k8s_model}")
     new_juju.wait_timeout = JUJU_WAIT_TIMEOUT
     yield new_juju
@@ -316,8 +309,8 @@ def application_with_tcp_server_fixture(application: str, juju: jubilant.Juju):
     juju.wait(
         lambda status: jubilant.all_agents_idle(status, application),
     )
-    command = "sudo snap install ping-pong-tcp; sudo snap set ping-pong-tcp host=0.0.0.0"
-    juju.ssh(target=f"{application}/leader", command=command)
+    juju.exec("sudo snap install ping-pong-tcp", unit=f"{application}/leader")
+    juju.exec("sudo snap set ping-pong-tcp host=0.0.0.0", unit=f"{application}/leader")
     yield application
 
 

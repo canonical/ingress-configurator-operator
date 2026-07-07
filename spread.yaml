@@ -11,7 +11,7 @@ backends:
     systems:
     - ubuntu-24.04
 environment:
-  CONCIERGE: '$(HOST: echo "${CONCIERGE:-concierge-juju3.yaml}")'
+  CONCIERGE: '$(HOST: echo "${CONCIERGE:-concierge-juju4.yaml}")'
   OPCLI_GIT_REF: '$(HOST: echo "${OPCLI_GIT_REF:-main}")'
 exclude:
 - .git
@@ -20,7 +20,9 @@ exclude:
 - .*_cache
 integration-suites:
   tests/integration/:
-    summary: ingress-configurator charm integration tests
+    summary: ingress-configurator charm integration tests (Juju 4)
     working-dir: ./
     backends:
     - integration-test
+    environment:
+      CONCIERGE: concierge-juju4.yaml

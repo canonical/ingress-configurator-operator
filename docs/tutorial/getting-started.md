@@ -1,7 +1,7 @@
 ---
 myst:
   html_meta:
-    "description lang=en": "Step-by-step guide for deploying the Ingress Configurator charm to provide ingress to a backend Flask application running on Kubernetes."
+    "description lang=en": "Step-by-step guide for deploying the Ingress Configurator charm to provide ingress to a backend Flask application running on Kubernetes through Gateway API."
 ---
 
 (tutorial_getting_started)=
@@ -57,7 +57,7 @@ juju add-model ingress-tutorial
 Deploy and configure the `gateway-api-integrator` charm. The `gateway-class` configuration must match your gateway controller's class name. For Canonical Kubernetes deployed via Concierge, this is `ck-gateway`:
 
 ```bash
-juju deploy gateway-api-integrator
+juju deploy gateway-api-integrator --channel=1/stable --trust
 juju config gateway-api-integrator gateway-class=ck-gateway
 ```
 
@@ -79,7 +79,7 @@ juju wait-for application gateway-api-integrator --query='status=="active"' --ti
 Deploy and configure the `ingress-configurator` charm. The `hostname` configuration specifies the domain name used to reach the backend, and `paths` defines the URL paths to route:
 
 ```bash
-juju deploy ingress-configurator
+juju deploy ingress-configurator --channel=latest/stable --trust
 juju config ingress-configurator hostname=flask.internal paths=/app
 ```
 

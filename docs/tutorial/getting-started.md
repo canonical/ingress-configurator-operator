@@ -1,7 +1,7 @@
 ---
 myst:
   html_meta:
-    "description lang=en": "Step-by-step guide for deploying the Ingress Configurator charm to provide ingress to a backend Flask application running on Kubernetes through GatewayAPI."
+    "description lang=en": "Step-by-step guide for deploying the Ingress Configurator charm to provide ingress to a backend Flask application running on Kubernetes through Gateway API."
 ---
 
 (tutorial_getting_started)=

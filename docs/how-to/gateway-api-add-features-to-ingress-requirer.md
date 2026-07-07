@@ -27,13 +27,14 @@ This guide assumes the ingress requirer charm already works correctly.
 Deploy the `gateway-api-integrator` charm:
 
 ```sh
-juju deploy gateway-api-integrator --channel=latest/edge --trust
+juju deploy gateway-api-integrator --channel=1/stable --trust
+juju config gateway-api-integrator gateway-class=ck-gateway
 ```
 
 Deploy the `ingress-configurator` charm:
 
 ```sh
-juju deploy ingress-configurator --channel=edge --trust
+juju deploy ingress-configurator --channel=stable --trust
 ```
 
 The `--trust` flag is required to allow `ingress-configurator` to manage

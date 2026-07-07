@@ -34,7 +34,7 @@ juju config gateway-api-integrator gateway-class=ck-gateway
 Deploy the `ingress-configurator` charm:
 
 ```sh
-juju deploy ingress-configurator --channel=stable --trust
+juju deploy ingress-configurator --trust
 ```
 
 The `--trust` flag is required to allow `ingress-configurator` to manage

@@ -12,7 +12,7 @@ The `gateway-route` interface is used together with the
 [`gateway-api-integrator`](https://charmhub.io/gateway-api-integrator) charm,
 which manages a Kubernetes [Gateway API](https://gateway-api.sigs.k8s.io/)
 `Gateway` resource. The Ingress Configurator charm connects a workload that
-only speaks the `ingress` relation to that `Gateway`, while also exposing
+requires an `ingress` relation to the `Gateway` resource, while also exposing
 configuration options - such as `hostname` and `paths` - that can be tuned
 without modifying either the workload or the `gateway-api-integrator` charm.
 
@@ -102,38 +102,12 @@ flowchart LR
     linkStyle 4,5 stroke:#1565c0,stroke-dasharray:5 5
 ```
 
-## The gateway-route relation
-
-The `gateway-route` interface is implemented by the
-`charms.gateway_api_integrator.v1.gateway_route` library. It is a bidirectional
-application databag exchange:
-
-| Direction           | Fields                                                           | Description                                                                                                                                    |
-|---------------------|------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
-| Requirer → Provider | `hostname`, `additional_hostnames`                               | The FQDN(s) the workload should be reachable on. Used by the provider to request TLS certificates and DNS records.                             |
-| Provider → Requirer | `gateway_name`, `gateway_model`, `https_mode`, `gateway_address` | The identity of the `Gateway` resource so the requirer can build `HTTPRoute` `parentRefs`. |
-
-The `https_mode` field tells the requirer how TLS is handled. The field has three available modes:
-
-| Mode       | Meaning                                                        |
-|------------|----------------------------------------------------------------|
-| `disabled` | No TLS configured; only HTTP listeners exist on the `Gateway`. |
-| `enabled`  | TLS configured; both HTTP and HTTPS listeners exist.           |
-| `enforced` | TLS configured and HTTP is redirected to HTTPS.                |
-
-```{note}
-A single `gateway-api-integrator` can accept multiple `gateway-route`
-relations, but each `ingress-configurator` instance is limited to one
-`gateway-route` relation. To route traffic for multiple workloads through the
-same `Gateway`, deploy a separate `ingress-configurator` for each workload and
-relate them all to the same `gateway-api-integrator`.
-```
-
 ## How HTTPRoute resources are created
 
 The Ingress Configurator builds `HTTPRoute` resources based on the
-`https_mode` received from the provider and the hostname(s) from its own
-configuration:
+`https_mode` received from the provider (see
+{ref}`The gateway-route relation <reference_gateway_route>`) and the
+hostname(s) from its own configuration:
 
 - **One HTTP route** is always created. It covers all hostnames and attaches
   to every per-hostname HTTP listener on the `Gateway` via multiple
@@ -174,5 +148,18 @@ cleaned up on relation departure.
 - **One route relation at a time**: The charm blocks if more than one of
   `haproxy-route`, `haproxy-route-tcp`, or `gateway-route` is related
   simultaneously.
+- **One `gateway-route` relation per instance**: A single
+  `gateway-api-integrator` can accept multiple `gateway-route` relations, but
+  each `ingress-configurator` instance is limited to one `gateway-route`
+  relation. To route traffic for multiple workloads through the same `Gateway`,
+  deploy a separate `ingress-configurator` for each workload and relate them
+  all to the same `gateway-api-integrator`.
 - **`--trust` required**: The charm needs Kubernetes RBAC permissions to
   manage `HTTPRoute` and `Service` resources.
+- **Same model only**: The workload and the Ingress Configurator must run in
+  the same Juju model (Kubernetes namespace); cross-model relations are not
+  supported. When the workload's port is closed, the selector-based `Service`
+  only matches pods in its own namespace. When the port is open, the
+  `HTTPRoute`'s `backendRef` resolves to the `HTTPRoute`'s own namespace (a
+  cross-namespace reference would require a `ReferenceGrant`, which the charm
+  does not create).

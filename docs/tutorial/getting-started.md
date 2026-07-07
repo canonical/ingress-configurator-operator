@@ -79,7 +79,7 @@ juju wait-for application gateway-api-integrator --query='status=="active"' --ti
 Deploy and configure the `ingress-configurator` charm. The `hostname` configuration specifies the domain name used to reach the backend, and `paths` defines the URL paths to route:
 
 ```bash
-juju deploy ingress-configurator
+juju deploy ingress-configurator --channel=latest/stable --trust
 juju config ingress-configurator hostname=flask.internal paths=/app
 ```
 

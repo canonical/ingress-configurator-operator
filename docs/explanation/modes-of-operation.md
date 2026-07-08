@@ -92,6 +92,6 @@ in the same Juju model as the backend application, so that the label selector ca
 match the backend's pods.
 ```
 
-See {ref}`how_to_gateway_api_integrate_non_charm_workload` for a worked example
+See {ref}`how_to_gateway_api_integrate_non_charm_workload` for instructions
 using a non-charmed backend, and
 {ref}`how_to_gateway_api_add_features_to_ingress_requirer` for a charmed backend.

@@ -63,7 +63,7 @@ This mode is suited to charmed backends that implement the `ingress` interface
 but need access to HAProxy-specific features (such as TCP routing, custom
 headers, or gRPC load balancing) that are not available through the standard
 `ingress` interface alone. See {ref}`how_to_add_haproxy_features_to_ingress_requirer`
-for a worked example.
+for instructions on using `ingress-configurator` in HAProxy adapter mode.
 
 ## Gateway-route adapter mode
 

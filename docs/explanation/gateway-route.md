@@ -25,13 +25,7 @@ deployed with `--trust` so it can manage Kubernetes resources.
 ## Architecture
 
 How the backend `Service` is reached depends on whether the workload has
-opened its port in Juju (see {ref}`Backend Service selection <explanation_backend_service_selection>`):
-
-- **Port open**: the `HTTPRoute` forwards directly to the workload's own
-  `Service`.
-- **Port closed**: the Ingress Configurator creates an additional
-  selector-based `Service` that targets the workload's pods, and the
-  `HTTPRoute` forwards to that `Service`.
+opened its port in Juju (see {ref}`Backend service selection <explanation_backend_service_selection>`).
 
 In the diagrams below, green arrows represent references between Kubernetes
 resources (traffic/data flow) and blue dashed arrows represent Juju relations.

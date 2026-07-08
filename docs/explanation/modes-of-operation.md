@@ -41,7 +41,8 @@ propagated back to the backend application.
 
 This mode is suited to backends that are not managed by a Juju charm, or to
 cases where the backend charm does not implement the `ingress` interface.
-See {ref}`how_to_haproxy_integrate_non_charm_workload` for a worked example.
+See {ref}`how_to_haproxy_integrate_non_charm_workload` for instructions on
+using `ingress-configurator` in HAProxy integrator mode.
 
 ## HAProxy adapter mode
 

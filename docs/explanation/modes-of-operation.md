@@ -28,7 +28,7 @@ the substrate (machine or Kubernetes):
 
 In integrator mode, `ingress-configurator` is deployed without a direct
 relation to the backend application. Instead, the operator provides the backend
-address and port through charm configuration:
+address and port through charm configurations:
 
 ```
 haproxy <-- haproxy-route -- ingress-configurator

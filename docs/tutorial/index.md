@@ -17,5 +17,5 @@ This tutorial walks through the deployment of the `ingress-configurator` charm w
 ```{toctree}
 :glob:
 :titlesonly:
-Basic deployment <getting-started.md>
+Basic deployment with Gateway API<getting-started.md>
 ```

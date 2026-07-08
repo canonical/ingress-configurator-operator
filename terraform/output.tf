@@ -10,6 +10,7 @@ output "endpoints" {
   description = "Endpoints of the deployed application."
   value = {
     ingress           = "ingress"
+    gateway_route     = "gateway-route"
     haproxy_route     = "haproxy-route"
     haproxy_route_tcp = "haproxy-route-tcp"
   }

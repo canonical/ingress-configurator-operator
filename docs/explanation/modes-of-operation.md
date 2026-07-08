@@ -30,9 +30,10 @@ In integrator mode, `ingress-configurator` is deployed without a direct
 relation to the backend application. Instead, the operator provides the backend
 address and port through charm configurations:
 
-```
-haproxy <-- haproxy-route -- ingress-configurator
-                                (config: backend-addresses, backend-ports)
+```mermaid
+flowchart LR
+    ic["ingress-configurator\n(config: backend-addresses, backend-ports)"]
+    ic -- haproxy-route --> haproxy
 ```
 
 Because there is no `ingress` relation between `ingress-configurator` and the
@@ -52,8 +53,10 @@ address and port to `ingress-configurator` over the `ingress` relation, and
 `ingress-configurator` translates that information into `haproxy-route` relation
 data:
 
-```
-haproxy <-- haproxy-route -- ingress-configurator <-- ingress -- backend-app
+```mermaid
+flowchart LR
+    backend-app -- ingress --> ic[ingress-configurator]
+    ic -- haproxy-route --> haproxy
 ```
 
 Because the `ingress` relation is present, `ingress-configurator` propagates the
@@ -73,8 +76,10 @@ Gateway-route adapter mode is the Kubernetes equivalent of HAProxy adapter mode.
 `ingress` relation and translates it into `gateway-route` relation data consumed
 by `gateway-api-integrator`:
 
-```
-gateway-api-integrator <-- gateway-route -- ingress-configurator <-- ingress -- backend-app
+```mermaid
+flowchart LR
+    backend-app -- ingress --> ic[ingress-configurator]
+    ic -- gateway-route --> gateway-api-integrator
 ```
 
 As with HAProxy adapter mode, the proxied endpoint is propagated back to the

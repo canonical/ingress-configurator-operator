@@ -15,7 +15,7 @@ backend applications, but the way it discovers backend addresses and ports — a
 whether it propagates a proxied endpoint back to the backend — depends on the
 **mode of operation**.
 
-There are three modes, organised by the underlying route-provider interface and
+There are three modes, organized by the underlying route-provider interface and
 the substrate (machine or Kubernetes):
 
 | Mode | Substrate | Route-provider interface | Backend discovery |

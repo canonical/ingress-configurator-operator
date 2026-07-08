@@ -30,7 +30,7 @@ In integrator mode, `ingress-configurator` is deployed without a direct
 relation to the backend application. Instead, the operator provides the backend
 address and port through charm configurations:
 
-```mermaid
+```{mermaid}
 flowchart LR
     ic["ingress-configurator\n(config: backend-addresses, backend-ports)"]
     ic -- haproxy-route --> haproxy
@@ -53,7 +53,7 @@ address and port to `ingress-configurator` over the `ingress` relation, and
 `ingress-configurator` translates that information into `haproxy-route` relation
 data:
 
-```mermaid
+```{mermaid}
 flowchart LR
     backend-app -- ingress --> ic[ingress-configurator]
     ic -- haproxy-route --> haproxy
@@ -76,7 +76,7 @@ Gateway-route adapter mode is the Kubernetes equivalent of HAProxy adapter mode.
 `ingress` relation and translates it into `gateway-route` relation data consumed
 by `gateway-api-integrator`:
 
-```mermaid
+```{mermaid}
 flowchart LR
     backend-app -- ingress --> ic[ingress-configurator]
     ic -- gateway-route --> gateway-api-integrator
@@ -98,6 +98,6 @@ in the same Juju model as the backend application, so that the label selector ca
 match the backend's pods.
 ```
 
-See {ref}`how_to_gateway_api_integrate_non_charm_workload` for instructions
+See {ref}`how_to_haproxy_integrate_non_charm_workload` for instructions
 using a non-charmed backend, and
 {ref}`how_to_add_gateway_api_features_to_ingress_requirer` for a charmed backend.

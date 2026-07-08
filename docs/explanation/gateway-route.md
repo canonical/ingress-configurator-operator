@@ -148,7 +148,7 @@ cleaned up on relation departure.
 - **One route relation at a time**: The charm blocks if more than one of
   `haproxy-route`, `haproxy-route-tcp`, or `gateway-route` is related
   simultaneously.
-- **One `gateway-route` relation per instance**: A single
+- **One `gateway-route` relation per ingress-configurator**: A single
   `gateway-api-integrator` can accept multiple `gateway-route` relations, but
   each `ingress-configurator` instance is limited to one `gateway-route`
   relation. To route traffic for multiple workloads through the same `Gateway`,

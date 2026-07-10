@@ -29,8 +29,8 @@ The following route-provider interfaces are supported:
 ```{toctree}
 :hidden:
 tutorial/index.md
-explanation/index.md
 how-to/index.md
+explanation/index.md
 release-notes/index.md
 changelog.md
 ```

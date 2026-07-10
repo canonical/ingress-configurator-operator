@@ -32,7 +32,8 @@ address and port through charm configurations:
 
 ```{mermaid}
 flowchart LR
-    ic["ingress-configurator\n(config: backend-addresses, backend-ports)"]
+    ic["ingress-configurator
+    (config: backend-addresses, backend-ports)"]
     ic -- haproxy-route --> haproxy
 ```
 

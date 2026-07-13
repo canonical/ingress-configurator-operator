@@ -17,6 +17,7 @@ variable "channel" {
   description = "The channel to use when deploying a charm."
   type        = string
   default     = "latest/stable"
+  nullable    = false
 }
 
 variable "config" {
@@ -28,12 +29,13 @@ variable "config" {
 variable "constraints" {
   description = "Juju constraints to apply for this application."
   type        = string
-  default     = ""
+  default     = null
 }
 
 variable "model_uuid" {
   description = "UUID of the Juju model where the application will be deployed."
   type        = string
+  nullable    = false
 }
 
 variable "revision" {
@@ -42,14 +44,14 @@ variable "revision" {
   default     = null
 }
 
-variable "units" {
-  description = "Number of units to deploy"
-  type        = number
-  default     = 1
-}
-
 variable "trust" {
   description = "Deploy with --trust (required for Kubernetes)"
   type        = bool
   default     = false
+}
+
+variable "units" {
+  description = "Number of units to deploy"
+  type        = number
+  default     = 1
 }

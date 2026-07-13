@@ -5,12 +5,13 @@ variable "app_name" {
   description = "Name of the application in the Juju model."
   type        = string
   default     = "ingress-configurator"
+  nullable    = false
 }
 
 variable "base" {
   description = "The operating system on which to deploy"
   type        = string
-  default     = "ubuntu@24.04"
+  default     = null
 }
 
 variable "channel" {

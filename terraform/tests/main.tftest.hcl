@@ -16,7 +16,7 @@ run "basic_deploy" {
   }
 
   assert {
-    condition     = output.app_name == "ingress-configurator"
+    condition     = output.application.name == "ingress-configurator"
     error_message = "ingress-configurator app_name did not match expected"
   }
 }

@@ -11,7 +11,7 @@ product, or deployment modules.
 ## Requirements
 
 - Terraform `~> 1.12`
-- Juju provider `>= 1.0.0`
+- Juju provider `~> 1.0`
 
 ## Usage
 
@@ -26,8 +26,8 @@ module "ingress_configurator" {
 
 | Name          | Type          | Default                  | Nullable | Description                                                                 |
 | ------------- | ------------- | ------------------------ | -------- | --------------------------------------------------------------------------- |
-| `app_name`    | `string`      | `"ingress-configurator"` | yes      | Name of the application in the Juju model.                                  |
-| `base`        | `string`      | `"ubuntu@24.04"`         | yes      | The operating system on which to deploy.                                    |
+| `app_name`    | `string`      | `"ingress-configurator"` | no       | Name of the application in the Juju model.                                  |
+| `base`        | `string`      | `null`                   | yes      | OS base to deploy on. `null` lets the provider use the charm's default.     |
 | `channel`     | `string`      | `"latest/stable"`        | no       | The channel to use when deploying the charm.                                |
 | `config`      | `map(string)` | `{}`                     | yes      | Application config. See the [charm configuration options][config].          |
 | `constraints` | `string`      | `null`                   | yes      | Juju constraints to apply for this application.                             |

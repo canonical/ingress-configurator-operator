@@ -308,6 +308,7 @@ def application_with_tcp_server_fixture(application: str, juju: jubilant.Juju):
     """
     juju.wait(
         lambda status: jubilant.all_agents_idle(status, application),
+        error=jubilant.any_error,
     )
     juju.exec("sudo snap install ping-pong-tcp", unit=f"{application}/leader")
     juju.exec("sudo snap set ping-pong-tcp host=0.0.0.0", unit=f"{application}/leader")
@@ -347,7 +348,8 @@ def k8s_ingress_requirer_fixture(
     )
     juju_k8s.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{APP_NAME}:ingress")
     juju_k8s.wait(
-        lambda status: jubilant.all_agents_idle(status, APP_NAME, INGRESS_REQUIRER_APP_NAME)
+        lambda status: jubilant.all_agents_idle(status, APP_NAME, INGRESS_REQUIRER_APP_NAME),
+        error=jubilant.any_error,
     )
     yield INGRESS_REQUIRER_APP_NAME
 

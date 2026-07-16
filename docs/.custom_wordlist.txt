@@ -2,3 +2,4 @@ configurator
 hostnames
 FQDNs
 HTTPRoute
+databag

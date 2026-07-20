@@ -259,7 +259,7 @@ class HTTPRouteManager:
                     {
                         "type": "ResponseHeaderModifier",
                         "responseHeaderModifier": {
-                            "add": [
+                            "set": [
                                 {
                                     "name": "Strict-Transport-Security",
                                     "value": f"max-age={config.hsts_max_age}",
@@ -412,7 +412,7 @@ def create_http_routes(
                 backend_service_name=backend_service_name,
                 backend_service_port=backend_service_port,
                 redirect_https=False,
-                hsts_max_age=hsts_max_age,
+                hsts_max_age=hsts_max_age if https_mode == "enforced" else None,
             )
             managed_names.append(http_route_manager.apply(https_config))
 

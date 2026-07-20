@@ -33,6 +33,7 @@ from .conftest import (
     GATEWAY_CERTIFICATES_CHANNEL,
     GATEWAY_CONFIGURATOR_CLOSED_PORTS,
     GATEWAY_CONFIGURATOR_OPEN_PORTS,
+    GATEWAY_HSTS_MAX_AGE,
     HOSTNAME_BACKEND_CLOSED_PORTS,
     HOSTNAME_BACKEND_OPEN_PORTS,
     deploy_ingress_configurator_for_gateway_route,
@@ -62,9 +63,9 @@ def multi_relation_https_stack_fixture(
 ) -> HTTPSGatewayStack:
     """Deploy two ingress-configurators on one HTTPS gateway and wait for all Active.
 
-    Enables ``enforce-https`` on the shared gateway, relates it to a TLS provider, then
-    deploys one configurator per backend (closed-ports and open-ports) and wires their
-    ``ingress`` relations.
+    Enables ``enforce-https`` on the shared gateway (with an explicit ``hsts-max-age``), relates
+    it to a TLS provider, then deploys one configurator per backend (closed-ports and
+    open-ports) and wires their ``ingress`` relations.
 
     Args:
         juju_k8s: Jubilant Juju instance for the Kubernetes model.
@@ -76,7 +77,10 @@ def multi_relation_https_stack_fixture(
     Returns:
         Named tuple with all deployed app names.
     """
-    juju_k8s.config(gateway_api_integrator, {"enforce-https": True})
+    juju_k8s.config(
+        gateway_api_integrator,
+        {"enforce-https": True, "hsts-max-age": GATEWAY_HSTS_MAX_AGE},
+    )
     juju_k8s.deploy(charm=CERTIFICATES_APP_NAME, channel=GATEWAY_CERTIFICATES_CHANNEL)
     juju_k8s.integrate(
         f"{CERTIFICATES_APP_NAME}:certificates", f"{gateway_api_integrator}:certificates"
@@ -131,7 +135,8 @@ def test_gateway_route_https_enforced_multi_relation(
     old design (all certs on one hostname-less listener), Envoy NACKs the whole listener and
     both :80 and :443 become unreachable.  With the fix (one listener per hostname, each
     carrying its own ``hostname`` field), Envoy can distinguish chains by SNI and the gateway
-    remains reachable.
+    remains reachable.  It also asserts that each enforced-HTTPS response carries the
+    ``Strict-Transport-Security`` header the requirer injects from the provider's HSTS policy.
 
     Args:
         juju_k8s: Jubilant Juju instance for the Kubernetes model.
@@ -161,10 +166,18 @@ def test_gateway_route_https_enforced_multi_relation(
         )
 
         # HTTPS must reach the backend (SNI carries the hostname; self-signed cert not verified).
-        assert_gateway_response(
+        https_response = assert_gateway_response(
             gateway_address,
             hostname,
             "/",
             scheme="https",
             expected_status=200,
+        )
+
+        # Enforced HTTPS must carry the HSTS header the requirer injects via the
+        # ResponseHeaderModifier filter on the HTTPS HTTPRoute, using the max-age the
+        # provider published from its hsts-max-age config.
+        hsts_header = https_response.headers.get("Strict-Transport-Security")
+        assert hsts_header == f"max-age={GATEWAY_HSTS_MAX_AGE}", (
+            f"expected HSTS header for {hostname}, got {hsts_header!r}"
         )

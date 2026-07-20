@@ -502,7 +502,7 @@ def test_build_spec_https_includes_hsts_filter():
     filters = rule["filters"]
     assert len(filters) == 1
     assert filters[0]["type"] == "ResponseHeaderModifier"
-    added = filters[0]["responseHeaderModifier"]["add"]
+    added = filters[0]["responseHeaderModifier"]["set"]
     assert len(added) == 1
     assert added[0]["name"] == "Strict-Transport-Security"
     assert added[0]["value"] == "max-age=604800"
@@ -521,7 +521,7 @@ def test_build_spec_hsts_max_age_zero_still_injects_filter():
     rule = spec["rules"][0]  # type: ignore[index]
     filters = rule["filters"]
     assert filters[0]["type"] == "ResponseHeaderModifier"
-    added = filters[0]["responseHeaderModifier"]["add"]
+    added = filters[0]["responseHeaderModifier"]["set"]
     assert added[0]["value"] == "max-age=0"
 
 

@@ -298,8 +298,8 @@ def test_gateway_route_https_mode_enforced(
     https_rule = https_resource.spec["rules"][0]
     assert https_rule["backendRefs"][0]["port"] == 8080
     hsts_filter = next(f for f in https_rule["filters"] if f["type"] == "ResponseHeaderModifier")
-    assert hsts_filter["responseHeaderModifier"]["add"][0]["name"] == "Strict-Transport-Security"
-    assert hsts_filter["responseHeaderModifier"]["add"][0]["value"] == "max-age=31536000"
+    assert hsts_filter["responseHeaderModifier"]["set"][0]["name"] == "Strict-Transport-Security"
+    assert hsts_filter["responseHeaderModifier"]["set"][0]["value"] == "max-age=31536000"
 
 
 @pytest.mark.usefixtures("mock_lightkube")

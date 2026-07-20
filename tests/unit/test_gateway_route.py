@@ -249,9 +249,10 @@ def test_gateway_route_https_mode_enforced(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"], mock_lightkube: "LightkubeClient"
 ):
     """
-    arrange: provider publishes https_mode="enforced".
+    arrange: provider publishes https_mode="enforced" with an hsts_max_age.
     act: trigger config-changed.
-    assert: two HTTPRoute apply calls — HTTP route with 301 redirect, HTTPS route with backendRef.
+    assert: two HTTPRoute apply calls — HTTP route with 301 redirect, HTTPS route with backendRef
+        and a Strict-Transport-Security response header filter.
     """
     state = ops.testing.State(
         config={"hostname": "example.com"},
@@ -267,6 +268,7 @@ def test_gateway_route_https_mode_enforced(
                     "gateway_name": '"my-gateway"',
                     "gateway_model": '"gateway-model"',
                     "https_mode": '"enforced"',
+                    "hsts_max_age": "31536000",
                     "endpoints": json.dumps([]),
                 },
             ),
@@ -295,7 +297,9 @@ def test_gateway_route_https_mode_enforced(
     assert https_resource.spec["parentRefs"][0]["sectionName"] == "my-gateway-https-example-com"
     https_rule = https_resource.spec["rules"][0]
     assert https_rule["backendRefs"][0]["port"] == 8080
-    assert "filters" not in https_rule
+    hsts_filter = next(f for f in https_rule["filters"] if f["type"] == "ResponseHeaderModifier")
+    assert hsts_filter["responseHeaderModifier"]["add"][0]["name"] == "Strict-Transport-Security"
+    assert hsts_filter["responseHeaderModifier"]["add"][0]["value"] == "max-age=31536000"
 
 
 @pytest.mark.usefixtures("mock_lightkube")
@@ -379,7 +383,9 @@ def test_gateway_route_https_mode_enabled(
     """
     arrange: provider publishes https_mode="enabled".
     act: trigger config-changed.
-    assert: two HTTPRoute apply calls, both forwarding to backend (no redirect), on their respective listeners.
+    assert: two HTTPRoute apply calls, both forwarding to backend (no redirect), on their
+        respective listeners. No HSTS filter is present because the provider only sends
+        hsts_max_age when HTTPS is enforced.
     """
     state = ops.testing.State(
         config={"hostname": "example.com"},

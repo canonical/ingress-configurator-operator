@@ -170,6 +170,9 @@ class HTTPRouteConfig:
         backend_service_name: The workload K8s Service name.
         backend_service_port: The workload port.
         redirect_https: If True, this route issues a 301 HTTPS redirect.
+        hsts_max_age: When set, inject a ``Strict-Transport-Security`` response
+            header with this ``max-age`` value. ``None`` means no HSTS header.
+            ``0`` instructs browsers to clear any cached HSTS policy.
     """
 
     app_name: str
@@ -182,6 +185,7 @@ class HTTPRouteConfig:
     backend_service_name: str
     backend_service_port: int
     redirect_https: bool = False
+    hsts_max_age: int | None = None
 
 
 class HTTPRouteManager:
@@ -239,19 +243,32 @@ class HTTPRouteManager:
                 }
             ]
         else:
-            rules = [
-                {
-                    "matches": [
-                        {"path": {"type": "PathPrefix", "value": path}} for path in config.paths
-                    ],
-                    "backendRefs": [
-                        {
-                            "name": config.backend_service_name,
-                            "port": config.backend_service_port,
-                        }
-                    ],
-                }
-            ]
+            rule: dict[str, object] = {
+                "matches": [
+                    {"path": {"type": "PathPrefix", "value": path}} for path in config.paths
+                ],
+                "backendRefs": [
+                    {
+                        "name": config.backend_service_name,
+                        "port": config.backend_service_port,
+                    }
+                ],
+            }
+            if config.hsts_max_age is not None:
+                rule["filters"] = [
+                    {
+                        "type": "ResponseHeaderModifier",
+                        "responseHeaderModifier": {
+                            "add": [
+                                {
+                                    "name": "Strict-Transport-Security",
+                                    "value": f"max-age={config.hsts_max_age}",
+                                }
+                            ]
+                        },
+                    }
+                ]
+            rules = [rule]
 
         spec: dict = {
             "parentRefs": parent_refs,
@@ -332,6 +349,7 @@ def create_http_routes(
     paths: list[str],
     backend_service_name: str,
     backend_service_port: int,
+    hsts_max_age: int | None = None,
 ) -> None:
     """Create HTTPRoute K8s resources based on https_mode.
 
@@ -345,6 +363,10 @@ def create_http_routes(
         paths: List of path prefixes.
         backend_service_name: Name of the K8s Service to route traffic to.
         backend_service_port: Port of the backend Service.
+        hsts_max_age: ``max-age`` value for the ``Strict-Transport-Security`` header
+            injected on HTTPS routes. Provided by the gateway-api-integrator only
+            when HTTPS is enforced. ``None`` means no HSTS header. ``0`` instructs
+            browsers to clear any cached HSTS policy.
 
     Raises:
         InvalidKubernetesPermissionError: When the charm lacks RBAC permissions.
@@ -390,6 +412,7 @@ def create_http_routes(
                 backend_service_name=backend_service_name,
                 backend_service_port=backend_service_port,
                 redirect_https=False,
+                hsts_max_age=hsts_max_age,
             )
             managed_names.append(http_route_manager.apply(https_config))
 

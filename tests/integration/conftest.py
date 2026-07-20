@@ -155,7 +155,7 @@ def application_fixture(
     """
     metadata = yaml.safe_load(pathlib.Path("./charmcraft.yaml").read_text(encoding="UTF-8"))
     app_name = metadata["name"]
-    if pytestconfig.getoption("--no-setup") and app_name in juju.status().apps:
+    if app_name in juju.status().apps:
         yield app_name
         return
     juju.deploy(
@@ -176,7 +176,7 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     Yields:
         The haproxy app name.
     """
-    if pytestconfig.getoption("--no-setup") and HAPROXY_APP_NAME in juju.status().apps:
+    if HAPROXY_APP_NAME in juju.status().apps:
         yield HAPROXY_APP_NAME
         return
     juju.deploy(
@@ -203,7 +203,7 @@ def any_charm_backend_fixture(
     pytestconfig: pytest.Config, juju: jubilant.Juju, lxd_controller: str, lxd_model: str
 ):
     """Deploy any-charm and configure it to serve as a requirer for the http interface."""
-    if pytestconfig.getoption("--no-setup") and ANY_CHARM_APP_NAME in juju.status().apps:
+    if ANY_CHARM_APP_NAME in juju.status().apps:
         yield ANY_CHARM_APP_NAME
         return
     juju.deploy(
@@ -257,7 +257,7 @@ def http_session() -> Callable[[list[tuple[str, IPv4Address | IPv6Address]]], Se
 @pytest.fixture(scope="module", name="ingress_requirer")
 def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, application: str):
     """Deploy and configure any-charm to serve as an ingress requirer for the ingress interface."""
-    if pytestconfig.getoption("--no-setup") and INGRESS_REQUIRER_APP_NAME in juju.status().apps:
+    if INGRESS_REQUIRER_APP_NAME in juju.status().apps:
         yield INGRESS_REQUIRER_APP_NAME
         return
     juju.deploy(
@@ -334,7 +334,7 @@ def k8s_ingress_requirer_fixture(
     Yields:
         The ingress requirer application name.
     """
-    if pytestconfig.getoption("--no-setup") and APP_NAME in juju_k8s.status().apps:
+    if APP_NAME in juju_k8s.status().apps:
         yield APP_NAME
         return
     juju_k8s.deploy(charm=charm, app=APP_NAME, trust=True)

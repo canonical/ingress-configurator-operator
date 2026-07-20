@@ -10,6 +10,8 @@ Each revision is versioned by the date of the revision.
 
 ## 2026-07-20
 
+### Updated
+
 - Updated terraform module to allow deploying `ingress-configurator` with Juju provider 2.x.
 
 ## 2026-06-26

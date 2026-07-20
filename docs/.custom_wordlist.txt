@@ -3,3 +3,4 @@ hostnames
 FQDNs
 HTTPRoute
 databag
+proxied

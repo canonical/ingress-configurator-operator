@@ -10,7 +10,7 @@ It currently supports:
 
 Like any Juju charm, this charm supports one-line deployment, configuration, integration, scaling, and more.
 
-For information about how to deploy, integrate, and manage this charm, see the Official [Ingress configurator operator documentation](https://charmhub.io/ingress-configurator).
+For information about how to deploy, integrate, and manage this charm, see the Official [Ingress configurator operator documentation](https://canonical.com/juju/docs/ingress-configurator-charm/latest/).
 
 ## Get started
 <!--If the charm already contains a relevant how-to guide or tutorial in its documentation,

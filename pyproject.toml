@@ -55,7 +55,7 @@ integration = [
   "jubilant",
   "opcli @ git+https://github.com/canonical/charm-ci.git@v0.0.1-alpha.6",
   "pytest",
-  "pytest-jubilant<2",
+  "pytest-jubilant<3",
   "requests",
   "tenacity",
 ]

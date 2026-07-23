@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Each revision is versioned by the date of the revision.
 
+## 2026-07-21
+
+### Added
+
+- Added support for the `Strict-Transport-Security` (HSTS) response header on HTTPS `HTTPRoute`s.
+When HTTPS is enforced, the `hsts_max_age` value published by `gateway-api-integrator`
+is injected as an HSTS header via a `ResponseHeaderModifier` filter.
+
 ## 2026-07-20
 
 ### Updated

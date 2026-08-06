@@ -37,6 +37,9 @@ requires:
   gateway-route:
     interface: gateway-route
     limit: 1
+  cache-config:
+    interface: content-cache-config
+    limit: 1
 
 provides:
   ingress:
@@ -58,6 +61,12 @@ config:
     backend-protocol:
       type: string
       description: The protocol that the backend service speaks. "http" (default) or "https".
+    proxy-cache-valid:
+      type: string
+      description: |
+        Cache validity rule to send to the content-cache, e.g. "200 1h".
+        Only used when the cache-config relation is present.
+        If not set, the content-cache uses its own default.
     external-grpc-port:
       type: int
       description: |

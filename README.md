@@ -64,6 +64,32 @@ Gateway API is supported through the `gateway-route` relation.
 - Requires that the backend related through `ingress` has opened its ports.
 - `https` option for `backend-protocol` is not supported.
 
+#### Content-cache (optional)
+
+The `cache-config` relation integrates with [content-cache](https://charmhub.io/content-cache)
+to route haproxy traffic through a caching layer instead of directly to the real backend.
+
+```
+juju integrate ingress-configurator content-cache
+```
+
+When the relation is present:
+
+1. ingress-configurator sends the resolved backend addresses and healthcheck config to content-cache.
+2. content-cache returns its own IP and port as `cache-backends`.
+3. ingress-configurator configures haproxy to use the content-cache address as the backend.
+
+When the relation is removed, haproxy reverts to the original backend addresses.
+
+**Limitations:**
+
+- Only supported with `haproxy-route` (HTTP/HTTPS backends).
+- Not supported with `haproxy-route-tcp` (TCP) or `gateway-route` (gRPC).
+
+**Optional configuration:**
+
+- `proxy-cache-valid`: Cache validity rule sent to content-cache, e.g. `"200 1h"`.
+
 To obtain the full list of configurations, see the official [CharmHub documentation](https://charmhub.io/ingress-configurator).
 
 ## Learn more

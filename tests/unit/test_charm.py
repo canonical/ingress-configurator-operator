@@ -519,7 +519,7 @@ def test_cache_config_replaces_backends_when_available(
     out = context_machine.run(context_machine.on.config_changed(), state)
 
     assert out.unit_status == ops.testing.ActiveStatus("Ready")
-    haproxy_data = out.get_relations("haproxy-route")[0].local_app_data
+    haproxy_data: dict = dict(out.get_relations("haproxy-route")[0].local_app_data)
     assert haproxy_data["hosts"] == '["10.1.0.5"]'
     assert haproxy_data["ports"] == "[9000]"
 
@@ -550,7 +550,7 @@ def test_cache_config_sends_relation_data_to_content_cache(
     out = context_machine.run(context_machine.on.config_changed(), state)
 
     cache_config_rel = out.get_relations("cache-config")[0]
-    local_app_data = cache_config_rel.local_app_data
+    local_app_data: dict = dict(cache_config_rel.local_app_data)
     assert json.loads(local_app_data["backends"]) == ["http://10.0.0.1:8080"]
     assert json.loads(local_app_data["proxy_cache_valid"]) == ["200 1h"]
 
@@ -573,6 +573,6 @@ def test_cache_config_removed_reverts_to_original_backends(
     out = context_machine.run(context_machine.on.config_changed(), state)
 
     assert out.unit_status == ops.testing.ActiveStatus("Ready")
-    haproxy_data = out.get_relations("haproxy-route")[0].local_app_data
+    haproxy_data: dict = dict(out.get_relations("haproxy-route")[0].local_app_data)
     assert haproxy_data["hosts"] == '["10.0.0.1"]'
     assert haproxy_data["ports"] == "[8080]"

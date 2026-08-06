@@ -7,7 +7,6 @@ import json
 from unittest.mock import MagicMock
 
 import ops
-import pytest
 
 from state.cache_config import CacheConfigState
 

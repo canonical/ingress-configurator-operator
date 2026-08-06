@@ -427,3 +427,152 @@ def test_routes_mutual_exclusivity(
         out.unit_status.message
         == "Only one route relation type should exist (haproxy-route, haproxy-route-tcp, or gateway-route)."
     )
+
+
+# ── cache-config tests ────────────────────────────────────────────────────────
+
+
+def test_cache_config_unsupported_for_tcp(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: haproxy-route-tcp and cache-config relations are both present.
+    act: trigger config-changed.
+    assert: WaitingStatus with TCP message — cache-config does not support TCP.
+    """
+    state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
+        relations=[
+            ops.testing.Relation("haproxy-route-tcp"),
+            ops.testing.Relation("cache-config"),
+        ],
+        leader=True,
+    )
+    out = context_machine.run(context_machine.on.config_changed(), state)
+    assert out.unit_status == ops.testing.WaitingStatus(
+        "cache-config is not supported for TCP protocol"
+    )
+
+
+def test_cache_config_unsupported_for_gateway_route(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: gateway-route and cache-config relations are both present (Kubernetes).
+    act: trigger config-changed.
+    assert: WaitingStatus with gRPC message.
+    """
+    state = ops.testing.State(
+        relations=[
+            ops.testing.Relation("gateway-route"),
+            ops.testing.Relation("cache-config"),
+        ],
+        leader=True,
+    )
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+    assert out.unit_status == ops.testing.WaitingStatus(
+        "cache-config is not supported for gRPC protocol"
+    )
+
+
+def test_cache_config_waiting_for_cache_backends(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: cache-config relation present, content-cache has not yet written cache-backends.
+    act: trigger config-changed.
+    assert: WaitingStatus — charm is waiting for cache-backends.
+    """
+    state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation("cache-config"),
+        ],
+        leader=True,
+    )
+    out = context_machine.run(context_machine.on.config_changed(), state)
+    assert out.unit_status == ops.testing.WaitingStatus(
+        "Waiting for cache-backends from content-cache"
+    )
+
+
+def test_cache_config_replaces_backends_when_available(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: cache-config relation present, content-cache has written cache-backends.
+    act: trigger config-changed.
+    assert: ActiveStatus and haproxy-route backends are the content-cache address, not original.
+    """
+    state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation(
+                "cache-config",
+                remote_units_data={0: {"cache-backends": '["http://10.1.0.5:9000"]'}},
+            ),
+        ],
+        leader=True,
+    )
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
+    haproxy_data = out.get_relations("haproxy-route")[0].local_app_data
+    assert haproxy_data["hosts"] == '["10.1.0.5"]'
+    assert haproxy_data["ports"] == "[9000]"
+
+
+def test_cache_config_sends_relation_data_to_content_cache(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: cache-config relation present with content-cache backends available.
+    act: trigger config-changed.
+    assert: ingress-configurator wrote backends to the cache-config app databag.
+    """
+    state = ops.testing.State(
+        config={
+            "backend-addresses": "10.0.0.1",
+            "backend-ports": "8080",
+            "proxy-cache-valid": "200 1h",
+        },
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation(
+                "cache-config",
+                remote_units_data={0: {"cache-backends": '["http://10.1.0.5:9000"]'}},
+            ),
+        ],
+        leader=True,
+    )
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    cache_config_rel = out.get_relations("cache-config")[0]
+    local_app_data = cache_config_rel.local_app_data
+    assert json.loads(local_app_data["backends"]) == ["http://10.0.0.1:8080"]
+    assert json.loads(local_app_data["proxy_cache_valid"]) == ["200 1h"]
+
+
+def test_cache_config_removed_reverts_to_original_backends(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: no cache-config relation (simulates relation-broken completing).
+    act: trigger config-changed.
+    assert: ActiveStatus and haproxy-route uses the original backend address.
+    """
+    state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+        ],
+        leader=True,
+    )
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
+    haproxy_data = out.get_relations("haproxy-route")[0].local_app_data
+    assert haproxy_data["hosts"] == '["10.0.0.1"]'
+    assert haproxy_data["ports"] == "[8080]"

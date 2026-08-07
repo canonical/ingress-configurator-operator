@@ -81,5 +81,14 @@ class CacheConfigState:
         for unit in rel.units:
             raw = rel.data[unit].get("cache-backends", "")
             if raw:
-                all_backends.extend(json.loads(raw))
+                try:
+                    parsed = json.loads(raw)
+                    if isinstance(parsed, list):
+                        all_backends.extend(parsed)
+                    else:
+                        logger.warning(
+                            "Unexpected cache-backends format from %s: %r", unit.name, raw
+                        )
+                except json.JSONDecodeError:
+                    logger.warning("Malformed cache-backends JSON from %s: %r", unit.name, raw)
         return all_backends if all_backends else None

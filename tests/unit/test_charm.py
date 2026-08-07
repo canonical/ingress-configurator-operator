@@ -429,9 +429,6 @@ def test_routes_mutual_exclusivity(
     )
 
 
-# ── cache-config tests ────────────────────────────────────────────────────────
-
-
 def test_cache_config_unsupported_for_tcp(
     context_machine: ops.testing.Context["IngressConfiguratorCharm"],
 ):
@@ -576,3 +573,31 @@ def test_cache_config_removed_reverts_to_original_backends(
     haproxy_data: dict = dict(out.get_relations("haproxy-route")[0].local_app_data)
     assert haproxy_data["hosts"] == '["10.0.0.1"]'
     assert haproxy_data["ports"] == "[8080]"
+
+
+def test_cache_config_non_leader_does_not_write_app_databag(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: cache-config relation present with cache-backends available, leader=False.
+    act: trigger config-changed.
+    assert: charm does not crash; cache-config app databag is not written by non-leader.
+    """
+    state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation(
+                "cache-config",
+                remote_units_data={0: {"cache-backends": '["http://10.1.0.5:9000"]'}},
+            ),
+        ],
+        leader=False,
+    )
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    # Non-leader still gets WaitingStatus (it read the cache-backends, but haproxy-route
+    # app databag is also leader-only — non-leader reaches ActiveStatus only if the
+    # haproxy-route write is also guarded; here we assert it does not crash).
+    cache_rel = out.get_relations("cache-config")[0]
+    assert dict(cache_rel.local_app_data) == {}, "non-leader must not write app databag"

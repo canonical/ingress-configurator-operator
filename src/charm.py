@@ -345,9 +345,10 @@ class IngressConfiguratorCharm(ops.CharmBase):
             for port in state.backend_ports
         ]
 
-        # Write config to relation databag
-        cache_state = CacheConfigState.build(self)
-        rel.data[self.app].update(cache_state.to_relation_data(backends))
+        # Only the leader may write to the app databag.
+        if self.unit.is_leader():
+            cache_state = CacheConfigState.build(self)
+            rel.data[self.app].update(cache_state.to_relation_data(backends))
 
         # Read cache-backends from content-cache unit databags
         cache_backends = CacheConfigState.get_cache_backends(rel)
@@ -359,11 +360,17 @@ class IngressConfiguratorCharm(ops.CharmBase):
         parsed_urls = [urlparse(url) for url in cache_backends]
         new_addresses = [p.hostname for p in parsed_urls if p.hostname]
         new_ports = list(dict.fromkeys(p.port for p in parsed_urls if p.port))
+        if not new_addresses or not new_ports:
+            self.unit.status = ops.WaitingStatus(
+                "Invalid cache-backends received from content-cache"
+            )
+            return None
+        backend_protocol = parsed_urls[0].scheme or "http"
         return dataclasses.replace(
             state,
             backend_addresses=new_addresses,
             backend_ports=new_ports,
-            backend_protocol="http",
+            backend_protocol=backend_protocol,
         )
 
     def _reconcile_gateway_route(self) -> None:

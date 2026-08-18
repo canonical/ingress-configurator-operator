@@ -76,7 +76,7 @@ juju integrate ingress-configurator content-cache
 When the relation is present:
 
 1. ingress-configurator sends the resolved backend addresses and healthcheck config to content-cache.
-2. content-cache returns its own IP and port as `cache-backends`.
+2. content-cache returns its own IP and port as `cache-backend` (a plain URL string in its unit databag).
 3. ingress-configurator configures haproxy to use the content-cache address as the backend.
 
 When the relation is removed, haproxy reverts to the original backend addresses.

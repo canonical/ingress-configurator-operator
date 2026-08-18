@@ -4,13 +4,10 @@
 """Cache-config relation state management module."""
 
 import json
-import logging
 from typing import Optional, Self, cast
 
 import ops
 from pydantic.dataclasses import dataclass
-
-logger = logging.getLogger(__name__)
 
 CACHE_CONFIG_RELATION_NAME = "cache-config"
 
@@ -59,6 +56,7 @@ class CacheConfigState:
             "healthcheck_interval": str((self.healthcheck_interval or 10) * 1000),
             "healthcheck_path": self.healthcheck_path or "/",
             "healthcheck_valid_status": json.dumps([200]),
+            "healthcheck_ssl_verify": "true",
         }
         if self.proxy_cache_valid is not None:
             data["proxy_cache_valid"] = json.dumps([self.proxy_cache_valid])
@@ -66,10 +64,10 @@ class CacheConfigState:
 
     @staticmethod
     def get_cache_backends(rel: ops.Relation) -> list[str] | None:
-        """Read cache-backends from all content-cache unit databags.
+        """Read cache-backend from all content-cache unit databags.
 
-        content-cache writes cache-backends as a JSON list to its own unit databag.
-        An empty string sentinel means the relation was cleared.
+        content-cache writes a single plain URL string to the ``cache-backend`` key
+        of its own unit databag. An empty string sentinel means the relation was cleared.
 
         Args:
             rel: The cache-config relation.
@@ -79,16 +77,7 @@ class CacheConfigState:
         """
         all_backends: list[str] = []
         for unit in rel.units:
-            raw = rel.data[unit].get("cache-backends", "")
+            raw = rel.data[unit].get("cache-backend", "").strip()
             if raw:
-                try:
-                    parsed = json.loads(raw)
-                    if isinstance(parsed, list):
-                        all_backends.extend(parsed)
-                    else:
-                        logger.warning(
-                            "Unexpected cache-backends format from %s: %r", unit.name, raw
-                        )
-                except json.JSONDecodeError:
-                    logger.warning("Malformed cache-backends JSON from %s: %r", unit.name, raw)
+                all_backends.append(raw)
         return all_backends if all_backends else None

@@ -323,7 +323,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         """Apply cache-config backend substitution if the relation is present.
 
         Writes the resolved backend URLs into the cache-config relation databag,
-        then reads back the cache-backends from content-cache. If cache-backends
+        then reads back the cache-backend from content-cache. If cache-backends
         are not yet available, sets WaitingStatus and returns None.
 
         Args:
@@ -350,10 +350,10 @@ class IngressConfiguratorCharm(ops.CharmBase):
             cache_state = CacheConfigState.build(self)
             rel.data[self.app].update(cache_state.to_relation_data(backends))
 
-        # Read cache-backends from content-cache unit databags
+        # Read cache-backend from content-cache unit databags
         cache_backends = CacheConfigState.get_cache_backends(rel)
         if not cache_backends:
-            self.unit.status = ops.WaitingStatus("Waiting for cache-backends from content-cache")
+            self.unit.status = ops.WaitingStatus("Waiting for cache-backend from content-cache")
             return None
 
         # Parse cache-backend URLs and substitute into a new immutable state
@@ -362,7 +362,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         new_ports = list(dict.fromkeys(p.port for p in parsed_urls if p.port))
         if not new_addresses or not new_ports:
             self.unit.status = ops.WaitingStatus(
-                "Invalid cache-backends received from content-cache"
+                "Invalid cache-backend received from content-cache"
             )
             return None
         backend_protocol = parsed_urls[0].scheme or "http"

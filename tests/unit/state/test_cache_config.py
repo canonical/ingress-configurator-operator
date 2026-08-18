@@ -65,6 +65,7 @@ def test_to_relation_data_minimal():
     assert data["healthcheck_interval"] == "10000"  # None → 10 * 1000ms
     assert data["healthcheck_path"] == "/"
     assert json.loads(data["healthcheck_valid_status"]) == [200]
+    assert data["healthcheck_ssl_verify"] == "true"
     assert "proxy_cache_valid" not in data
 
 
@@ -83,6 +84,7 @@ def test_to_relation_data_with_all_options():
     assert json.loads(data["backends"]) == ["http://10.0.0.1:8080", "http://10.0.0.2:8080"]
     assert data["healthcheck_interval"] == "5000"  # 5s → 5000ms
     assert data["healthcheck_path"] == "/health"
+    assert data["healthcheck_ssl_verify"] == "true"
     assert json.loads(data["proxy_cache_valid"]) == ["200 1h"]
 
 
@@ -100,7 +102,7 @@ def test_get_cache_backends_returns_none_when_no_units():
 
 def test_get_cache_backends_returns_none_when_field_missing():
     """
-    arrange: relation with one remote unit whose databag has no cache-backends key.
+    arrange: relation with one remote unit whose databag has no cache-backend key.
     act: call get_cache_backends.
     assert: returns None.
     """
@@ -114,49 +116,49 @@ def test_get_cache_backends_returns_none_when_field_missing():
 
 def test_get_cache_backends_returns_none_when_empty_string():
     """
-    arrange: content-cache has cleared cache-backends (empty string sentinel).
+    arrange: content-cache has cleared cache-backend (empty string sentinel).
     act: call get_cache_backends.
     assert: returns None (treat cleared as not-available).
     """
     unit = MagicMock(spec=ops.Unit)
     rel = MagicMock(spec=ops.Relation)
     rel.units = {unit}
-    rel.data = {unit: {"cache-backends": ""}}
+    rel.data = {unit: {"cache-backend": ""}}
     result = CacheConfigState.get_cache_backends(rel)
     assert result is None
 
 
-def test_get_cache_backends_returns_none_when_empty_list():
+def test_get_cache_backends_returns_none_when_whitespace_only():
     """
-    arrange: content-cache wrote an empty JSON list.
+    arrange: content-cache wrote only whitespace to cache-backend.
     act: call get_cache_backends.
     assert: returns None.
     """
     unit = MagicMock(spec=ops.Unit)
     rel = MagicMock(spec=ops.Relation)
     rel.units = {unit}
-    rel.data = {unit: {"cache-backends": "[]"}}
+    rel.data = {unit: {"cache-backend": "   "}}
     result = CacheConfigState.get_cache_backends(rel)
     assert result is None
 
 
 def test_get_cache_backends_returns_urls():
     """
-    arrange: content-cache has written valid cache-backends JSON.
+    arrange: content-cache has written a plain URL to cache-backend.
     act: call get_cache_backends.
-    assert: returns the parsed list of URLs.
+    assert: returns the URL in a list.
     """
     unit = MagicMock(spec=ops.Unit)
     rel = MagicMock(spec=ops.Relation)
     rel.units = {unit}
-    rel.data = {unit: {"cache-backends": '["http://10.1.0.5:8080"]'}}
+    rel.data = {unit: {"cache-backend": "http://10.1.0.5:8080"}}
     result = CacheConfigState.get_cache_backends(rel)
     assert result == ["http://10.1.0.5:8080"]
 
 
 def test_get_cache_backends_aggregates_multiple_units():
     """
-    arrange: two content-cache units each with one cache-backend URL.
+    arrange: two content-cache units each with a cache-backend URL.
     act: call get_cache_backends.
     assert: returns all URLs combined.
     """
@@ -165,9 +167,9 @@ def test_get_cache_backends_aggregates_multiple_units():
     rel = MagicMock(spec=ops.Relation)
     rel.units = {unit1, unit2}
     rel.data = {
-        unit1: {"cache-backends": '["http://10.1.0.5:8080"]'},
-        unit2: {"cache-backends": '["http://10.1.0.6:8080"]'},
+        unit1: {"cache-backend": "http://10.1.0.5:30000"},
+        unit2: {"cache-backend": "http://10.1.0.6:30000"},
     }
     result = CacheConfigState.get_cache_backends(rel)
     assert result is not None
-    assert sorted(result) == ["http://10.1.0.5:8080", "http://10.1.0.6:8080"]
+    assert sorted(result) == ["http://10.1.0.5:30000", "http://10.1.0.6:30000"]

@@ -476,9 +476,9 @@ def test_cache_config_waiting_for_cache_backends(
     context_machine: ops.testing.Context["IngressConfiguratorCharm"],
 ):
     """
-    arrange: cache-config relation present, content-cache has not yet written cache-backends.
+    arrange: cache-config relation present, content-cache has not yet written cache-backend.
     act: trigger config-changed.
-    assert: WaitingStatus — charm is waiting for cache-backends.
+    assert: WaitingStatus — charm is waiting for cache-backend.
     """
     state = ops.testing.State(
         config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
@@ -490,7 +490,7 @@ def test_cache_config_waiting_for_cache_backends(
     )
     out = context_machine.run(context_machine.on.config_changed(), state)
     assert out.unit_status == ops.testing.WaitingStatus(
-        "Waiting for cache-backends from content-cache"
+        "Waiting for cache-backend from content-cache"
     )
 
 
@@ -498,7 +498,7 @@ def test_cache_config_replaces_backends_when_available(
     context_machine: ops.testing.Context["IngressConfiguratorCharm"],
 ):
     """
-    arrange: cache-config relation present, content-cache has written cache-backends.
+    arrange: cache-config relation present, content-cache has written cache-backend.
     act: trigger config-changed.
     assert: ActiveStatus and haproxy-route backends are the content-cache address, not original.
     """
@@ -508,7 +508,7 @@ def test_cache_config_replaces_backends_when_available(
             ops.testing.Relation("haproxy-route"),
             ops.testing.Relation(
                 "cache-config",
-                remote_units_data={0: {"cache-backends": '["http://10.1.0.5:9000"]'}},
+                remote_units_data={0: {"cache-backend": "http://10.1.0.5:9000"}},
             ),
         ],
         leader=True,
@@ -539,7 +539,7 @@ def test_cache_config_sends_relation_data_to_content_cache(
             ops.testing.Relation("haproxy-route"),
             ops.testing.Relation(
                 "cache-config",
-                remote_units_data={0: {"cache-backends": '["http://10.1.0.5:9000"]'}},
+                remote_units_data={0: {"cache-backend": "http://10.1.0.5:9000"}},
             ),
         ],
         leader=True,
@@ -549,6 +549,7 @@ def test_cache_config_sends_relation_data_to_content_cache(
     cache_config_rel = out.get_relations("cache-config")[0]
     local_app_data: dict = dict(cache_config_rel.local_app_data)
     assert json.loads(local_app_data["backends"]) == ["http://10.0.0.1:8080"]
+    assert local_app_data["healthcheck_ssl_verify"] == "true"
     assert json.loads(local_app_data["proxy_cache_valid"]) == ["200 1h"]
 
 
@@ -579,7 +580,7 @@ def test_cache_config_non_leader_does_not_write_app_databag(
     context_machine: ops.testing.Context["IngressConfiguratorCharm"],
 ):
     """
-    arrange: cache-config relation present with cache-backends available, leader=False.
+    arrange: cache-config relation present with cache-backend available, leader=False.
     act: trigger config-changed.
     assert: charm does not crash; cache-config app databag is not written by non-leader.
     """
@@ -589,14 +590,14 @@ def test_cache_config_non_leader_does_not_write_app_databag(
             ops.testing.Relation("haproxy-route"),
             ops.testing.Relation(
                 "cache-config",
-                remote_units_data={0: {"cache-backends": '["http://10.1.0.5:9000"]'}},
+                remote_units_data={0: {"cache-backend": "http://10.1.0.5:9000"}},
             ),
         ],
         leader=False,
     )
     out = context_machine.run(context_machine.on.config_changed(), state)
 
-    # Non-leader still gets WaitingStatus (it read the cache-backends, but haproxy-route
+    # Non-leader still gets WaitingStatus (it read the cache-backend, but haproxy-route
     # app databag is also leader-only — non-leader reaches ActiveStatus only if the
     # haproxy-route write is also guarded; here we assert it does not crash).
     cache_rel = out.get_relations("cache-config")[0]

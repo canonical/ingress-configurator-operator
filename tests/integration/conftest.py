@@ -34,11 +34,14 @@ APP_NAME = "ingress-configurator"
 # Gateway-route (Kubernetes Gateway API) test configuration.
 GATEWAY_API_INTEGRATOR_APP_NAME = "gateway-api-integrator"
 GATEWAY_API_INTEGRATOR_CHANNEL = "1/edge"
-GATEWAY_API_INTEGRATOR_REVISION = 163
+GATEWAY_API_INTEGRATOR_REVISION = 172
 # GatewayClass provided by the Canonical Kubernetes used in CI.
 GATEWAY_CLASS = "ck-gateway"
 EXTERNAL_HOSTNAME = "gateway.internal"
 GATEWAY_CERTIFICATES_CHANNEL = "1/edge"
+# max-age (seconds) for the Strict-Transport-Security header the provider publishes when
+# HTTPS is enforced; a non-default value so the enforced-HTTPS test verifies it flows through.
+GATEWAY_HSTS_MAX_AGE = 15552000
 
 # Closed-ports backend (flask-k8s, is_port_open=False).
 # Also reused by the enforced-HTTPS test, which runs in a separate model.

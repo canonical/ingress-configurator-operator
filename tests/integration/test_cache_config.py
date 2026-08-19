@@ -1,0 +1,123 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+"""Integration tests for the cache-config relation.
+
+Topology
+--------
+any-charm-backend  (HTTP server on port 80)
+    ↑  (backends resolved via ingress-configurator integrator config)
+ingress-configurator  ──cache-config──▶  content-cache  (nginx caching proxy)
+    ↓  haproxy-route
+haproxy  ◀── HTTP client
+
+Flow:
+1. ingress-configurator resolves backend addresses from charm config and writes
+   them into the cache-config relation databag.
+2. content-cache receives the backends, starts nginx, and publishes its own
+   ``cache-backend`` URL (``http://<IP>:<port>``) into the relation databag.
+3. ingress-configurator reads ``cache-backend`` and substitutes it into the
+   haproxy-route configuration, so haproxy routes through content-cache.
+4. An HTTP request through haproxy is served by content-cache → backend.
+"""
+
+from typing import Callable
+
+import jubilant
+import pytest
+from requests import Session
+
+from .conftest import (
+    CERTIFICATES_APP_NAME,
+    MOCK_HAPROXY_HOSTNAME,
+    get_unit_addresses,
+)
+
+
+@pytest.mark.abort_on_fail
+def test_cache_config_backend_substitution(
+    juju: jubilant.Juju,
+    application: str,
+    haproxy: str,
+    any_charm_backend: str,
+    content_cache: str,
+    http_session: Callable[..., Session],
+) -> None:
+    """Test end-to-end routing through content-cache via the cache-config relation.
+
+    Verifies that:
+    - ingress-configurator writes backend URLs into the cache-config databag.
+    - content-cache publishes a ``cache-backend`` URL after starting nginx.
+    - ingress-configurator substitutes content-cache as the haproxy backend.
+    - HTTP requests through haproxy are served via the content-cache → backend chain.
+
+    Args:
+        juju: Jubilant juju fixture.
+        application: Name of the ingress-configurator application.
+        haproxy: Name of the haproxy application.
+        any_charm_backend: Name of the any-charm application acting as an HTTP backend.
+        content_cache: Name of the content-cache application.
+        http_session: Modified requests session fixture for making HTTP requests.
+    """
+    # Wait for backend to be idle so its address is stable before reading it.
+    juju.wait(
+        lambda status: jubilant.all_agents_idle(status, any_charm_backend),
+        error=jubilant.any_error,
+    )
+
+    # Configure ingress-configurator in integrator mode pointing at the backend.
+    backend_addresses = ",".join(str(addr) for addr in get_unit_addresses(juju, any_charm_backend))
+    juju.config(
+        app=application,
+        values={
+            "backend-addresses": backend_addresses,
+            "backend-ports": "80",
+            "paths": "/api/v1,/api/v2",
+        },
+    )
+
+    # Wire up haproxy-route and cache-config relations.
+    juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
+    juju.integrate(f"{application}:cache-config", f"{content_cache}:cache-config")
+
+    # All four charms (plus the certificates sidecar for haproxy) should settle active.
+    juju.wait(
+        lambda status: (
+            jubilant.all_active(
+                status,
+                haproxy,
+                application,
+                any_charm_backend,
+                content_cache,
+                CERTIFICATES_APP_NAME,
+            )
+            and jubilant.all_agents_idle(
+                status,
+                haproxy,
+                application,
+                any_charm_backend,
+                content_cache,
+                CERTIFICATES_APP_NAME,
+            )
+        ),
+        error=jubilant.any_error,
+    )
+
+    # content-cache reaching Active status proves it received the backends from
+    # the cache-config relation, successfully started nginx, and published its
+    # own cache-backend URL back to ingress-configurator.  ingress-configurator
+    # becoming Active in turn proves it read that URL and updated the haproxy
+    # route to point at content-cache rather than the original backend.
+
+    # Make an HTTP request through haproxy and verify the backend page is served.
+    haproxy_address = str(get_unit_addresses(juju, haproxy)[0])
+    session = http_session(dns_entries=[(MOCK_HAPROXY_HOSTNAME, haproxy_address)])
+
+    for path_component in ["v1", "v2"]:
+        response = session.get(
+            f"https://{MOCK_HAPROXY_HOSTNAME}/api/{path_component}/",
+            timeout=30,
+            verify=False,
+        )
+        assert response.status_code == 200
+        assert f"{path_component} ok!" in response.text

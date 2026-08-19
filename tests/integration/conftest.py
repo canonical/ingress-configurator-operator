@@ -28,6 +28,9 @@ CERTIFICATES_APP_NAME = "self-signed-certificates"
 CERTIFICATES_CHANNEL = "1/stable"
 CERTIFICATES_REVISION = 588
 ANY_CHARM_APP_NAME = "any-charm-backend"
+CONTENT_CACHE_APP_NAME = "content-cache"
+CONTENT_CACHE_CHANNEL = "1/edge"
+CONTENT_CACHE_REVISION = 528
 INGRESS_REQUIRER_APP_NAME = "ingress-requirer"
 APP_NAME = "ingress-configurator"
 
@@ -234,6 +237,29 @@ def any_charm_backend_fixture(
         num_units=2,
     )
     yield ANY_CHARM_APP_NAME
+
+
+@pytest.fixture(scope="module", name="content_cache")
+def content_cache_fixture(juju: jubilant.Juju):
+    """Deploy content-cache from the 1/edge channel.
+
+    Args:
+        juju: Jubilant juju fixture.
+
+    Yields:
+        The content-cache application name.
+    """
+    if CONTENT_CACHE_APP_NAME in juju.status().apps:
+        yield CONTENT_CACHE_APP_NAME
+        return
+    juju.deploy(
+        charm="content-cache",
+        app=CONTENT_CACHE_APP_NAME,
+        channel=CONTENT_CACHE_CHANNEL,
+        revision=CONTENT_CACHE_REVISION,
+        base="ubuntu@24.04",
+    )
+    yield CONTENT_CACHE_APP_NAME
 
 
 @pytest.fixture(scope="module")

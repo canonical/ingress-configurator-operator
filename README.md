@@ -88,7 +88,7 @@ When the relation is removed, haproxy reverts to the original backend addresses.
 
 **Optional configuration:**
 
-- `proxy-cache-valid`: Cache validity rule sent to content-cache, e.g. `"200 1h"`.
+- `proxy-cache-valid`: Cache validity rule sent to content-cache, for example `"200 1h"`.
 
 To obtain the full list of configurations, see the official [CharmHub documentation](https://charmhub.io/ingress-configurator).
 

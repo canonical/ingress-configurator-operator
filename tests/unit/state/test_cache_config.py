@@ -53,7 +53,7 @@ def test_to_relation_data_minimal():
     """
     arrange: CacheConfigState with no optional fields.
     act: call to_relation_data with one backend URL.
-    assert: dict contains backends, default healthcheck fields, no proxy_cache_valid.
+    assert: dict contains backends, default healthcheck fields, proxy_cache_valid as empty list.
     """
     state = CacheConfigState(
         proxy_cache_valid=None,
@@ -66,7 +66,7 @@ def test_to_relation_data_minimal():
     assert data["healthcheck_path"] == "/"
     assert json.loads(data["healthcheck_valid_status"]) == [200]
     assert data["healthcheck_ssl_verify"] == "true"
-    assert "proxy_cache_valid" not in data
+    assert json.loads(data["proxy_cache_valid"]) == []
 
 
 def test_to_relation_data_with_all_options():

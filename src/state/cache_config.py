@@ -57,9 +57,10 @@ class CacheConfigState:
             "healthcheck_path": self.healthcheck_path or "/",
             "healthcheck_valid_status": json.dumps([200]),
             "healthcheck_ssl_verify": "true",
+            "proxy_cache_valid": json.dumps(
+                [self.proxy_cache_valid] if self.proxy_cache_valid else []
+            ),
         }
-        if self.proxy_cache_valid is not None:
-            data["proxy_cache_valid"] = json.dumps([self.proxy_cache_valid])
         return data
 
     @staticmethod

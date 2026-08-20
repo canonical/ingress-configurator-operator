@@ -21,7 +21,7 @@ def test_build_with_no_config():
     """
     arrange: charm with no cache-related config set.
     act: build CacheConfigState.
-    assert: all optional fields are None.
+    assert: all optional fields are None and healthcheck_ssl_verify defaults to True.
     """
     charm = _make_charm({})
     state = CacheConfigState.build(charm)
@@ -29,6 +29,7 @@ def test_build_with_no_config():
     assert state.healthcheck_interval is None
     assert state.healthcheck_path is None
     assert state.fail_timeout is None
+    assert state.healthcheck_ssl_verify is True
 
 
 def test_build_with_all_config():
@@ -43,6 +44,7 @@ def test_build_with_all_config():
             "health-check-interval": 5,
             "health-check-path": "/health",
             "fail-timeout": "1m",
+            "healthcheck-ssl-verify": False,
         }
     )
     state = CacheConfigState.build(charm)
@@ -50,28 +52,7 @@ def test_build_with_all_config():
     assert state.healthcheck_interval == 5
     assert state.healthcheck_path == "/health"
     assert state.fail_timeout == "1m"
-
-
-def test_build_with_healthcheck_ssl_verify_false():
-    """
-    arrange: charm config sets healthcheck-ssl-verify to False.
-    act: build CacheConfigState.
-    assert: healthcheck_ssl_verify is False.
-    """
-    charm = _make_charm({"healthcheck-ssl-verify": False})
-    state = CacheConfigState.build(charm)
     assert state.healthcheck_ssl_verify is False
-
-
-def test_build_healthcheck_ssl_verify_defaults_true():
-    """
-    arrange: charm config does not set healthcheck-ssl-verify.
-    act: build CacheConfigState.
-    assert: healthcheck_ssl_verify defaults to True.
-    """
-    charm = _make_charm({})
-    state = CacheConfigState.build(charm)
-    assert state.healthcheck_ssl_verify is True
 
 
 def test_to_relation_data_minimal():
@@ -98,7 +79,7 @@ def test_to_relation_data_minimal():
 
 def test_to_relation_data_with_all_options():
     """
-    arrange: CacheConfigState with all optional fields set.
+    arrange: CacheConfigState with all optional fields set, including ssl_verify disabled.
     act: call to_relation_data with multiple backends.
     assert: dict contains all fields correctly serialised.
     """
@@ -107,31 +88,15 @@ def test_to_relation_data_with_all_options():
         healthcheck_interval=5,
         healthcheck_path="/health",
         fail_timeout="1m",
+        healthcheck_ssl_verify=False,
     )
     data = state.to_relation_data(["http://10.0.0.1:8080", "http://10.0.0.2:8080"])
     assert json.loads(data["backends"]) == ["http://10.0.0.1:8080", "http://10.0.0.2:8080"]
     assert data["fail_timeout"] == "1m"
     assert data["healthcheck_interval"] == "5000"  # 5s → 5000ms
     assert data["healthcheck_path"] == "/health"
-    assert data["healthcheck_ssl_verify"] == "true"
-    assert json.loads(data["proxy_cache_valid"]) == ["200 1h"]
-
-
-def test_to_relation_data_ssl_verify_false():
-    """
-    arrange: CacheConfigState with healthcheck_ssl_verify=False.
-    act: call to_relation_data.
-    assert: healthcheck_ssl_verify is "false" in the output dict.
-    """
-    state = CacheConfigState(
-        proxy_cache_valid=None,
-        healthcheck_interval=None,
-        healthcheck_path=None,
-        fail_timeout=None,
-        healthcheck_ssl_verify=False,
-    )
-    data = state.to_relation_data(["https://10.0.0.1:443"])
     assert data["healthcheck_ssl_verify"] == "false"
+    assert json.loads(data["proxy_cache_valid"]) == ["200 1h"]
 
 
 def test_get_cache_backends_returns_none_when_no_units():

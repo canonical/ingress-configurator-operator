@@ -12,9 +12,11 @@ import json
 import logging
 import typing
 from functools import cached_property
+from typing import cast
 from urllib.parse import urlparse
 
 import ops
+from pydantic.networks import IPvAnyAddress
 from charms.gateway_api_integrator.v1.gateway_route import (
     GATEWAY_ROUTE_RELATION_NAME as GATEWAY_ROUTE_RELATION,
 )
@@ -291,13 +293,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
     def _provide_haproxy_route_requirements(self, charm_state: HaproxyRouteState) -> None:
         """Publish haproxy-route requirements."""
-        if charm_state.cache_backend_urls:
-            _parsed = [urlparse(u) for u in charm_state.cache_backend_urls]
-            hosts: list[str] = [str(p.hostname) for p in _parsed]
-            ports: list[int] = [p.port for p in _parsed]  # type: ignore[misc]
-        else:
-            hosts = [str(address) for address in charm_state.backend_addresses]
-            ports = charm_state.backend_ports
+        hosts = [str(address) for address in charm_state.backend_addresses]
+        ports = charm_state.backend_ports
 
         params = {
             "hosts": hosts,
@@ -374,7 +371,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 "Invalid cache-backend received from content-cache"
             )
             return None
-        return dataclasses.replace(state, cache_backend_urls=cache_backends)
+        cache_addresses = [cast(IPvAnyAddress, p.hostname) for p in parsed_urls]
+        cache_ports = list({p.port for p in parsed_urls})
+        return dataclasses.replace(state, backend_addresses=cache_addresses, backend_ports=cache_ports)
 
     def _reconcile_gateway_route(self) -> None:
         """Reconcile gateway-route: create HTTPRoute resources and update relation data.

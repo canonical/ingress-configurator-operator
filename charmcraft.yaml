@@ -66,14 +66,22 @@ config:
       description: |
         Cache validity rule to send to the content-cache, e.g. "200 1h".
         Only used when the cache-config relation is present.
-        If not set, the content-cache uses its own default.
+        If not set, no cache validity rules are sent to content-cache.
     fail-timeout:
       type: string
       description: |
         Time before marking a backend as unavailable after a failed health check,
         sent to the content-cache via the cache-config relation (e.g. "30s", "1m").
         Only used when the cache-config relation is present.
-        Defaults to "30s" if not set.
+        If not set, "30s" is sent to content-cache.
+    healthcheck-ssl-verify:
+      type: boolean
+      default: true
+      description: |
+        Whether content-cache should verify TLS certificates when performing
+        health checks against backends. Set to false when backends use
+        self-signed certificates.
+        Only used when the cache-config relation is present.
     external-grpc-port:
       type: int
       description: |

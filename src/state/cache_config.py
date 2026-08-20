@@ -22,12 +22,14 @@ class CacheConfigState:
         healthcheck_interval: Health check interval in seconds, from charm config.
         healthcheck_path: Health check path, from charm config.
         fail_timeout: Time before marking a backend as unavailable after failure.
+        healthcheck_ssl_verify: Whether to verify TLS certificates during health checks.
     """
 
     proxy_cache_valid: Optional[str]
     healthcheck_interval: Optional[int]
     healthcheck_path: Optional[str]
     fail_timeout: Optional[str]
+    healthcheck_ssl_verify: bool = True
 
     @classmethod
     def build(cls, charm: ops.CharmBase) -> Self:
@@ -44,6 +46,7 @@ class CacheConfigState:
             healthcheck_interval=cast(Optional[int], charm.config.get("health-check-interval")),
             healthcheck_path=cast(Optional[str], charm.config.get("health-check-path")),
             fail_timeout=cast(Optional[str], charm.config.get("fail-timeout")),
+            healthcheck_ssl_verify=bool(charm.config.get("healthcheck-ssl-verify", True)),
         )
 
     def to_relation_data(self, backends: list[str]) -> dict[str, str]:
@@ -61,7 +64,7 @@ class CacheConfigState:
             "healthcheck_interval": str((self.healthcheck_interval or 10) * 1000),
             "healthcheck_path": self.healthcheck_path or "/",
             "healthcheck_valid_status": json.dumps([200]),
-            "healthcheck_ssl_verify": "true",
+            "healthcheck_ssl_verify": "true" if self.healthcheck_ssl_verify else "false",
             "proxy_cache_valid": json.dumps(
                 [self.proxy_cache_valid] if self.proxy_cache_valid else []
             ),

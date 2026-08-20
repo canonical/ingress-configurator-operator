@@ -106,6 +106,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self.on[CACHE_CONFIG_RELATION_NAME].relation_changed, self._reconcile
         )
         self.framework.observe(
+            self.on[CACHE_CONFIG_RELATION_NAME].relation_departed, self._reconcile
+        )
+        self.framework.observe(
             self.on[CACHE_CONFIG_RELATION_NAME].relation_broken, self._reconcile
         )
         self.framework.observe(self.on.update_status, self._on_update_status)

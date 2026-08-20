@@ -10,6 +10,7 @@ import ops
 from pydantic.dataclasses import dataclass
 
 CACHE_CONFIG_RELATION_NAME = "cache-config"
+FAIL_TIMEOUT_DEFAULT = "30s"
 
 
 @dataclass(frozen=True)
@@ -20,11 +21,13 @@ class CacheConfigState:
         proxy_cache_valid: Cache validity rule, e.g. "200 1h". None means not configured.
         healthcheck_interval: Health check interval in seconds, from charm config.
         healthcheck_path: Health check path, from charm config.
+        fail_timeout: Time before marking a backend as unavailable after failure.
     """
 
     proxy_cache_valid: Optional[str]
     healthcheck_interval: Optional[int]
     healthcheck_path: Optional[str]
+    fail_timeout: Optional[str]
 
     @classmethod
     def build(cls, charm: ops.CharmBase) -> Self:
@@ -40,6 +43,7 @@ class CacheConfigState:
             proxy_cache_valid=cast(Optional[str], charm.config.get("proxy-cache-valid")),
             healthcheck_interval=cast(Optional[int], charm.config.get("health-check-interval")),
             healthcheck_path=cast(Optional[str], charm.config.get("health-check-path")),
+            fail_timeout=cast(Optional[str], charm.config.get("fail-timeout")),
         )
 
     def to_relation_data(self, backends: list[str]) -> dict[str, str]:
@@ -53,6 +57,7 @@ class CacheConfigState:
         """
         data: dict[str, str] = {
             "backends": json.dumps(backends),
+            "fail_timeout": self.fail_timeout or FAIL_TIMEOUT_DEFAULT,
             "healthcheck_interval": str((self.healthcheck_interval or 10) * 1000),
             "healthcheck_path": self.healthcheck_path or "/",
             "healthcheck_valid_status": json.dumps([200]),

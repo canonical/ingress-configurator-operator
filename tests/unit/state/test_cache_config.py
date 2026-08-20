@@ -28,6 +28,7 @@ def test_build_with_no_config():
     assert state.proxy_cache_valid is None
     assert state.healthcheck_interval is None
     assert state.healthcheck_path is None
+    assert state.fail_timeout is None
 
 
 def test_build_with_all_config():
@@ -41,12 +42,14 @@ def test_build_with_all_config():
             "proxy-cache-valid": "200 1h",
             "health-check-interval": 5,
             "health-check-path": "/health",
+            "fail-timeout": "1m",
         }
     )
     state = CacheConfigState.build(charm)
     assert state.proxy_cache_valid == "200 1h"
     assert state.healthcheck_interval == 5
     assert state.healthcheck_path == "/health"
+    assert state.fail_timeout == "1m"
 
 
 def test_to_relation_data_minimal():
@@ -59,9 +62,11 @@ def test_to_relation_data_minimal():
         proxy_cache_valid=None,
         healthcheck_interval=None,
         healthcheck_path=None,
+        fail_timeout=None,
     )
     data = state.to_relation_data(["http://10.0.0.1:8080"])
     assert json.loads(data["backends"]) == ["http://10.0.0.1:8080"]
+    assert data["fail_timeout"] == "30s"  # None → FAIL_TIMEOUT_DEFAULT
     assert data["healthcheck_interval"] == "10000"  # None → 10 * 1000ms
     assert data["healthcheck_path"] == "/"
     assert json.loads(data["healthcheck_valid_status"]) == [200]
@@ -79,9 +84,11 @@ def test_to_relation_data_with_all_options():
         proxy_cache_valid="200 1h",
         healthcheck_interval=5,
         healthcheck_path="/health",
+        fail_timeout="1m",
     )
     data = state.to_relation_data(["http://10.0.0.1:8080", "http://10.0.0.2:8080"])
     assert json.loads(data["backends"]) == ["http://10.0.0.1:8080", "http://10.0.0.2:8080"]
+    assert data["fail_timeout"] == "1m"
     assert data["healthcheck_interval"] == "5000"  # 5s → 5000ms
     assert data["healthcheck_path"] == "/health"
     assert data["healthcheck_ssl_verify"] == "true"

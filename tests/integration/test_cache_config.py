@@ -3,9 +3,17 @@
 
 """Integration tests for the cache-config relation.
 
-Topology
---------
+Topology (HTTP backend)
+-----------------------
 any-charm-backend  (HTTP server on port 80)
+    ↑  (backends resolved via ingress-configurator integrator config)
+ingress-configurator  ──cache-config──▶  content-cache  (nginx caching proxy)
+    ↓  haproxy-route
+haproxy  ◀── HTTP client
+
+Topology (HTTPS backend)
+------------------------
+any-charm-https-backend  (HTTPS server on port 443, self-signed cert)
     ↑  (backends resolved via ingress-configurator integrator config)
 ingress-configurator  ──cache-config──▶  content-cache  (nginx caching proxy)
     ↓  haproxy-route
@@ -110,6 +118,89 @@ def test_cache_config_backend_substitution(
     # route to point at content-cache rather than the original backend.
 
     # Make an HTTP request through haproxy and verify the backend page is served.
+    haproxy_address = str(get_unit_addresses(juju, haproxy)[0])
+    session = http_session(dns_entries=[(MOCK_HAPROXY_HOSTNAME, haproxy_address)])
+
+    for path_component in ["v1", "v2"]:
+        response = session.get(
+            f"https://{MOCK_HAPROXY_HOSTNAME}/api/{path_component}/",
+            timeout=30,
+            verify=False,
+        )
+        assert response.status_code == 200
+        assert f"{path_component} ok!" in response.text
+
+
+@pytest.mark.abort_on_fail
+def test_cache_config_https_backend(
+    juju: jubilant.Juju,
+    application: str,
+    haproxy: str,
+    any_charm_backend_https: str,
+    content_cache: str,
+    http_session: Callable[..., Session],
+) -> None:
+    """Test end-to-end routing through content-cache when the backend speaks HTTPS.
+
+    Verifies that:
+    - ingress-configurator sends https:// backend URLs into the cache-config databag.
+    - content-cache proxies to the HTTPS backend (self-signed cert, ssl verify off).
+    - HTTP requests through haproxy are served via the content-cache → HTTPS backend chain.
+
+    Args:
+        juju: Jubilant juju fixture.
+        application: Name of the ingress-configurator application.
+        haproxy: Name of the haproxy application.
+        any_charm_backend_https: Name of the any-charm application serving HTTPS.
+        content_cache: Name of the content-cache application.
+        http_session: Modified requests session fixture for making HTTP requests.
+    """
+    # Wait for backend to be idle so its address is stable.
+    juju.wait(
+        lambda status: jubilant.all_agents_idle(status, any_charm_backend_https),
+        error=jubilant.any_error,
+    )
+
+    backend_addresses = ",".join(
+        str(addr) for addr in get_unit_addresses(juju, any_charm_backend_https)
+    )
+    juju.config(
+        app=application,
+        values={
+            "backend-addresses": backend_addresses,
+            "backend-ports": "443",
+            "backend-protocol": "https",
+            "healthcheck-ssl-verify": "false",
+            "paths": "/api/v1,/api/v2",
+        },
+    )
+
+    juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
+    juju.integrate(f"{application}:cache-config", f"{content_cache}:cache-config")
+
+    juju.wait(
+        lambda status: (
+            jubilant.all_active(
+                status,
+                haproxy,
+                application,
+                any_charm_backend_https,
+                content_cache,
+                CERTIFICATES_APP_NAME,
+            )
+            and jubilant.all_agents_idle(
+                status,
+                haproxy,
+                application,
+                any_charm_backend_https,
+                content_cache,
+                CERTIFICATES_APP_NAME,
+            )
+        ),
+        error=jubilant.any_error,
+        timeout=10 * 60,
+    )
+
     haproxy_address = str(get_unit_addresses(juju, haproxy)[0])
     session = http_session(dns_entries=[(MOCK_HAPROXY_HOSTNAME, haproxy_address)])
 

@@ -17,6 +17,7 @@ from .helper import DNSResolverAdapter
 
 MOCK_HAPROXY_HOSTNAME = "haproxy.internal"
 INGRESS_REQUIRER_SRC = pathlib.Path("tests/integration/any_charm_apache.py")
+INGRESS_REQUIRER_HTTPS_SRC = pathlib.Path("tests/integration/any_charm_apache_https.py")
 HELPER_SRC = pathlib.Path("tests/integration/helper.py")
 INGRESS_LIB_SRC = pathlib.Path("lib/charms/traefik_k8s/v2/ingress.py")
 JUJU_WAIT_TIMEOUT = 10 * 60
@@ -28,6 +29,7 @@ CERTIFICATES_APP_NAME = "self-signed-certificates"
 CERTIFICATES_CHANNEL = "1/stable"
 CERTIFICATES_REVISION = 588
 ANY_CHARM_APP_NAME = "any-charm-backend"
+HTTPS_BACKEND_APP_NAME = "any-charm-https-backend"
 CONTENT_CACHE_APP_NAME = "content-cache"
 CONTENT_CACHE_CHANNEL = "1/edge"
 CONTENT_CACHE_REVISION = 528
@@ -237,6 +239,41 @@ def any_charm_backend_fixture(
         num_units=2,
     )
     yield ANY_CHARM_APP_NAME
+
+
+@pytest.fixture(scope="module", name="any_charm_backend_https")
+def any_charm_backend_https_fixture(
+    pytestconfig: pytest.Config, juju: jubilant.Juju, lxd_controller: str, lxd_model: str
+):
+    """Deploy any-charm configured to serve HTTPS on port 443 with a self-signed cert."""
+    if HTTPS_BACKEND_APP_NAME in juju.status().apps:
+        yield HTTPS_BACKEND_APP_NAME
+        return
+    juju.deploy(
+        charm="any-charm",
+        channel="beta",
+        app=HTTPS_BACKEND_APP_NAME,
+        config={
+            "src-overwrite": json.dumps(
+                {
+                    "any_charm.py": INGRESS_REQUIRER_HTTPS_SRC.read_text(encoding="utf-8"),
+                    "ingress.py": INGRESS_LIB_SRC.read_text(encoding="utf-8"),
+                    "config.json": json.dumps(
+                        {
+                            "port": 443,
+                            "pages": {
+                                "/api/v1/index.html": "v1 ok!",
+                                "/api/v2/index.html": "v2 ok!",
+                            },
+                        }
+                    ),
+                }
+            ),
+            "python-packages": "\n".join(["pydantic", "charmlibs-apt"]),
+        },
+        num_units=1,
+    )
+    yield HTTPS_BACKEND_APP_NAME
 
 
 @pytest.fixture(scope="module", name="content_cache")

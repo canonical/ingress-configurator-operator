@@ -27,4 +27,5 @@ header:
   - 'uv.lock'
   - '.readthedocs.yaml'
   - 'docs/**'
+  - 'terraform/MAJOR_VERSION'
   comment: on-failure

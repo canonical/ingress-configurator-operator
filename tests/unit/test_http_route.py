@@ -273,6 +273,7 @@ def test_create_http_routes_http_only():
     arrange: https_mode=disabled, two hostnames.
     act: call create_http_routes.
     assert: a single HTTP route covering both hostnames, attaching to both per-hostname HTTP listeners.
+        The HTTP route never gets HSTS (hsts_max_age=None).
     """
     manager, mock = _make_http_route_manager()
 
@@ -292,6 +293,7 @@ def test_create_http_routes_http_only():
     assert len(applied) == 1
     assert applied[0].scheme == "http"
     assert applied[0].redirect_https is False
+    assert applied[0].hsts_max_age is None
     assert set(applied[0].hostnames) == {"a.example.com", "b.example.com"}
     assert set(applied[0].listener_names) == {
         f"{GW_NAME}-http-a-example-com",
@@ -303,7 +305,7 @@ def test_create_http_routes_https_enabled_single_hostname():
     """
     arrange: https_mode=enabled, one hostname.
     act: call create_http_routes.
-    assert: 2 routes created — 1 HTTP (all hostnames, no redirect) + 1 HTTPS (the hostname).
+    assert: 2 routes created — 1 HTTP (no HSTS) + 1 HTTPS (no HSTS, since none was passed).
     """
     manager, mock = _make_http_route_manager()
 
@@ -326,10 +328,12 @@ def test_create_http_routes_https_enabled_single_hostname():
     https_route = next(r for r in applied if r.scheme == "https")
 
     assert http_route.redirect_https is False
+    assert http_route.hsts_max_age is None
     assert http_route.listener_names == [f"{GW_NAME}-http-app-example-com"]
     assert http_route.hostnames == ["app.example.com"]
     assert https_route.listener_names == [f"{GW_NAME}-https-app-example-com"]
     assert https_route.hostnames == ["app.example.com"]
+    assert https_route.hsts_max_age is None
 
 
 def test_create_http_routes_https_enabled_multiple_hostnames():
@@ -382,14 +386,19 @@ def test_create_http_routes_https_enabled_multiple_hostnames():
 
     for r in http_routes + https_routes:
         assert r.redirect_https is False
+    for r in http_routes:
+        assert r.hsts_max_age is None
+    for r in https_routes:
+        assert r.hsts_max_age is None
 
 
 def test_create_http_routes_https_enforced_multiple_hostnames():
     """
-    arrange: https_mode=enforced, two hostnames.
+    arrange: https_mode=enforced, two hostnames, with an hsts_max_age.
     act: call create_http_routes.
-    assert: 3 routes — 1 HTTP redirect (all hostnames) + 2 HTTPS per hostname.
-        The HTTP route has redirect_https=True; HTTPS routes have redirect_https=False.
+    assert: 3 routes — 1 HTTP redirect (all hostnames, no HSTS) + 2 HTTPS per hostname
+        carrying the HSTS max-age. The HTTP route has redirect_https=True; HTTPS routes
+        have redirect_https=False.
     """
     manager, mock = _make_http_route_manager()
     hostnames = ["alpha.example.com", "beta.example.com"]
@@ -404,6 +413,7 @@ def test_create_http_routes_https_enforced_multiple_hostnames():
         PATHS,
         BACKEND_SVC,
         BACKEND_PORT,
+        hsts_max_age=31536000,
     )
 
     applied = mock._applied
@@ -416,10 +426,12 @@ def test_create_http_routes_https_enforced_multiple_hostnames():
     assert len(https_routes) == 2
 
     assert http_routes[0].redirect_https is True
+    assert http_routes[0].hsts_max_age is None
     assert set(http_routes[0].hostnames) == set(hostnames)
 
     for r in https_routes:
         assert r.redirect_https is False
+        assert r.hsts_max_age == 31536000
         assert len(r.hostnames) == 1
 
 
@@ -447,4 +459,99 @@ def test_create_http_routes_empty_hostnames():
     applied = mock._applied
     assert len(applied) == 1
     assert applied[0].scheme == "http"
+    assert applied[0].hsts_max_age is None
     assert applied[0].listener_names == [f"{GW_NAME}-http"]
+
+
+# ---------------------------------------------------------------------------
+# _build_spec HSTS filter tests
+# ---------------------------------------------------------------------------
+
+
+def _base_https_config(**kwargs) -> HTTPRouteConfig:
+    """Return a minimal HTTPS HTTPRouteConfig for _build_spec tests."""
+    defaults = {
+        "app_name": APP_NAME,
+        "scheme": "https",
+        "gateway_name": GW_NAME,
+        "gateway_namespace": GW_MODEL,
+        "listener_names": [f"{GW_NAME}-https-app-example-com"],
+        "hostnames": ["app.example.com"],
+        "paths": PATHS,
+        "backend_service_name": BACKEND_SVC,
+        "backend_service_port": BACKEND_PORT,
+        "redirect_https": False,
+    }
+    defaults.update(kwargs)
+    return HTTPRouteConfig(**defaults)  # type: ignore[arg-type]
+
+
+def test_build_spec_https_includes_hsts_filter():
+    """
+    arrange: an HTTPS HTTPRouteConfig with hsts_max_age=604800.
+    act: call HTTPRouteManager._build_spec().
+    assert: rules[0] contains a ResponseHeaderModifier filter with the correct
+        Strict-Transport-Security value AND still contains backendRefs.
+    """
+    config = _base_https_config(hsts_max_age=604800)
+    spec = HTTPRouteManager._build_spec(config)
+
+    rule = spec["rules"][0]  # type: ignore[index]
+    assert "backendRefs" in rule
+    assert "filters" in rule
+    filters = rule["filters"]
+    assert len(filters) == 1
+    assert filters[0]["type"] == "ResponseHeaderModifier"
+    added = filters[0]["responseHeaderModifier"]["set"]
+    assert len(added) == 1
+    assert added[0]["name"] == "Strict-Transport-Security"
+    assert added[0]["value"] == "max-age=604800"
+
+
+def test_build_spec_hsts_max_age_zero_still_injects_filter():
+    """
+    arrange: an HTTPS HTTPRouteConfig with hsts_max_age=0.
+    act: call HTTPRouteManager._build_spec().
+    assert: the ResponseHeaderModifier filter is present with max-age=0
+        so browsers clear their cached HSTS policy.
+    """
+    config = _base_https_config(hsts_max_age=0)
+    spec = HTTPRouteManager._build_spec(config)
+
+    rule = spec["rules"][0]  # type: ignore[index]
+    filters = rule["filters"]
+    assert filters[0]["type"] == "ResponseHeaderModifier"
+    added = filters[0]["responseHeaderModifier"]["set"]
+    assert added[0]["value"] == "max-age=0"
+
+
+def test_build_spec_redirect_does_not_include_hsts():
+    """
+    arrange: an HTTPRouteConfig with redirect_https=True and hsts_max_age set.
+    act: call HTTPRouteManager._build_spec().
+    assert: only a RequestRedirect filter is present — no ResponseHeaderModifier.
+        (Redirect rules never carry HSTS; the redirect response itself is the reply.)
+    """
+    config = _base_https_config(redirect_https=True, hsts_max_age=604800)
+    spec = HTTPRouteManager._build_spec(config)
+
+    rule = spec["rules"][0]  # type: ignore[index]
+    assert "backendRefs" not in rule
+    filters = rule["filters"]
+    types = [f["type"] for f in filters]
+    assert "RequestRedirect" in types
+    assert "ResponseHeaderModifier" not in types
+
+
+def test_build_spec_no_hsts_when_hsts_max_age_is_none():
+    """
+    arrange: an HTTPS HTTPRouteConfig with hsts_max_age=None.
+    act: call HTTPRouteManager._build_spec().
+    assert: no filters key is present in the rule (plain backendRefs only).
+    """
+    config = _base_https_config(hsts_max_age=None)
+    spec = HTTPRouteManager._build_spec(config)
+
+    rule = spec["rules"][0]  # type: ignore[index]
+    assert "backendRefs" in rule
+    assert "filters" not in rule

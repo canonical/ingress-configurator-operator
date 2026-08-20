@@ -34,11 +34,14 @@ APP_NAME = "ingress-configurator"
 # Gateway-route (Kubernetes Gateway API) test configuration.
 GATEWAY_API_INTEGRATOR_APP_NAME = "gateway-api-integrator"
 GATEWAY_API_INTEGRATOR_CHANNEL = "1/edge"
-GATEWAY_API_INTEGRATOR_REVISION = 163
+GATEWAY_API_INTEGRATOR_REVISION = 172
 # GatewayClass provided by the Canonical Kubernetes used in CI.
 GATEWAY_CLASS = "ck-gateway"
 EXTERNAL_HOSTNAME = "gateway.internal"
 GATEWAY_CERTIFICATES_CHANNEL = "1/edge"
+# max-age (seconds) for the Strict-Transport-Security header the provider publishes when
+# HTTPS is enforced; a non-default value so the enforced-HTTPS test verifies it flows through.
+GATEWAY_HSTS_MAX_AGE = 15552000
 
 # Closed-ports backend (flask-k8s, is_port_open=False).
 # Also reused by the enforced-HTTPS test, which runs in a separate model.
@@ -155,7 +158,7 @@ def application_fixture(
     """
     metadata = yaml.safe_load(pathlib.Path("./charmcraft.yaml").read_text(encoding="UTF-8"))
     app_name = metadata["name"]
-    if pytestconfig.getoption("--no-setup") and app_name in juju.status().apps:
+    if app_name in juju.status().apps:
         yield app_name
         return
     juju.deploy(
@@ -176,7 +179,7 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     Yields:
         The haproxy app name.
     """
-    if pytestconfig.getoption("--no-setup") and HAPROXY_APP_NAME in juju.status().apps:
+    if HAPROXY_APP_NAME in juju.status().apps:
         yield HAPROXY_APP_NAME
         return
     juju.deploy(
@@ -203,7 +206,7 @@ def any_charm_backend_fixture(
     pytestconfig: pytest.Config, juju: jubilant.Juju, lxd_controller: str, lxd_model: str
 ):
     """Deploy any-charm and configure it to serve as a requirer for the http interface."""
-    if pytestconfig.getoption("--no-setup") and ANY_CHARM_APP_NAME in juju.status().apps:
+    if ANY_CHARM_APP_NAME in juju.status().apps:
         yield ANY_CHARM_APP_NAME
         return
     juju.deploy(
@@ -257,7 +260,7 @@ def http_session() -> Callable[[list[tuple[str, IPv4Address | IPv6Address]]], Se
 @pytest.fixture(scope="module", name="ingress_requirer")
 def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, application: str):
     """Deploy and configure any-charm to serve as an ingress requirer for the ingress interface."""
-    if pytestconfig.getoption("--no-setup") and INGRESS_REQUIRER_APP_NAME in juju.status().apps:
+    if INGRESS_REQUIRER_APP_NAME in juju.status().apps:
         yield INGRESS_REQUIRER_APP_NAME
         return
     juju.deploy(
@@ -308,6 +311,7 @@ def application_with_tcp_server_fixture(application: str, juju: jubilant.Juju):
     """
     juju.wait(
         lambda status: jubilant.all_agents_idle(status, application),
+        error=jubilant.any_error,
     )
     juju.exec("sudo snap install ping-pong-tcp", unit=f"{application}/leader")
     juju.exec("sudo snap set ping-pong-tcp host=0.0.0.0", unit=f"{application}/leader")
@@ -333,7 +337,7 @@ def k8s_ingress_requirer_fixture(
     Yields:
         The ingress requirer application name.
     """
-    if pytestconfig.getoption("--no-setup") and APP_NAME in juju_k8s.status().apps:
+    if APP_NAME in juju_k8s.status().apps:
         yield APP_NAME
         return
     juju_k8s.deploy(charm=charm, app=APP_NAME, trust=True)
@@ -347,7 +351,8 @@ def k8s_ingress_requirer_fixture(
     )
     juju_k8s.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{APP_NAME}:ingress")
     juju_k8s.wait(
-        lambda status: jubilant.all_agents_idle(status, APP_NAME, INGRESS_REQUIRER_APP_NAME)
+        lambda status: jubilant.all_agents_idle(status, APP_NAME, INGRESS_REQUIRER_APP_NAME),
+        error=jubilant.any_error,
     )
     yield INGRESS_REQUIRER_APP_NAME
 

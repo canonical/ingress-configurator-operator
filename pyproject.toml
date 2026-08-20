@@ -15,7 +15,7 @@ classifiers = [
 ]
 dependencies = [
   "lightkube>=0.15.0",
-  "ops==3.8.0",
+  "ops==3.8.1",
   "pydantic==2.13.4",
   "validators>=0.35.0",
 ]
@@ -53,9 +53,9 @@ integration = [
   "allure-pytest>=2.8.18",
   "allure-pytest-collection-report @ git+https://github.com/canonical/data-platform-workflows@v24.0.0#subdirectory=python/pytest_plugins/allure_pytest_collection_report",
   "jubilant",
-  "opcli @ git+https://github.com/canonical/charm-ci.git@v0.0.1-alpha.6",
+  "opcli @ git+https://github.com/canonical/charm-ci.git@v0.0.1-alpha.10",
   "pytest",
-  "pytest-jubilant<2",
+  "pytest-jubilant<3",
   "requests",
   "tenacity",
 ]
@@ -115,7 +115,7 @@ lint.mccabe.max-complexity = 10
 lint.pydocstyle.convention = "google"
 
 [tool.codespell]
-skip = "build,lib,venv,icon.svg,.tox,.git,.mypy_cache,.ruff_cache,.coverage,htmlcov,uv.lock,grafana_dashboards"
+skip = "build,lib,venv,icon.svg,.tox,.git,.mypy_cache,.ruff_cache,.coverage,htmlcov,uv.lock,grafana_dashboards,_build"
 
 [tool.pytest.ini_options]
 minversion = "6.0"

@@ -37,6 +37,7 @@ from requests import Session
 
 from .conftest import (
     CERTIFICATES_APP_NAME,
+    HTTPS_BACKEND_APP_NAME,
     MOCK_HAPROXY_HOSTNAME,
     get_unit_addresses,
 )
@@ -155,7 +156,7 @@ def test_cache_config_https_backend(
         content_cache: Name of the content-cache application.
         http_session: Modified requests session fixture for making HTTP requests.
     """
-    # Wait for backend to be idle so its address is stable.
+    # Wait for backend to be idle so its address is stable and the CA cert is generated.
     juju.wait(
         lambda status: jubilant.all_agents_idle(status, any_charm_backend_https),
         error=jubilant.any_error,
@@ -174,6 +175,10 @@ def test_cache_config_https_backend(
             "paths": "/api/v1,/api/v2",
         },
     )
+
+    # Provide the backend's CA cert to content-cache so nginx can verify the HTTPS backend.
+    # The backend publishes its CA cert on its send-ca-cert relation (V0 format).
+    juju.integrate(f"{HTTPS_BACKEND_APP_NAME}:send-ca-cert", f"{content_cache}:receive-ca-cert")
 
     # Relations already exist from test_cache_config_backend_substitution
     # (module-scoped model is shared); just wait for everything to settle.

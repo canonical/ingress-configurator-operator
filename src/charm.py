@@ -16,7 +16,6 @@ from typing import cast
 from urllib.parse import urlparse
 
 import ops
-from pydantic.networks import IPvAnyAddress
 from charms.gateway_api_integrator.v1.gateway_route import (
     GATEWAY_ROUTE_RELATION_NAME as GATEWAY_ROUTE_RELATION,
 )
@@ -37,6 +36,7 @@ from charms.haproxy.v2.haproxy_route import HaproxyRouteRequirer
 from charms.traefik_k8s.v2.ingress import DEFAULT_RELATION_NAME as INGRESS_RELATION
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider, IngressRequirerData
 from lightkube import Client
+from pydantic.networks import IPvAnyAddress
 
 from helpers import truncate_k8s_resource_name
 from http_route import (
@@ -373,7 +373,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
             return None
         cache_addresses = [cast(IPvAnyAddress, p.hostname) for p in parsed_urls]
         cache_ports = list({p.port for p in parsed_urls})
-        return dataclasses.replace(state, backend_addresses=cache_addresses, backend_ports=cache_ports)
+        return dataclasses.replace(
+            state, backend_addresses=cache_addresses, backend_ports=cache_ports
+        )
 
     def _reconcile_gateway_route(self) -> None:
         """Reconcile gateway-route: create HTTPRoute resources and update relation data.

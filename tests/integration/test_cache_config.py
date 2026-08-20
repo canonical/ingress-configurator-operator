@@ -175,9 +175,8 @@ def test_cache_config_https_backend(
         },
     )
 
-    juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
-    juju.integrate(f"{application}:cache-config", f"{content_cache}:cache-config")
-
+    # Relations already exist from test_cache_config_backend_substitution
+    # (module-scoped model is shared); just wait for everything to settle.
     juju.wait(
         lambda status: (
             jubilant.all_active(

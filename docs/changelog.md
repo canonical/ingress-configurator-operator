@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Each revision is versioned by the date of the revision.
 
+## 2026-08-20
+
+### Fixed
+
+- Fixed the publish workflow to call the `canonical/charm-ci` publish reusable workflow instead of the integration-test workflow.
+
 ## 2026-07-21
 
 ### Added

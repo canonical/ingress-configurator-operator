@@ -8,7 +8,7 @@
 """Any-charm with Apache HTTPS server source (self-signed certificate).
 
 The charm generates a local CA and a server certificate signed by that CA.
-The CA certificate is published to any ``send-ca-cert`` relations so that
+The CA certificate is published to any ``provide-certificate-transfer`` relations so that
 content-cache can verify the backend via ``proxy_ssl_verify on``.
 """
 
@@ -46,11 +46,14 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
         self.ingress = IngressPerAppRequirer(self, port=port)
         self.framework.observe(self.on.install, self._install)
         self.framework.observe(
-            self.on.send_ca_cert_relation_joined, self._on_send_ca_cert_relation_joined
+            self.on.provide_certificate_transfer_relation_joined,
+            self._on_provide_certificate_transfer_relation_joined,
         )
 
-    def _on_send_ca_cert_relation_joined(self, event: ops.RelationJoinedEvent) -> None:
-        """Publish the CA certificate to the new send-ca-cert relation.
+    def _on_provide_certificate_transfer_relation_joined(
+        self, event: ops.RelationJoinedEvent
+    ) -> None:
+        """Publish the CA certificate to the new certificate-transfer relation.
 
         Args:
             event: The relation joined event.
@@ -58,12 +61,12 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
         self._publish_ca_cert(event.relation)
 
     def _publish_ca_cert(self, relation: ops.Relation) -> None:
-        """Write the CA certificate to a send-ca-cert relation databag.
+        """Write the CA certificate to a certificate-transfer relation databag.
 
         Uses the V0 format (unit databag ``ca`` key) understood by content-cache.
 
         Args:
-            relation: The send-ca-cert relation to write to.
+            relation: The certificate-transfer relation to write to.
         """
         if not _CA_CERT_PATH.exists():
             return
@@ -79,7 +82,7 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
         pages = self._cfg.get("pages")
         self._start_server(port=port, pages=pages)
         # Publish CA cert to any relations that were already joined.
-        for relation in self.model.relations.get("send-ca-cert", []):
+        for relation in self.model.relations.get("provide-certificate-transfer", []):
             self._publish_ca_cert(relation)
 
     def _start_server(
@@ -91,7 +94,7 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
 
         Generates a local CA key + cert, then signs a server certificate with it.
         This allows content-cache to verify the backend via ``proxy_ssl_verify on``
-        by trusting the CA cert published to the ``send-ca-cert`` relation.
+        by trusting the CA cert published to the ``provide-certificate-transfer`` relation.
 
         Args:
             port: TCP port apache should listen on (default 443).

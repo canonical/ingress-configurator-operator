@@ -177,8 +177,11 @@ def test_cache_config_https_backend(
     )
 
     # Provide the backend's CA cert to content-cache so nginx can verify the HTTPS backend.
-    # The backend publishes its CA cert on its send-ca-cert relation (V0 format).
-    juju.integrate(f"{HTTPS_BACKEND_APP_NAME}:send-ca-cert", f"{content_cache}:receive-ca-cert")
+    # The backend publishes its CA cert on its provide-certificate-transfer relation (V0 format).
+    juju.integrate(
+        f"{HTTPS_BACKEND_APP_NAME}:provide-certificate-transfer",
+        f"{content_cache}:receive-ca-cert",
+    )
 
     # Relations already exist from test_cache_config_backend_substitution
     # (module-scoped model is shared); just wait for everything to settle.

@@ -115,6 +115,8 @@ class HaproxyRouteState:
         header_rewrite_expressions: List of header rewrite expressions.
         allow_http: Whether to allow HTTP traffic to the service.
         external_grpc_port: Optional gRPC external port.
+        cache_backend_urls: When set, exact backend URLs from content-cache to use instead of
+            re-combining backend_addresses and backend_ports.
     """
 
     backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
@@ -142,6 +144,7 @@ class HaproxyRouteState:
     header_rewrite_expressions: list[tuple[str, str]] = Field(default=[])
     allow_http: bool = Field(default=False)
     external_grpc_port: int | None = Field(default=None, gt=0, le=65535)
+    cache_backend_urls: list[str] = Field(default=[])
 
     @model_validator(mode="after")
     def validate_external_grpc_port_requires_https(self) -> Self:

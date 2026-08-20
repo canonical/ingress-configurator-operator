@@ -291,8 +291,16 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
     def _provide_haproxy_route_requirements(self, charm_state: HaproxyRouteState) -> None:
         """Publish haproxy-route requirements."""
+        if charm_state.cache_backend_urls:
+            _parsed = [urlparse(u) for u in charm_state.cache_backend_urls]
+            hosts: list[str] = [str(p.hostname) for p in _parsed]
+            ports: list[int] = [p.port for p in _parsed]  # type: ignore[misc]
+        else:
+            hosts = [str(address) for address in charm_state.backend_addresses]
+            ports = charm_state.backend_ports
+
         params = {
-            "hosts": [str(address) for address in charm_state.backend_addresses],
+            "hosts": hosts,
             "check_interval": charm_state.health_check.interval,
             "check_rise": charm_state.health_check.rise,
             "check_fall": charm_state.health_check.fall,
@@ -300,7 +308,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             "check_port": charm_state.health_check.port,
             "paths": charm_state.paths,
             "deny_paths": charm_state.deny_paths,
-            "ports": charm_state.backend_ports,
+            "ports": ports,
             "protocol": charm_state.backend_protocol,
             "retry_count": charm_state.retry.count if charm_state.retry else None,
             "retry_redispatch": charm_state.retry.redispatch if charm_state.retry else None,
@@ -359,22 +367,14 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self.unit.status = ops.WaitingStatus("Waiting for cache-backend from content-cache")
             return None
 
-        # Parse cache-backend URLs and substitute into a new immutable state
+        # Validate all URLs are well-formed before storing them.
         parsed_urls = [urlparse(url) for url in cache_backends]
-        new_addresses = [p.hostname for p in parsed_urls if p.hostname]
-        new_ports = list(dict.fromkeys(p.port for p in parsed_urls if p.port))
-        if not new_addresses or not new_ports:
+        if not all(p.hostname and p.port for p in parsed_urls):
             self.unit.status = ops.WaitingStatus(
                 "Invalid cache-backend received from content-cache"
             )
             return None
-        backend_protocol = parsed_urls[0].scheme or "http"
-        return dataclasses.replace(
-            state,
-            backend_addresses=new_addresses,
-            backend_ports=new_ports,
-            backend_protocol=backend_protocol,
-        )
+        return dataclasses.replace(state, cache_backend_urls=cache_backends)
 
     def _reconcile_gateway_route(self) -> None:
         """Reconcile gateway-route: create HTTPRoute resources and update relation data.

@@ -553,6 +553,39 @@ def test_cache_config_sends_relation_data_to_content_cache(
     assert json.loads(local_app_data["proxy_cache_valid"]) == ["200 1h"]
 
 
+def test_cache_config_uses_urls_directly_not_cartesian_product(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: cache-config with two content-cache units, each on a different port.
+    act: trigger config-changed.
+    assert: haproxy-route hosts and ports are derived from the exact URLs,
+            not from a Cartesian product of all addresses x all ports.
+    """
+    state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation(
+                "cache-config",
+                remote_units_data={
+                    0: {"cache-backend": "http://10.1.0.5:9000"},
+                    1: {"cache-backend": "http://10.1.0.6:9001"},
+                },
+            ),
+        ],
+        leader=True,
+    )
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
+    haproxy_data: dict = dict(out.get_relations("haproxy-route")[0].local_app_data)
+    # Each cache-backend URL maps to exactly one haproxy server entry.
+    # The correct result is 2 backends, not a 2x2 Cartesian product of 4.
+    assert sorted(json.loads(haproxy_data["hosts"])) == ["10.1.0.5", "10.1.0.6"]
+    assert sorted(json.loads(haproxy_data["ports"])) == [9000, 9001]
+
+
 def test_cache_config_removed_reverts_to_original_backends(
     context_machine: ops.testing.Context["IngressConfiguratorCharm"],
 ):

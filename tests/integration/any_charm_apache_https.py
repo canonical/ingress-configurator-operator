@@ -135,7 +135,22 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
         )
         # Determine the unit's IP address to embed as a SAN so that content-cache can
         # verify the cert via proxy_ssl_verify on (nginx checks proxy_ssl_name against SANs).
-        server_ip = str(self.model.get_binding("juju-info").network.bind_address)
+        # Use `ip route get` to find the source IP used for external connections, which
+        # matches the Juju public address (used in backend-addresses config and proxy_ssl_name).
+        route_output = subprocess.check_output(  # nosec: B603, B607
+            ["ip", "route", "get", "1.1.1.1"], text=True
+        )
+        # Parse: "1.1.1.1 via ... dev eth0 src 10.x.y.z uid ..."
+        server_ip = route_output.split("src")[1].split()[0]
+
+        # Build SAN list: include both the primary IP and all interface IPs as a safety net.
+        all_ips_output = subprocess.check_output(  # nosec: B603, B607
+            ["hostname", "-I"], text=True
+        ).strip()
+        san_ips = {server_ip}
+        for ip in all_ips_output.split():
+            san_ips.add(ip)
+        san_value = ",".join(f"IP:{ip}" for ip in sorted(san_ips)) + ",DNS:localhost"
 
         # Generate server CSR.
         subprocess.run(  # nosec: B603, B607
@@ -152,11 +167,9 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
             ],
             check=True,
         )
-        # Write SAN extension file so the IP is also in the Subject Alternative Name.
+        # Write SAN extension file with ALL detected IPs + localhost.
         san_ext_path = pathlib.Path("/tmp/san.ext")  # nosec: B108
-        san_ext_path.write_text(
-            f"subjectAltName=IP:{server_ip},DNS:localhost\n", encoding="utf-8"
-        )
+        san_ext_path.write_text(f"subjectAltName={san_value}\n", encoding="utf-8")
         # Sign server cert with CA, including the SAN extension.
         subprocess.run(  # nosec: B603, B607
             [

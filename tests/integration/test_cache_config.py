@@ -233,12 +233,28 @@ def test_cache_config_https_backend(
     # and content-cache nginx config.
     haproxy_unit = f"{haproxy}/0"
     cc_unit = f"{content_cache}/0"
+    backend_unit = f"{HTTPS_BACKEND_APP_NAME}/0"
+    backend_addresses = str(get_unit_addresses(juju, HTTPS_BACKEND_APP_NAME)[0])
     for diag_cmd, unit in [
         ("cat /etc/haproxy/haproxy.cfg", haproxy_unit),
         ("ls -la /var/lib/haproxy/cas/ && cat /var/lib/haproxy/cas/cas.pem", haproxy_unit),
         ("cat /etc/nginx/sites-enabled/* 2>/dev/null || true", cc_unit),
         ("ls /etc/nginx/certs/ 2>/dev/null || true", cc_unit),
         ("openssl s_client -connect localhost:30000 -showcerts </dev/null 2>&1 | head -30", cc_unit),
+        ("cat /var/log/nginx/error.log 2>/dev/null | tail -20 || true", cc_unit),
+        # Check backend cert SAN - connects from content-cache to backend
+        (
+            f"echo '' | timeout 5 openssl s_client -connect {backend_addresses}:443 "
+            f"-showcerts 2>&1 | openssl x509 -noout -text 2>/dev/null | grep -A5 'Subject Alt'",
+            cc_unit,
+        ),
+        # Show cert on backend directly
+        (
+            "openssl x509 -noout -text -in /etc/ssl/certs/apache-server.crt "
+            "2>/dev/null | grep -A10 'Subject Alt' || true",
+            backend_unit,
+        ),
+        ("hostname -I && ip route get 1.1.1.1 || true", backend_unit),
     ]:
         try:
             result = juju.exec(diag_cmd, unit=unit)

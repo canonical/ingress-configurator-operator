@@ -241,9 +241,17 @@ def test_cache_config_https_backend(
     cc_unit = f"{content_cache}/0"
     backend_unit = f"{HTTPS_BACKEND_APP_NAME}/0"
     backend_addresses = str(get_unit_addresses(juju, HTTPS_BACKEND_APP_NAME)[0])
+    cc_addresses = str(get_unit_addresses(juju, content_cache)[0])
     for diag_cmd, unit in [
         ("cat /etc/haproxy/haproxy.cfg", haproxy_unit),
         ("ls -la /var/lib/haproxy/cas/ && cat /var/lib/haproxy/cas/cas.pem", haproxy_unit),
+        # Test haproxy->content-cache SSL connection directly
+        (
+            f"echo '' | timeout 5 openssl s_client -connect {cc_addresses}:30000 "
+            f"-CAfile /var/lib/haproxy/cas/cas.pem 2>&1 "
+            f"| grep -E 'Verify|subject|issuer|error|CONNECTED|FAILED' | head -10 || true",
+            haproxy_unit,
+        ),
         ("cat /etc/nginx/sites-enabled/* 2>/dev/null || true", cc_unit),
         ("ls /etc/nginx/certs/ 2>/dev/null || true", cc_unit),
         # Check content-cache cert CN
@@ -262,14 +270,21 @@ def test_cache_config_https_backend(
             "openssl s_client -connect localhost:30000 -showcerts </dev/null 2>&1 | head -30",
             cc_unit,
         ),
+        # Check if nginx receives any requests (access log)
+        (
+            "cat /var/log/nginx/content-cache_0/30000.access.log 2>/dev/null | tail -10 || true",
+            cc_unit,
+        ),
+        # Check LUA healthcheck status (shows whether backend is UP or DOWN)
+        ("curl -s http://localhost/nginx_backends_status 2>&1 | head -30 || true", cc_unit),
         # Read the actual per-port nginx error log (not the default one)
         (
             "cat /var/log/nginx/content-cache_0/30000.error.log 2>/dev/null | tail -30 || true",
             cc_unit,
         ),
-        # Manually test nginx->backend proxy
+        # Manually test nginx->backend proxy (correct path)
         (
-            f"curl -sk https://{backend_addresses}:443/index.html 2>&1 | head -5 || true",
+            f"curl -sk https://{backend_addresses}:443/api/v1/index.html 2>&1 | head -5 || true",
             cc_unit,
         ),
         # Check backend cert SAN - connects from content-cache to backend

@@ -373,8 +373,15 @@ class IngressConfiguratorCharm(ops.CharmBase):
             return None
         cache_addresses = [cast(IPvAnyAddress, p.hostname) for p in parsed_urls]
         cache_ports = list({p.port for p in parsed_urls})
+        # content-cache always exposes an HTTP frontend to haproxy regardless of the
+        # upstream backend protocol (HTTP vs HTTPS is handled internally by nginx).
+        # Sending protocol="https" would cause haproxy to attempt TLS towards content-cache
+        # and require an SNI hostname — neither of which is appropriate here.
         return dataclasses.replace(
-            state, backend_addresses=cache_addresses, backend_ports=cache_ports
+            state,
+            backend_addresses=cache_addresses,
+            backend_ports=cache_ports,
+            backend_protocol="http",
         )
 
     def _reconcile_gateway_route(self) -> None:

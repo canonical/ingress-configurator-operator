@@ -246,15 +246,37 @@ def test_cache_config_https_backend(
         ("ls -la /var/lib/haproxy/cas/ && cat /var/lib/haproxy/cas/cas.pem", haproxy_unit),
         ("cat /etc/nginx/sites-enabled/* 2>/dev/null || true", cc_unit),
         ("ls /etc/nginx/certs/ 2>/dev/null || true", cc_unit),
+        # Check content-cache cert CN
+        (
+            "openssl x509 -noout -subject -issuer -in /etc/nginx/certs/content-cache-charm.pem "
+            "2>/dev/null || true",
+            cc_unit,
+        ),
+        # Show CA bundle content (what CAs content-cache trusts for backend verification)
+        (
+            "openssl x509 -noout -subject -issuer -in /etc/nginx/certs/ca-bundle.pem "
+            "2>/dev/null || true",
+            cc_unit,
+        ),
         (
             "openssl s_client -connect localhost:30000 -showcerts </dev/null 2>&1 | head -30",
             cc_unit,
         ),
-        ("cat /var/log/nginx/error.log 2>/dev/null | tail -20 || true", cc_unit),
+        # Read the actual per-port nginx error log (not the default one)
+        (
+            "cat /var/log/nginx/content-cache_0/30000.error.log 2>/dev/null | tail -30 || true",
+            cc_unit,
+        ),
+        # Manually test nginx->backend proxy
+        (
+            f"curl -sk https://{backend_addresses}:443/index.html 2>&1 | head -5 || true",
+            cc_unit,
+        ),
         # Check backend cert SAN - connects from content-cache to backend
         (
             f"echo '' | timeout 5 openssl s_client -connect {backend_addresses}:443 "
-            f"-showcerts 2>&1 | openssl x509 -noout -text 2>/dev/null | grep -A5 'Subject Alt'",
+            f"-CAfile /etc/nginx/certs/ca-bundle.pem 2>&1 | grep -E 'Verify|subject|issuer|IP' "
+            f"| head -10",
             cc_unit,
         ),
         # Show cert on backend directly

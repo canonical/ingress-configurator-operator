@@ -133,6 +133,10 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
             ["openssl", "genrsa", "-out", str(_SERVER_KEY_PATH), "2048"],
             check=True,
         )
+        # Determine the unit's IP address to embed as a SAN so that content-cache can
+        # verify the cert via proxy_ssl_verify on (nginx checks proxy_ssl_name against SANs).
+        server_ip = str(self.model.get_binding("juju-info").network.bind_address)
+
         # Generate server CSR.
         subprocess.run(  # nosec: B603, B607
             [
@@ -144,11 +148,16 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
                 "-out",
                 str(_SERVER_CSR_PATH),
                 "-subj",
-                "/CN=localhost",
+                f"/CN={server_ip}",
             ],
             check=True,
         )
-        # Sign server cert with CA.
+        # Write SAN extension file so the IP is also in the Subject Alternative Name.
+        san_ext_path = pathlib.Path("/tmp/san.ext")  # nosec: B108
+        san_ext_path.write_text(
+            f"subjectAltName=IP:{server_ip},DNS:localhost\n", encoding="utf-8"
+        )
+        # Sign server cert with CA, including the SAN extension.
         subprocess.run(  # nosec: B603, B607
             [
                 "openssl",
@@ -166,6 +175,8 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
                 "-days",
                 "365",
                 "-sha256",
+                "-extfile",
+                str(san_ext_path),
             ],
             check=True,
         )

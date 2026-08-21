@@ -182,7 +182,6 @@ def test_cache_config_https_backend(
             "backend-addresses": backend_addresses,
             "backend-ports": "443",
             "backend-protocol": "https",
-            "healthcheck-ssl-verify": "false",
             "paths": "/api/v1,/api/v2",
             # hostname is required when cache-backend uses HTTPS (content-cache TLS frontend);
             # ingress-configurator passes it to haproxy for routing and SNI.

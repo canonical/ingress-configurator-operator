@@ -182,6 +182,12 @@ def test_cache_config_https_backend(
             "backend-addresses": backend_addresses,
             "backend-ports": "443",
             "backend-protocol": "https",
+            # The LUA healthcheck in content-cache has no ssl_trusted_certificate_path
+            # configured, so it falls back to the system CA bundle which doesn't contain
+            # the test CA. Disable healthcheck SSL verification to allow the healthcheck
+            # to pass; nginx proxy SSL verification still uses ca-bundle.pem and the
+            # backend cert's IP SAN for proper certificate verification.
+            "healthcheck-ssl-verify": "false",
             "paths": "/api/v1,/api/v2",
             # hostname is required when cache-backend uses HTTPS (content-cache TLS frontend);
             # ingress-configurator passes it to haproxy for routing and SNI.
@@ -240,7 +246,10 @@ def test_cache_config_https_backend(
         ("ls -la /var/lib/haproxy/cas/ && cat /var/lib/haproxy/cas/cas.pem", haproxy_unit),
         ("cat /etc/nginx/sites-enabled/* 2>/dev/null || true", cc_unit),
         ("ls /etc/nginx/certs/ 2>/dev/null || true", cc_unit),
-        ("openssl s_client -connect localhost:30000 -showcerts </dev/null 2>&1 | head -30", cc_unit),
+        (
+            "openssl s_client -connect localhost:30000 -showcerts </dev/null 2>&1 | head -30",
+            cc_unit,
+        ),
         ("cat /var/log/nginx/error.log 2>/dev/null | tail -20 || true", cc_unit),
         # Check backend cert SAN - connects from content-cache to backend
         (

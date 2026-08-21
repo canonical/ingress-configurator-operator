@@ -37,6 +37,9 @@ requires:
   gateway-route:
     interface: gateway-route
     limit: 1
+  cache-config:
+    interface: content-cache-config
+    limit: 1
 
 provides:
   ingress:
@@ -58,6 +61,27 @@ config:
     backend-protocol:
       type: string
       description: The protocol that the backend service speaks. "http" (default) or "https".
+    proxy-cache-valid:
+      type: string
+      description: |
+        Cache validity rule to send to the content-cache, e.g. "200 1h".
+        Only used when the cache-config relation is present.
+        If not set, no cache validity rules are sent to content-cache.
+    fail-timeout:
+      type: string
+      default: "30s"
+      description: |
+        Time before marking a backend as unavailable after a failed health check,
+        sent to the content-cache via the cache-config relation (e.g. "30s", "1m").
+        Only used when the cache-config relation is present.
+    healthcheck-ssl-verify:
+      type: boolean
+      default: true
+      description: |
+        Whether content-cache should verify TLS certificates when performing
+        health checks against backends. Set to false when backends use
+        self-signed certificates.
+        Only used when the cache-config relation is present.
     external-grpc-port:
       type: int
       description: |

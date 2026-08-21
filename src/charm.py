@@ -7,10 +7,13 @@
 
 """Charm the service."""
 
+import dataclasses
 import json
 import logging
 import typing
 from functools import cached_property
+from typing import Literal, cast
+from urllib.parse import urlparse
 
 import ops
 from charms.gateway_api_integrator.v1.gateway_route import (
@@ -33,6 +36,7 @@ from charms.haproxy.v2.haproxy_route import HaproxyRouteRequirer
 from charms.traefik_k8s.v2.ingress import DEFAULT_RELATION_NAME as INGRESS_RELATION
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider, IngressRequirerData
 from lightkube import Client
+from pydantic.networks import IPvAnyAddress
 
 from helpers import truncate_k8s_resource_name
 from http_route import (
@@ -48,6 +52,7 @@ from kubernetes import (
     ensure_nodeport_service,
     get_kubernetes_data,
 )
+from state.cache_config import CACHE_CONFIG_RELATION_NAME, CacheConfigState
 from state.gateway_route import (
     GatewayRouteState,
     InvalidGatewayRouteStateError,
@@ -99,6 +104,15 @@ class IngressConfiguratorCharm(ops.CharmBase):
         self.framework.observe(self.on[GATEWAY_ROUTE_RELATION].relation_changed, self._reconcile)
         self.framework.observe(self.on[GATEWAY_ROUTE_RELATION].relation_broken, self._reconcile)
         self.framework.observe(self.on[GATEWAY_ROUTE_RELATION].relation_departed, self._reconcile)
+        self.framework.observe(
+            self.on[CACHE_CONFIG_RELATION_NAME].relation_changed, self._reconcile
+        )
+        self.framework.observe(
+            self.on[CACHE_CONFIG_RELATION_NAME].relation_departed, self._reconcile
+        )
+        self.framework.observe(
+            self.on[CACHE_CONFIG_RELATION_NAME].relation_broken, self._reconcile
+        )
         self.framework.observe(self.on.update_status, self._on_update_status)
 
         # Action handlers
@@ -132,6 +146,19 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 "Only one route relation type should exist (haproxy-route, haproxy-route-tcp, or gateway-route)."
             )
             return
+
+        cache_config_related = self.model.get_relation(CACHE_CONFIG_RELATION_NAME) is not None
+        if cache_config_related:
+            if haproxy_route_tcp_related:
+                self.unit.status = ops.WaitingStatus(
+                    "cache-config is not supported for TCP protocol"
+                )
+                return
+            if gateway_route_related:
+                self.unit.status = ops.WaitingStatus(
+                    "cache-config is not supported for gRPC protocol"
+                )
+                return
 
         if gateway_route_related:
             self._reconcile_gateway_route()
@@ -220,6 +247,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
             logger.exception("Invalid backend config: %s", exc)
             self.unit.status = ops.BlockedStatus("Invalid backend configuration")
             return
+        charm_state = self._apply_cache_config(charm_state)
+        if charm_state is None:
+            return
         self._provide_haproxy_route_requirements(charm_state)
 
         if proxied_endpoints := self._haproxy_route.get_proxied_endpoints():
@@ -237,6 +267,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
             logger.exception("Invalid backend config: %s", exc)
             self.unit.status = ops.BlockedStatus("Invalid backend configuration")
             return
+        charm_state = self._apply_cache_config(charm_state)
+        if charm_state is None:
+            return
         self._provide_haproxy_route_requirements(charm_state)
 
         if proxied_endpoints := self._haproxy_route.get_proxied_endpoints():
@@ -252,13 +285,19 @@ class IngressConfiguratorCharm(ops.CharmBase):
             logger.exception("Invalid haproxy-route config: %s", exc)
             self.unit.status = ops.BlockedStatus("Invalid haproxy-route configuration")
             return
+        charm_state = self._apply_cache_config(charm_state)
+        if charm_state is None:
+            return
         self._provide_haproxy_route_requirements(charm_state)
         self.unit.status = ops.ActiveStatus("Ready")
 
     def _provide_haproxy_route_requirements(self, charm_state: HaproxyRouteState) -> None:
         """Publish haproxy-route requirements."""
+        hosts = [str(address) for address in charm_state.backend_addresses]
+        ports = charm_state.backend_ports
+
         params = {
-            "hosts": [str(address) for address in charm_state.backend_addresses],
+            "hosts": hosts,
             "check_interval": charm_state.health_check.interval,
             "check_rise": charm_state.health_check.rise,
             "check_fall": charm_state.health_check.fall,
@@ -266,7 +305,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             "check_port": charm_state.health_check.port,
             "paths": charm_state.paths,
             "deny_paths": charm_state.deny_paths,
-            "ports": charm_state.backend_ports,
+            "ports": ports,
             "protocol": charm_state.backend_protocol,
             "retry_count": charm_state.retry.count if charm_state.retry else None,
             "retry_redispatch": charm_state.retry.redispatch if charm_state.retry else None,
@@ -287,6 +326,72 @@ class IngressConfiguratorCharm(ops.CharmBase):
         }
         not_none_params = {k: v for k, v in params.items() if v is not None}
         self._haproxy_route.provide_haproxy_route_requirements(**not_none_params)
+
+    def _apply_cache_config(self, state: HaproxyRouteState) -> HaproxyRouteState | None:
+        """Apply cache-config backend substitution if the relation is present.
+
+        Writes the resolved backend URLs into the cache-config relation databag,
+        then reads back the cache-backend from content-cache. If cache-backends
+        are not yet available, sets WaitingStatus and returns None.
+
+        Args:
+            state: The resolved HaproxyRouteState with original backend addresses.
+
+        Returns:
+            A new HaproxyRouteState with backends replaced by content-cache address(es),
+            the original state unchanged if no cache-config relation is present,
+            or None if WaitingStatus was set (caller must stop reconciliation).
+        """
+        rel = self.model.get_relation(CACHE_CONFIG_RELATION_NAME)
+        if rel is None:
+            return state
+
+        # Build backend URLs to send to content-cache
+        backends = [
+            f"{state.backend_protocol}://{addr}:{port}"
+            for addr in state.backend_addresses
+            for port in state.backend_ports
+        ]
+
+        # Only the leader may write to the app databag.
+        if self.unit.is_leader():
+            cache_state = CacheConfigState.build(self)
+            rel.data[self.app].update(cache_state.to_relation_data(backends))
+
+        # Read cache-backend from content-cache unit databags
+        cache_backends = CacheConfigState.get_cache_backends(rel)
+        if not cache_backends:
+            self.unit.status = ops.WaitingStatus("Waiting for cache-backend from content-cache")
+            return None
+
+        # Validate all URLs are well-formed before storing them.
+        parsed_urls = [urlparse(url) for url in cache_backends]
+        if not all(p.hostname and p.port for p in parsed_urls):
+            self.unit.status = ops.WaitingStatus(
+                "Invalid cache-backend received from content-cache"
+            )
+            return None
+        cache_addresses = [cast(IPvAnyAddress, p.hostname) for p in parsed_urls]
+        cache_ports = list({p.port for p in parsed_urls})
+        # Derive the haproxy→content-cache protocol from the cache-backend URL scheme.
+        # When content-cache has a TLS certificate for its own frontend (via the
+        # certificates relation), it publishes https:// cache-backend URLs; otherwise http://.
+        cache_protocol: Literal["http", "https"] = (
+            "https" if all(p.scheme == "https" for p in parsed_urls) else "http"
+        )
+        # When content-cache speaks HTTPS, haproxy requires an SNI hostname to establish
+        # the TLS connection. The operator must configure the hostname on ingress-configurator.
+        if cache_protocol == "https" and not state.hostname:
+            self.unit.status = ops.BlockedStatus(
+                "hostname config required when cache-backend uses HTTPS"
+            )
+            return None
+        return dataclasses.replace(
+            state,
+            backend_addresses=cache_addresses,
+            backend_ports=cache_ports,
+            backend_protocol=cache_protocol,
+        )
 
     def _reconcile_gateway_route(self) -> None:
         """Reconcile gateway-route: create HTTPRoute resources and update relation data.

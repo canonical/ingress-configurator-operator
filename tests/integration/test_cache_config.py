@@ -29,6 +29,8 @@ Flow:
 4. An HTTP request through haproxy is served by content-cache → backend.
 """
 
+import logging
+import time
 from typing import Callable
 
 import jubilant
@@ -228,14 +230,48 @@ def test_cache_config_https_backend(
         timeout=10 * 60,
     )
 
+    # Dump diagnostics to help debug 502 failures: haproxy config, CA cert bundle,
+    # and content-cache nginx config.
+    haproxy_unit = f"{haproxy}/0"
+    cc_unit = f"{content_cache}/0"
+    for diag_cmd, unit in [
+        ("cat /etc/haproxy/haproxy.cfg", haproxy_unit),
+        ("ls -la /var/lib/haproxy/cas/ && cat /var/lib/haproxy/cas/cas.pem", haproxy_unit),
+        ("cat /etc/nginx/sites-enabled/* 2>/dev/null || true", cc_unit),
+        ("ls /etc/nginx/certs/ 2>/dev/null || true", cc_unit),
+        ("openssl s_client -connect localhost:30000 -showcerts </dev/null 2>&1 | head -30", cc_unit),
+    ]:
+        try:
+            result = juju.exec(diag_cmd, unit=unit)
+            logging.info("DIAG [%s] %s:\n%s", unit, diag_cmd, result)
+        except Exception as exc:  # pylint: disable=broad-except
+            logging.warning("DIAG [%s] failed: %s", unit, exc)
+
     haproxy_address = str(get_unit_addresses(juju, haproxy)[0])
     session = http_session(dns_entries=[(MOCK_HAPROXY_HOSTNAME, haproxy_address)])
 
     for path_component in ["v1", "v2"]:
-        response = session.get(
-            f"https://{MOCK_HAPROXY_HOSTNAME}/api/{path_component}/",
-            timeout=30,
-            verify=False,
+        # Retry up to 60 s to tolerate any nginx-reload / haproxy-config propagation delay.
+        response = None
+        for attempt in range(12):
+            response = session.get(
+                f"https://{MOCK_HAPROXY_HOSTNAME}/api/{path_component}/",
+                timeout=30,
+                verify=False,
+            )
+            logging.info(
+                "HTTPS attempt %d/%d: %s %s",
+                attempt + 1,
+                12,
+                response.status_code,
+                response.text[:200],
+            )
+            if response.status_code == 200:
+                break
+            time.sleep(5)
+        assert response is not None
+        assert response.status_code == 200, (
+            f"Expected 200 for /api/{path_component}/, got {response.status_code}. "
+            f"Body: {response.text[:500]}"
         )
-        assert response.status_code == 200
         assert f"{path_component} ok!" in response.text

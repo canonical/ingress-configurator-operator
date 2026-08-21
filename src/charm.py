@@ -12,7 +12,7 @@ import json
 import logging
 import typing
 from functools import cached_property
-from typing import cast
+from typing import Literal, cast
 from urllib.parse import urlparse
 
 import ops
@@ -373,15 +373,24 @@ class IngressConfiguratorCharm(ops.CharmBase):
             return None
         cache_addresses = [cast(IPvAnyAddress, p.hostname) for p in parsed_urls]
         cache_ports = list({p.port for p in parsed_urls})
-        # content-cache always exposes an HTTP frontend to haproxy regardless of the
-        # upstream backend protocol (HTTP vs HTTPS is handled internally by nginx).
-        # Sending protocol="https" would cause haproxy to attempt TLS towards content-cache
-        # and require an SNI hostname — neither of which is appropriate here.
+        # Derive the haproxy→content-cache protocol from the cache-backend URL scheme.
+        # When content-cache has a TLS certificate for its own frontend (via the
+        # certificates relation), it publishes https:// cache-backend URLs; otherwise http://.
+        cache_protocol: Literal["http", "https"] = (
+            "https" if all(p.scheme == "https" for p in parsed_urls) else "http"
+        )
+        # When content-cache speaks HTTPS, haproxy requires an SNI hostname to establish
+        # the TLS connection. The operator must configure the hostname on ingress-configurator.
+        if cache_protocol == "https" and not state.hostname:
+            self.unit.status = ops.BlockedStatus(
+                "hostname config required when cache-backend uses HTTPS"
+            )
+            return None
         return dataclasses.replace(
             state,
             backend_addresses=cache_addresses,
             backend_ports=cache_ports,
-            backend_protocol="http",
+            backend_protocol=cache_protocol,
         )
 
     def _reconcile_gateway_route(self) -> None:

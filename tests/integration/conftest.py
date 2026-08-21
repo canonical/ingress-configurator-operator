@@ -202,6 +202,11 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
         revision=CERTIFICATES_REVISION,
     )
     juju.integrate(f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates")
+    # Allow haproxy to verify content-cache's TLS certificate when protocol=https is used
+    # in the haproxy-route relation (full HTTPS chain: haproxy → content-cache → backend).
+    juju.integrate(
+        f"{CERTIFICATES_APP_NAME}:send-ca-cert", f"{HAPROXY_APP_NAME}:receive-ca-certs"
+    )
     juju.offer(HAPROXY_APP_NAME, endpoint="haproxy-route")
     yield HAPROXY_APP_NAME
 

@@ -143,10 +143,19 @@ def test_cache_config_https_backend(
 ) -> None:
     """Test end-to-end routing through content-cache when the backend speaks HTTPS.
 
-    Verifies that:
-    - ingress-configurator sends https:// backend URLs into the cache-config databag.
-    - content-cache proxies to the HTTPS backend (self-signed cert, ssl verify off).
-    - HTTP requests through haproxy are served via the content-cache → HTTPS backend chain.
+    Tests the full two-certificate architecture described in the design document:
+
+    - backend-lego  (any-charm-https-backend self-generated cert + CA):
+        any-charm-https-backend  ──(provide-certificate-transfer)──▶  content-cache:receive-ca-cert
+        (content-cache trusts the backend CA and verifies backend TLS)
+
+    - cache-lego  (self-signed-certificates):
+        self-signed-certificates:certificates  ──▶  content-cache:certificates
+        (content-cache gets a TLS cert for its own nginx frontend)
+        self-signed-certificates:send-ca-cert  ──▶  haproxy:receive-ca-certs
+        (haproxy trusts the CA that signed content-cache's cert)
+
+    Full chain: client ──HTTPS──▶ haproxy ──HTTPS──▶ content-cache ──HTTPS──▶ backend
 
     Args:
         juju: Jubilant juju fixture.
@@ -173,14 +182,25 @@ def test_cache_config_https_backend(
             "backend-protocol": "https",
             "healthcheck-ssl-verify": "false",
             "paths": "/api/v1,/api/v2",
+            # hostname is required when cache-backend uses HTTPS (content-cache TLS frontend);
+            # ingress-configurator passes it to haproxy for routing and SNI.
+            "hostname": MOCK_HAPROXY_HOSTNAME,
         },
     )
 
-    # Provide the backend's CA cert to content-cache so nginx can verify the HTTPS backend.
-    # The backend publishes its CA cert on its provide-certificate-transfer relation (V0 format).
+    # backend-lego leg: provide the backend's CA cert to content-cache so nginx can verify
+    # the HTTPS backend. The backend publishes its CA cert via provide-certificate-transfer.
     juju.integrate(
         f"{HTTPS_BACKEND_APP_NAME}:provide-certificate-transfer",
         f"{content_cache}:receive-ca-cert",
+    )
+
+    # cache-lego leg: give content-cache a TLS certificate for its own nginx frontend so it
+    # publishes https:// cache-backend URLs. haproxy already trusts this CA via receive-ca-certs
+    # (wired in the haproxy fixture).
+    juju.integrate(
+        f"{CERTIFICATES_APP_NAME}:certificates",
+        f"{content_cache}:certificates",
     )
 
     # Relations already exist from test_cache_config_backend_substitution

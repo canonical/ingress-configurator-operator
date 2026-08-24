@@ -10,6 +10,10 @@ Each revision is versioned by the date of the revision.
 
 ## 2026-08-20
 
+### Added
+
+- Added the terraform release workflow that handles creation of tags when terraform files change.
+
 ### Fixed
 
 - Fixed the publish workflow to call the `canonical/charm-ci` publish reusable workflow instead of the integration-test workflow.

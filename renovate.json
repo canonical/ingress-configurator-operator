@@ -70,12 +70,8 @@
       ]
     },
     {
-      "matchManagers": [
-        "pip_requirements"
-      ],
-      "matchFileNames": [
-        "docs/requirements.txt"
-      ],
+      "matchManagers": ["pip_requirements"],
+      "matchFileNames": ["docs/requirements.txt"],
       "enabled": false
     },
     {

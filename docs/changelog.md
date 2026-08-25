@@ -12,7 +12,7 @@ Each revision is versioned by the date of the revision.
 
 ### Added
 
-- Explicitly block nonleader unit to prevents multi-unit deployments.
+- Explicitly block non-leader units to prevents multi-unit deployments.
 
 ## 2026-08-20
 

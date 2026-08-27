@@ -4,3 +4,4 @@ FQDNs
 HTTPRoute
 databag
 proxied
+healthcheck

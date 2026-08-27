@@ -578,7 +578,8 @@ def test_cache_config_https_cache_backend_without_hostname_is_blocked(
     out = context_machine.run(context_machine.on.config_changed(), state)
 
     assert out.unit_status == ops.testing.BlockedStatus(
-        "hostname config required when cache-backend uses HTTPS"
+        "hostname config required when cache-backend uses HTTPS "
+        "(haproxy requires SNI hostname for HTTPS backend connections)"
     )
 
 
@@ -610,6 +611,7 @@ def test_cache_config_sends_relation_data_to_content_cache(
     cache_config_rel = out.get_relations("cache-config")[0]
     local_app_data: dict = dict(cache_config_rel.local_app_data)
     assert json.loads(local_app_data["backends"]) == ["http://10.0.0.1:8080"]
+    assert "backend_hostname" not in local_app_data
     assert local_app_data["healthcheck_ssl_verify"] == "true"
     assert json.loads(local_app_data["proxy_cache_valid"]) == ["200 1h"]
 

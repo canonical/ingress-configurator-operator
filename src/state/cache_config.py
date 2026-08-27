@@ -4,10 +4,13 @@
 """Cache-config relation state management module."""
 
 import json
-from typing import Optional, Self, cast
+import logging
+from typing import Self, cast
 
 import ops
 from pydantic.dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 CACHE_CONFIG_RELATION_NAME = "cache-config"
 FAIL_TIMEOUT_DEFAULT = "30s"
@@ -23,30 +26,36 @@ class CacheConfigState:
         healthcheck_path: Health check path, from charm config.
         fail_timeout: Time before marking a backend as unavailable after failure.
         healthcheck_ssl_verify: Whether to verify TLS certificates during health checks.
+        backend_hostname: SNI hostname for backend TLS verification. Required when backends
+            use https://. Matches the hostname in the backend's TLS certificate.
     """
 
-    proxy_cache_valid: Optional[str]
-    healthcheck_interval: Optional[int]
-    healthcheck_path: Optional[str]
-    fail_timeout: Optional[str]
+    proxy_cache_valid: str | None
+    healthcheck_interval: int | None
+    healthcheck_path: str | None
+    fail_timeout: str | None
     healthcheck_ssl_verify: bool = True
+    backend_hostname: str | None = None
 
     @classmethod
-    def build(cls, charm: ops.CharmBase) -> Self:
+    def build(cls, charm: ops.CharmBase, backend_hostname: str | None = None) -> Self:
         """Build CacheConfigState from charm config.
 
         Args:
             charm: The ingress-configurator charm instance.
+            backend_hostname: SNI hostname to use for backend TLS verification when backends
+                use https://. Typically the service hostname from the ingress state.
 
         Returns:
             CacheConfigState populated from charm config.
         """
         return cls(
-            proxy_cache_valid=cast(Optional[str], charm.config.get("proxy-cache-valid")),
-            healthcheck_interval=cast(Optional[int], charm.config.get("health-check-interval")),
-            healthcheck_path=cast(Optional[str], charm.config.get("health-check-path")),
-            fail_timeout=cast(Optional[str], charm.config.get("fail-timeout")),
+            proxy_cache_valid=cast(str | None, charm.config.get("proxy-cache-valid")),
+            healthcheck_interval=cast(int | None, charm.config.get("health-check-interval")),
+            healthcheck_path=cast(str | None, charm.config.get("health-check-path")),
+            fail_timeout=cast(str | None, charm.config.get("fail-timeout")),
             healthcheck_ssl_verify=bool(charm.config.get("healthcheck-ssl-verify", True)),
+            backend_hostname=backend_hostname,
         )
 
     def to_relation_data(self, backends: list[str]) -> dict[str, str]:
@@ -64,11 +73,13 @@ class CacheConfigState:
             "healthcheck_interval": str((self.healthcheck_interval or 10) * 1000),
             "healthcheck_path": self.healthcheck_path or "/",
             "healthcheck_valid_status": json.dumps([200]),
-            "healthcheck_ssl_verify": "true" if self.healthcheck_ssl_verify else "false",
+            "healthcheck_ssl_verify": json.dumps(self.healthcheck_ssl_verify),
             "proxy_cache_valid": json.dumps(
                 [self.proxy_cache_valid] if self.proxy_cache_valid else []
             ),
         }
+        if self.backend_hostname:
+            data["backend_hostname"] = self.backend_hostname
         return data
 
     @staticmethod
@@ -89,4 +100,6 @@ class CacheConfigState:
             raw = rel.data[unit].get("cache-backend", "").strip()
             if raw:
                 all_backends.append(raw)
+            else:
+                logger.debug("Unit %s has no cache-backend in databag", unit)
         return all_backends if all_backends else None

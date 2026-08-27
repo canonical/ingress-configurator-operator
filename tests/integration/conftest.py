@@ -268,6 +268,7 @@ def any_charm_backend_https_fixture(
                                 "/api/v1/index.html": "v1 ok!",
                                 "/api/v2/index.html": "v2 ok!",
                             },
+                            "backend_hostname": MOCK_HAPROXY_HOSTNAME,
                         }
                     ),
                 }

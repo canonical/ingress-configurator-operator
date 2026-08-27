@@ -29,8 +29,6 @@ Flow:
 4. An HTTP request through haproxy is served by content-cache → backend.
 """
 
-import logging
-import time
 from typing import Callable
 
 import jubilant
@@ -235,102 +233,15 @@ def test_cache_config_https_backend(
         timeout=10 * 60,
     )
 
-    # Dump diagnostics to help debug 502 failures: haproxy config, CA cert bundle,
-    # and content-cache nginx config.
-    haproxy_unit = f"{haproxy}/0"
-    cc_unit = f"{content_cache}/0"
-    backend_unit = f"{HTTPS_BACKEND_APP_NAME}/0"
-    backend_addresses = str(get_unit_addresses(juju, HTTPS_BACKEND_APP_NAME)[0])
-    cc_addresses = str(get_unit_addresses(juju, content_cache)[0])
-    for diag_cmd, unit in [
-        ("cat /etc/haproxy/haproxy.cfg", haproxy_unit),
-        ("ls -la /var/lib/haproxy/cas/ && cat /var/lib/haproxy/cas/cas.pem", haproxy_unit),
-        # Test haproxy->content-cache SSL connection directly
-        (
-            f"echo '' | timeout 5 openssl s_client -connect {cc_addresses}:30000 "
-            f"-CAfile /var/lib/haproxy/cas/cas.pem 2>&1 "
-            f"| grep -E 'Verify|subject|issuer|error|CONNECTED|FAILED' | head -10 || true",
-            haproxy_unit,
-        ),
-        ("cat /etc/nginx/sites-enabled/* 2>/dev/null || true", cc_unit),
-        ("ls /etc/nginx/certs/ 2>/dev/null || true", cc_unit),
-        # Check content-cache cert CN
-        (
-            "openssl x509 -noout -subject -issuer -in /etc/nginx/certs/content-cache-charm.pem "
-            "2>/dev/null || true",
-            cc_unit,
-        ),
-        # Show CA bundle content (what CAs content-cache trusts for backend verification)
-        (
-            "openssl x509 -noout -subject -issuer -in /etc/nginx/certs/ca-bundle.pem "
-            "2>/dev/null || true",
-            cc_unit,
-        ),
-        (
-            "openssl s_client -connect localhost:30000 -showcerts </dev/null 2>&1 | head -30",
-            cc_unit,
-        ),
-        # Check if nginx receives any requests (access log)
-        (
-            "cat /var/log/nginx/content-cache_0/30000.access.log 2>/dev/null | tail -10 || true",
-            cc_unit,
-        ),
-        # Check LUA healthcheck status (shows whether backend is UP or DOWN)
-        ("curl -s http://localhost/nginx_backends_status 2>&1 | head -30 || true", cc_unit),
-        # Read the actual per-port nginx error log (not the default one)
-        (
-            "cat /var/log/nginx/content-cache_0/30000.error.log 2>/dev/null | tail -30 || true",
-            cc_unit,
-        ),
-        # Manually test nginx->backend proxy (correct path)
-        (
-            f"curl -sk https://{backend_addresses}:443/api/v1/index.html 2>&1 | head -5 || true",
-            cc_unit,
-        ),
-        # Check backend cert SAN - connects from content-cache to backend
-        (
-            f"echo '' | timeout 5 openssl s_client -connect {backend_addresses}:443 "
-            f"-CAfile /etc/nginx/certs/ca-bundle.pem 2>&1 | grep -E 'Verify|subject|issuer|IP' "
-            f"| head -10",
-            cc_unit,
-        ),
-        # Show cert on backend directly
-        (
-            "openssl x509 -noout -text -in /etc/ssl/certs/apache-server.crt "
-            "2>/dev/null | grep -A10 'Subject Alt' || true",
-            backend_unit,
-        ),
-        ("hostname -I && ip route get 1.1.1.1 || true", backend_unit),
-    ]:
-        try:
-            result = juju.exec(diag_cmd, unit=unit)
-            logging.info("DIAG [%s] %s:\n%s", unit, diag_cmd, result)
-        except Exception as exc:  # pylint: disable=broad-except
-            logging.warning("DIAG [%s] failed: %s", unit, exc)
-
     haproxy_address = str(get_unit_addresses(juju, haproxy)[0])
     session = http_session(dns_entries=[(MOCK_HAPROXY_HOSTNAME, haproxy_address)])
 
     for path_component in ["v1", "v2"]:
-        # Retry up to 60 s to tolerate any nginx-reload / haproxy-config propagation delay.
-        response = None
-        for attempt in range(12):
-            response = session.get(
-                f"https://{MOCK_HAPROXY_HOSTNAME}/api/{path_component}/",
-                timeout=30,
-                verify=False,
-            )
-            logging.info(
-                "HTTPS attempt %d/%d: %s %s",
-                attempt + 1,
-                12,
-                response.status_code,
-                response.text[:200],
-            )
-            if response.status_code == 200:
-                break
-            time.sleep(5)
-        assert response is not None
+        response = session.get(
+            f"https://{MOCK_HAPROXY_HOSTNAME}/api/{path_component}/",
+            timeout=30,
+            verify=False,
+        )
         assert response.status_code == 200, (
             f"Expected 200 for /api/{path_component}/, got {response.status_code}. "
             f"Body: {response.text[:500]}"

@@ -69,6 +69,7 @@ def test_to_relation_data_minimal():
     )
     data = state.to_relation_data(["http://10.0.0.1:8080"])
     assert json.loads(data["backends"]) == ["http://10.0.0.1:8080"]
+    assert "backend_hostname" not in data
     assert data["fail_timeout"] == "30s"  # None → FAIL_TIMEOUT_DEFAULT
     assert data["healthcheck_interval"] == "10000"  # None → 10 * 1000ms
     assert data["healthcheck_path"] == "/"
@@ -92,11 +93,29 @@ def test_to_relation_data_with_all_options():
     )
     data = state.to_relation_data(["http://10.0.0.1:8080", "http://10.0.0.2:8080"])
     assert json.loads(data["backends"]) == ["http://10.0.0.1:8080", "http://10.0.0.2:8080"]
+    assert "backend_hostname" not in data
     assert data["fail_timeout"] == "1m"
     assert data["healthcheck_interval"] == "5000"  # 5s → 5000ms
     assert data["healthcheck_path"] == "/health"
     assert data["healthcheck_ssl_verify"] == "false"
     assert json.loads(data["proxy_cache_valid"]) == ["200 1h"]
+
+
+def test_to_relation_data_with_backend_hostname():
+    """
+    arrange: CacheConfigState with backend_hostname set.
+    act: call to_relation_data.
+    assert: backend_hostname is present in the relation data.
+    """
+    state = CacheConfigState(
+        proxy_cache_valid=None,
+        healthcheck_interval=None,
+        healthcheck_path=None,
+        fail_timeout=None,
+        backend_hostname="cache.example.com",
+    )
+    data = state.to_relation_data(["http://10.0.0.1:8080"])
+    assert data["backend_hostname"] == "cache.example.com"
 
 
 def test_get_cache_backends_returns_none_when_no_units():

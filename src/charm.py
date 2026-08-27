@@ -12,7 +12,7 @@ import json
 import logging
 import typing
 from functools import cached_property
-from typing import Literal, cast
+from typing import Literal
 from urllib.parse import urlparse
 
 import ops
@@ -36,7 +36,6 @@ from charms.haproxy.v2.haproxy_route import HaproxyRouteRequirer
 from charms.traefik_k8s.v2.ingress import DEFAULT_RELATION_NAME as INGRESS_RELATION
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider, IngressRequirerData
 from lightkube import Client
-from pydantic.networks import IPvAnyAddress
 
 from helpers import truncate_k8s_resource_name
 from http_route import (
@@ -355,7 +354,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
         # Only the leader may write to the app databag.
         if self.unit.is_leader():
-            cache_state = CacheConfigState.build(self)
+            cache_state = CacheConfigState.build(self, backend_hostname=state.hostname)
             rel.data[self.app].update(cache_state.to_relation_data(backends))
 
         # Read cache-backend from content-cache unit databags
@@ -371,7 +370,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 "Invalid cache-backend received from content-cache"
             )
             return None
-        cache_addresses = [cast(IPvAnyAddress, p.hostname) for p in parsed_urls]
+        # hostname may be an IP or a DNS name in future; avoid constraining to IPvAnyAddress.
+        cache_addresses = [p.hostname for p in parsed_urls]  # type: ignore[misc]
         cache_ports = list({p.port for p in parsed_urls})
         # Derive the haproxy→content-cache protocol from the cache-backend URL scheme.
         # When content-cache has a TLS certificate for its own frontend (via the
@@ -379,11 +379,13 @@ class IngressConfiguratorCharm(ops.CharmBase):
         cache_protocol: Literal["http", "https"] = (
             "https" if all(p.scheme == "https" for p in parsed_urls) else "http"
         )
-        # When content-cache speaks HTTPS, haproxy requires an SNI hostname to establish
-        # the TLS connection. The operator must configure the hostname on ingress-configurator.
+        # haproxy does not support HTTP frontend + HTTPS backend without a hostname for SNI.
+        # When content-cache speaks HTTPS, haproxy requires a hostname to establish the TLS
+        # connection. The operator must set the hostname config on ingress-configurator.
         if cache_protocol == "https" and not state.hostname:
             self.unit.status = ops.BlockedStatus(
-                "hostname config required when cache-backend uses HTTPS"
+                "hostname config required when cache-backend uses HTTPS "
+                "(haproxy requires SNI hostname for HTTPS backend connections)"
             )
             return None
         return dataclasses.replace(

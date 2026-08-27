@@ -151,6 +151,8 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
         for ip in all_ips_output.split():
             san_ips.add(ip)
         san_value = ",".join(f"IP:{ip}" for ip in sorted(san_ips)) + ",DNS:localhost"
+        if backend_hostname := self._cfg.get("backend_hostname"):
+            san_value += f",DNS:{backend_hostname}"
 
         # Generate server CSR.
         subprocess.run(  # nosec: B603, B607

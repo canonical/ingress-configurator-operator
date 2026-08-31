@@ -15,8 +15,8 @@ classifiers = [
 ]
 dependencies = [
   "lightkube>=0.15.0",
-  "ops==3.8.1",
-  "pydantic==2.13.4",
+  "ops==3.8.2",
+  "pydantic==2.13.5",
   "validators>=0.35.0",
 ]
 

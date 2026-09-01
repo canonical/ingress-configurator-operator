@@ -555,3 +555,70 @@ def test_build_spec_no_hsts_when_hsts_max_age_is_none():
     rule = spec["rules"][0]  # type: ignore[index]
     assert "backendRefs" in rule
     assert "filters" not in rule
+
+
+# ---------------------------------------------------------------------------
+# _build_spec strip-prefix filter tests
+# ---------------------------------------------------------------------------
+
+STRIP_PREFIX_FILTER = {
+    "type": "URLRewrite",
+    "urlRewrite": {"path": {"type": "ReplacePrefixMatch", "replacePrefixMatch": "/"}},
+}
+
+
+def test_build_spec_adds_url_rewrite_filter_when_strip_prefix():
+    """
+    arrange: a forwarding HTTPRouteConfig with strip_prefix=True.
+    act: call HTTPRouteManager._build_spec().
+    assert: the rule carries exactly the URLRewrite/ReplacePrefixMatch filter
+        and still forwards to the backend.
+    """
+    config = _base_https_config(strip_prefix=True)
+    spec = HTTPRouteManager._build_spec(config)
+
+    rule = spec["rules"][0]  # type: ignore[index]
+    assert "backendRefs" in rule
+    assert rule["filters"] == [STRIP_PREFIX_FILTER]
+
+
+def test_build_spec_no_filters_key_when_strip_prefix_false():
+    """
+    arrange: a forwarding HTTPRouteConfig with strip_prefix left at its default.
+    act: call HTTPRouteManager._build_spec().
+    assert: no "filters" key is emitted at all.
+    """
+    config = _base_https_config(strip_prefix=False)
+    spec = HTTPRouteManager._build_spec(config)
+
+    rule = spec["rules"][0]  # type: ignore[index]
+    assert "filters" not in rule
+
+
+def test_build_spec_combines_strip_prefix_and_hsts_filters():
+    """
+    arrange: a forwarding HTTPRouteConfig with strip_prefix=True and an hsts_max_age.
+    act: call HTTPRouteManager._build_spec().
+    assert: both filters are present, URLRewrite first then ResponseHeaderModifier.
+    """
+    config = _base_https_config(strip_prefix=True, hsts_max_age=31536000)
+    spec = HTTPRouteManager._build_spec(config)
+
+    rule = spec["rules"][0]  # type: ignore[index]
+    assert [f["type"] for f in rule["filters"]] == ["URLRewrite", "ResponseHeaderModifier"]
+    header = rule["filters"][1]["responseHeaderModifier"]["set"][0]
+    assert header == {"name": "Strict-Transport-Security", "value": "max-age=31536000"}
+
+
+def test_build_spec_redirect_rule_ignores_strip_prefix():
+    """
+    arrange: a redirect HTTPRouteConfig with strip_prefix=True.
+    act: call HTTPRouteManager._build_spec().
+    assert: the rule only contains the RequestRedirect filter and no backendRefs.
+    """
+    config = _base_https_config(redirect_https=True, strip_prefix=True)
+    spec = HTTPRouteManager._build_spec(config)
+
+    rule = spec["rules"][0]  # type: ignore[index]
+    assert [f["type"] for f in rule["filters"]] == ["RequestRedirect"]
+    assert "backendRefs" not in rule

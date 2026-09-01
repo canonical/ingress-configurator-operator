@@ -173,6 +173,8 @@ class HTTPRouteConfig:
         hsts_max_age: When set, inject a ``Strict-Transport-Security`` response
             header with this ``max-age`` value. ``None`` means no HSTS header.
             ``0`` instructs browsers to clear any cached HSTS policy.
+        strip_prefix: When True, add a ``URLRewrite`` filter that replaces the
+            matched path prefix with ``/`` before forwarding to the backend.
     """
 
     app_name: str
@@ -186,6 +188,7 @@ class HTTPRouteConfig:
     backend_service_port: int
     redirect_https: bool = False
     hsts_max_age: int | None = None
+    strip_prefix: bool = False
 
 
 class HTTPRouteManager:
@@ -254,8 +257,21 @@ class HTTPRouteManager:
                     }
                 ],
             }
+            filters: list[dict[str, object]] = []
+            if config.strip_prefix:
+                filters.append(
+                    {
+                        "type": "URLRewrite",
+                        "urlRewrite": {
+                            "path": {
+                                "type": "ReplacePrefixMatch",
+                                "replacePrefixMatch": "/",
+                            }
+                        },
+                    }
+                )
             if config.hsts_max_age is not None:
-                rule["filters"] = [
+                filters.append(
                     {
                         "type": "ResponseHeaderModifier",
                         "responseHeaderModifier": {
@@ -267,7 +283,9 @@ class HTTPRouteManager:
                             ]
                         },
                     }
-                ]
+                )
+            if filters:
+                rule["filters"] = filters
             rules = [rule]
 
         spec: dict = {
@@ -350,6 +368,7 @@ def create_http_routes(
     backend_service_name: str,
     backend_service_port: int,
     hsts_max_age: int | None = None,
+    strip_prefix: bool = False,
 ) -> None:
     """Create HTTPRoute K8s resources based on https_mode.
 
@@ -367,6 +386,8 @@ def create_http_routes(
             injected on HTTPS routes. Provided by the gateway-api-integrator only
             when HTTPS is enforced. ``None`` means no HSTS header. ``0`` instructs
             browsers to clear any cached HSTS policy.
+        strip_prefix: When True, the generated HTTPRoutes rewrite the matched
+            path prefix to ``/`` before forwarding to the backend.
 
     Raises:
         InvalidKubernetesPermissionError: When the charm lacks RBAC permissions.
@@ -395,6 +416,7 @@ def create_http_routes(
         backend_service_name=backend_service_name,
         backend_service_port=backend_service_port,
         redirect_https=https_mode == "enforced",
+        strip_prefix=strip_prefix,
     )
     managed_names.append(http_route_manager.apply(http_config))
 
@@ -413,6 +435,7 @@ def create_http_routes(
                 backend_service_port=backend_service_port,
                 redirect_https=False,
                 hsts_max_age=hsts_max_age if https_mode == "enforced" else None,
+                strip_prefix=strip_prefix,
             )
             managed_names.append(http_route_manager.apply(https_config))
 

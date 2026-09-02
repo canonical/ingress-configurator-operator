@@ -15,6 +15,27 @@ logger = logging.getLogger(__name__)
 CACHE_CONFIG_RELATION_NAME = "cache-config"
 
 
+class CacheConfigNotReadyError(Exception):
+    """Raised when cache-config data is not yet usable for reconciliation.
+
+    Carries the unit status the caller should assign at reconcile level, so that
+    status assignment stays visible in the reconcile methods rather than hidden
+    inside the cache-config application helper.
+
+    Attributes:
+        status: The unit status the caller should set.
+    """
+
+    def __init__(self, status: ops.StatusBase) -> None:
+        """Initialize the error.
+
+        Args:
+            status: The unit status the caller should set.
+        """
+        super().__init__(str(status))
+        self.status = status
+
+
 @dataclass(frozen=True)
 class CacheConfigState:
     """State for the cache-config relation.

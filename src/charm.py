@@ -51,7 +51,11 @@ from kubernetes import (
     ensure_nodeport_service,
     get_kubernetes_data,
 )
-from state.cache_config import CACHE_CONFIG_RELATION_NAME, CacheConfigState
+from state.cache_config import (
+    CACHE_CONFIG_RELATION_NAME,
+    CacheConfigNotReadyError,
+    CacheConfigState,
+)
 from state.gateway_route import (
     GatewayRouteState,
     InvalidGatewayRouteStateError,
@@ -246,8 +250,10 @@ class IngressConfiguratorCharm(ops.CharmBase):
             logger.exception("Invalid backend config: %s", exc)
             self.unit.status = ops.BlockedStatus("Invalid backend configuration")
             return
-        charm_state = self._apply_cache_config(charm_state)
-        if charm_state is None:
+        try:
+            charm_state = self._apply_cache_config(charm_state)
+        except CacheConfigNotReadyError as exc:
+            self.unit.status = exc.status
             return
         self._provide_haproxy_route_requirements(charm_state)
 
@@ -266,8 +272,10 @@ class IngressConfiguratorCharm(ops.CharmBase):
             logger.exception("Invalid backend config: %s", exc)
             self.unit.status = ops.BlockedStatus("Invalid backend configuration")
             return
-        charm_state = self._apply_cache_config(charm_state)
-        if charm_state is None:
+        try:
+            charm_state = self._apply_cache_config(charm_state)
+        except CacheConfigNotReadyError as exc:
+            self.unit.status = exc.status
             return
         self._provide_haproxy_route_requirements(charm_state)
 
@@ -284,8 +292,10 @@ class IngressConfiguratorCharm(ops.CharmBase):
             logger.exception("Invalid haproxy-route config: %s", exc)
             self.unit.status = ops.BlockedStatus("Invalid haproxy-route configuration")
             return
-        charm_state = self._apply_cache_config(charm_state)
-        if charm_state is None:
+        try:
+            charm_state = self._apply_cache_config(charm_state)
+        except CacheConfigNotReadyError as exc:
+            self.unit.status = exc.status
             return
         self._provide_haproxy_route_requirements(charm_state)
         self.unit.status = ops.ActiveStatus("Ready")
@@ -326,20 +336,22 @@ class IngressConfiguratorCharm(ops.CharmBase):
         not_none_params = {k: v for k, v in params.items() if v is not None}
         self._haproxy_route.provide_haproxy_route_requirements(**not_none_params)
 
-    def _apply_cache_config(self, state: HaproxyRouteState) -> HaproxyRouteState | None:
+    def _apply_cache_config(self, state: HaproxyRouteState) -> HaproxyRouteState:
         """Apply cache-config backend substitution if the relation is present.
 
         Writes the resolved backend URLs into the cache-config relation databag,
-        then reads back the cache-backend from content-cache. If cache-backends
-        are not yet available, sets WaitingStatus and returns None.
+        then reads back the cache-backend from content-cache.
 
         Args:
             state: The resolved HaproxyRouteState with original backend addresses.
 
         Returns:
             A new HaproxyRouteState with backends replaced by content-cache address(es),
-            the original state unchanged if no cache-config relation is present,
-            or None if WaitingStatus was set (caller must stop reconciliation).
+            or the original state unchanged if no cache-config relation is present.
+
+        Raises:
+            CacheConfigNotReadyError: If the cache-backend is not yet available or usable.
+                The carried status must be assigned by the caller at reconcile level.
         """
         rel = self.model.get_relation(CACHE_CONFIG_RELATION_NAME)
         if rel is None:
@@ -360,16 +372,16 @@ class IngressConfiguratorCharm(ops.CharmBase):
         # Read cache-backend from content-cache unit databags
         cache_backends = CacheConfigState.get_cache_backends(rel)
         if not cache_backends:
-            self.unit.status = ops.WaitingStatus("Waiting for cache-backend from content-cache")
-            return None
+            raise CacheConfigNotReadyError(
+                ops.WaitingStatus("Waiting for cache-backend from content-cache")
+            )
 
         # Validate all URLs are well-formed before storing them.
         parsed_urls = [urlparse(url) for url in cache_backends]
         if not all(p.hostname and p.port for p in parsed_urls):
-            self.unit.status = ops.WaitingStatus(
-                "Invalid cache-backend received from content-cache"
+            raise CacheConfigNotReadyError(
+                ops.WaitingStatus("Invalid cache-backend received from content-cache")
             )
-            return None
         # hostname may be an IP or a DNS name in future; avoid constraining to IPvAnyAddress.
         cache_addresses = [p.hostname for p in parsed_urls]  # type: ignore[misc]
         cache_ports = list({p.port for p in parsed_urls})
@@ -383,11 +395,12 @@ class IngressConfiguratorCharm(ops.CharmBase):
         # When content-cache speaks HTTPS, haproxy requires a hostname to establish the TLS
         # connection. The operator must set the hostname config on ingress-configurator.
         if cache_protocol == "https" and not state.hostname:
-            self.unit.status = ops.BlockedStatus(
-                "hostname config required when cache-backend uses HTTPS "
-                "(haproxy requires SNI hostname for HTTPS backend connections)"
+            raise CacheConfigNotReadyError(
+                ops.BlockedStatus(
+                    "hostname config required when cache-backend uses HTTPS "
+                    "(haproxy requires SNI hostname for HTTPS backend connections)"
+                )
             )
-            return None
         return dataclasses.replace(
             state,
             backend_addresses=cache_addresses,

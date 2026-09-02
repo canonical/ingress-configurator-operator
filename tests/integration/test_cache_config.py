@@ -13,7 +13,7 @@ haproxy  ◀── HTTP client
 
 Topology (HTTPS backend)
 ------------------------
-any-charm-https-backend  (HTTPS server on port 443, self-signed cert)
+any-charm-https-backend  (2 units, Python HTTPS server on port 443, shared CA-signed cert)
     ↑  (backends resolved via ingress-configurator integrator config)
 ingress-configurator  ──cache-config──▶  content-cache  (nginx caching proxy)
     ↓  haproxy-route
@@ -145,9 +145,10 @@ def test_cache_config_https_backend(
 
     Tests the full two-certificate architecture described in the design document:
 
-    - backend-lego  (any-charm-https-backend self-generated cert + CA):
+    - backend-lego  (any-charm-https-backend serves a test-provisioned, CA-signed cert):
         any-charm-https-backend  ──(provide-certificate-transfer)──▶  content-cache:receive-ca-cert
-        (content-cache trusts the backend CA and verifies backend TLS)
+        (content-cache trusts the backend CA and verifies backend TLS; all backend units
+        share the same hostname-scoped cert so content-cache can load-balance across them)
 
     - cache-lego  (self-signed-certificates):
         self-signed-certificates:certificates  ──▶  content-cache:certificates
@@ -165,7 +166,7 @@ def test_cache_config_https_backend(
         content_cache: Name of the content-cache application.
         http_session: Modified requests session fixture for making HTTP requests.
     """
-    # Wait for backend to be idle so its address is stable and the CA cert is generated.
+    # Wait for backend units to be idle so their addresses are stable before reading them.
     juju.wait(
         lambda status: jubilant.all_agents_idle(status, any_charm_backend_https),
         error=jubilant.any_error,
@@ -184,7 +185,7 @@ def test_cache_config_https_backend(
             # configured, so it falls back to the system CA bundle which doesn't contain
             # the test CA. Disable healthcheck SSL verification to allow the healthcheck
             # to pass; nginx proxy SSL verification still uses ca-bundle.pem and the
-            # backend cert's IP SAN for proper certificate verification.
+            # backend cert's hostname SAN (matching proxy_ssl_name) for proper verification.
             "cache-healthcheck-ssl-verify": "false",
             "paths": "/api/v1,/api/v2",
             # hostname is required when cache-backend uses HTTPS (content-cache TLS frontend);

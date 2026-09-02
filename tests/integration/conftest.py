@@ -34,7 +34,7 @@ ANY_CHARM_APP_NAME = "any-charm-backend"
 HTTPS_BACKEND_APP_NAME = "any-charm-https-backend"
 CONTENT_CACHE_APP_NAME = "content-cache"
 CONTENT_CACHE_CHANNEL = "1/edge"
-CONTENT_CACHE_REVISION = 528
+CONTENT_CACHE_REVISION = 530
 INGRESS_REQUIRER_APP_NAME = "ingress-requirer"
 APP_NAME = "ingress-configurator"
 

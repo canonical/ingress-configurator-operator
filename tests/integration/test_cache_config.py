@@ -43,76 +43,6 @@ from .conftest import (
 )
 
 
-def _dump_https_diagnostics(
-    juju: jubilant.Juju,
-    content_cache: str,
-    backend_app: str,
-    backend_addresses: str,
-) -> None:
-    """Print live diagnostics for a 502 on the HTTPS backend leg.
-
-    Dumps content-cache's nginx error log, the combined CA bundle contents (does it
-    contain the backend CA?), the generated nginx site config, backend reachability from
-    the content-cache unit, and each backend unit's server status. This runs against the
-    live model before teardown so the CI log captures where the TLS proxy actually breaks.
-
-    Args:
-        juju: Jubilant juju fixture.
-        content_cache: content-cache application name.
-        backend_app: HTTPS backend application name.
-        backend_addresses: Comma-separated backend unit addresses.
-    """
-    cc_unit = f"{content_cache}/0"
-    cc_checks = {
-        "nginx error.log (tail)": "sudo tail -n 60 /var/log/nginx/error.log 2>&1 || true",
-        "CA bundle cert count": (
-            "sudo grep -c 'BEGIN CERTIFICATE' /etc/nginx/certs/ca-bundle.pem 2>&1 || true"
-        ),
-        "CA bundle has 'Test Backend CA'": (
-            'sudo sh -c "openssl crl2pkcs7 -nocrl -certfile /etc/nginx/certs/ca-bundle.pem '
-            "| openssl pkcs7 -print_certs -noout 2>/dev/null "
-            "| grep -i 'Test Backend CA' || echo NOT_FOUND\" || true"
-        ),
-        "nginx site config": "sudo cat /etc/nginx/sites-enabled/* 2>&1 || true",
-    }
-    for label, cmd in cc_checks.items():
-        try:
-            task = juju.exec(cmd, unit=cc_unit)
-            print(f"\n----- [content-cache] {label} -----\n{task.stdout}")
-        except (jubilant.TaskError, TimeoutError, ValueError, OSError) as exc:
-            print(f"\n----- [content-cache] {label}: ERROR {exc} -----")
-
-    for addr in [a for a in backend_addresses.split(",") if a]:
-        cmd = (
-            f"curl -sk --max-time 10 -o /dev/null -w '%{{http_code}}' "
-            f"https://{addr}:443/api/v1/ 2>&1 || true"
-        )
-        try:
-            task = juju.exec(cmd, unit=cc_unit)
-            print(
-                f"\n----- [content-cache -> {addr}] curl /api/v1/ http_code: {task.stdout} -----"
-            )
-        except (jubilant.TaskError, TimeoutError, ValueError, OSError) as exc:
-            print(f"\n----- [content-cache -> {addr}] ERROR {exc} -----")
-
-    backend_checks = {
-        "service active": "sudo systemctl is-active https-backend.service 2>&1 || true",
-        "listening on 443": "sudo ss -tlnp 2>/dev/null | grep ':443' || echo NONE",
-        "local curl http_code": (
-            "curl -sk --max-time 10 -o /dev/null -w '%{http_code}' "
-            "https://localhost:443/api/v1/ 2>&1 || true"
-        ),
-    }
-    for i in (0, 1):
-        unit = f"{backend_app}/{i}"
-        for label, cmd in backend_checks.items():
-            try:
-                task = juju.exec(cmd, unit=unit)
-                print(f"\n----- [{unit}] {label}: {task.stdout} -----")
-            except (jubilant.TaskError, TimeoutError, ValueError, OSError) as exc:
-                print(f"\n----- [{unit}] {label}: ERROR {exc} -----")
-
-
 @pytest.mark.abort_on_fail
 def test_cache_config_backend_substitution(
     juju: jubilant.Juju,
@@ -313,10 +243,6 @@ def test_cache_config_https_backend(
             timeout=30,
             verify=False,
         )
-        if response.status_code != 200:
-            _dump_https_diagnostics(
-                juju, content_cache, any_charm_backend_https, backend_addresses
-            )
         assert response.status_code == 200, (
             f"Expected 200 for /api/{path_component}/, got {response.status_code}. "
             f"Body: {response.text[:500]}"

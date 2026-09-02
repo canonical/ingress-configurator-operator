@@ -73,18 +73,27 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
         port = self._cfg.get("port", _PORT)
         self.ingress = IngressPerAppRequirer(self, port=port)
         self.framework.observe(self.on.install, self._install)
+        # Observe relation_created (and relation_changed) rather than relation_joined:
+        # Juju only fires relation_joined on the provider side after the requirer unit
+        # completes its own relation_joined hook, which in practice may never happen in
+        # this test setup. relation_created always fires when the relation is created, and
+        # relation_changed fires reliably too, so together they guarantee the CA cert is
+        # published to content-cache (otherwise its CA bundle lacks the backend CA and
+        # nginx proxy_ssl_verify fails with 502).
         self.framework.observe(
-            self.on.provide_certificate_transfer_relation_joined,
-            self._on_provide_certificate_transfer_relation_joined,
+            self.on["provide-certificate-transfer"].relation_created,
+            self._on_provide_certificate_transfer_relation_event,
+        )
+        self.framework.observe(
+            self.on["provide-certificate-transfer"].relation_changed,
+            self._on_provide_certificate_transfer_relation_event,
         )
 
-    def _on_provide_certificate_transfer_relation_joined(
-        self, event: ops.RelationJoinedEvent
-    ) -> None:
-        """Publish the CA certificate to the new certificate-transfer relation.
+    def _on_provide_certificate_transfer_relation_event(self, event: ops.RelationEvent) -> None:
+        """Publish the CA certificate to the certificate-transfer relation.
 
         Args:
-            event: The relation joined event.
+            event: The relation event (created or changed).
         """
         self._publish_ca_cert(event.relation)
 
@@ -97,6 +106,9 @@ class AnyCharm(AnyCharmBase):  # pylint: disable=too-few-public-methods
         if not _CA_CERT_PATH.exists():
             return
         relation.data[self.unit]["ca"] = _CA_CERT_PATH.read_text(encoding="utf-8")
+        # V0 certificate-transfer format: content-cache reads "chain" first (JSON list),
+        # then falls back to "ca". An empty chain keeps it on the "ca" field.
+        relation.data[self.unit]["chain"] = "[]"
 
     def _install(self, _: ops.InstallEvent) -> None:
         """Provision the certificate, write pages, and start the HTTPS server."""

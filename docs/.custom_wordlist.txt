@@ -1,7 +1,9 @@
 configurator
 hostnames
 FQDNs
-HTTPRoute
+boolean
 databag
-proxied
 healthcheck
+healthchecks
+HTTPRoute
+proxied

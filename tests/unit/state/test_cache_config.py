@@ -12,23 +12,25 @@ from state.cache_config import CacheConfigState
 
 
 def _make_charm(config: dict) -> MagicMock:
+    # Mirror the charmcraft.yaml defaults that Juju always applies for cache-specific options.
+    merged = {"cache-fail-timeout": "30s", "cache-healthcheck-ssl-verify": True, **config}
     charm = MagicMock(spec=ops.CharmBase)
-    charm.config = config
+    charm.config = merged
     return charm
 
 
 def test_build_with_no_config():
     """
-    arrange: charm with no cache-related config set.
+    arrange: charm with no user-set cache config (only charmcraft defaults applied).
     act: build CacheConfigState.
-    assert: all optional fields are None and healthcheck_ssl_verify defaults to True.
+    assert: shared optional fields are None; cache-specific fields carry charmcraft defaults.
     """
     charm = _make_charm({})
     state = CacheConfigState.build(charm)
     assert state.proxy_cache_valid is None
     assert state.healthcheck_interval is None
     assert state.healthcheck_path is None
-    assert state.fail_timeout is None
+    assert state.fail_timeout == "30s"
     assert state.healthcheck_ssl_verify is True
 
 
@@ -65,12 +67,13 @@ def test_to_relation_data_minimal():
         proxy_cache_valid=None,
         healthcheck_interval=None,
         healthcheck_path=None,
-        fail_timeout=None,
+        fail_timeout="30s",
+        healthcheck_ssl_verify=True,
     )
     data = state.to_relation_data(["http://10.0.0.1:8080"])
     assert json.loads(data["backends"]) == ["http://10.0.0.1:8080"]
     assert "backend_hostname" not in data
-    assert data["fail_timeout"] == "30s"  # None → FAIL_TIMEOUT_DEFAULT
+    assert data["fail_timeout"] == "30s"
     assert data["healthcheck_interval"] == "10000"  # None → 10 * 1000ms
     assert data["healthcheck_path"] == "/"
     assert json.loads(data["healthcheck_valid_status"]) == [200]
@@ -111,7 +114,8 @@ def test_to_relation_data_with_backend_hostname():
         proxy_cache_valid=None,
         healthcheck_interval=None,
         healthcheck_path=None,
-        fail_timeout=None,
+        fail_timeout="30s",
+        healthcheck_ssl_verify=True,
         backend_hostname="cache.example.com",
     )
     data = state.to_relation_data(["http://10.0.0.1:8080"])

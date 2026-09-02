@@ -13,7 +13,6 @@ from pydantic.dataclasses import dataclass
 logger = logging.getLogger(__name__)
 
 CACHE_CONFIG_RELATION_NAME = "cache-config"
-FAIL_TIMEOUT_DEFAULT = "30s"
 
 
 @dataclass(frozen=True)
@@ -24,8 +23,10 @@ class CacheConfigState:
         proxy_cache_valid: Cache validity rule, e.g. "200 1h". None means not configured.
         healthcheck_interval: Health check interval in seconds, from charm config.
         healthcheck_path: Health check path, from charm config.
-        fail_timeout: Time before marking a backend as unavailable after failure.
-        healthcheck_ssl_verify: Whether to verify TLS certificates during health checks.
+        fail_timeout: Time before marking a backend as unavailable after failure. Always set;
+            charmcraft.yaml defines the default (``cache-fail-timeout``).
+        healthcheck_ssl_verify: Whether to verify TLS certificates during health checks. Always
+            set; charmcraft.yaml defines the default (``cache-healthcheck-ssl-verify``).
         backend_hostname: SNI hostname for backend TLS verification. Required when backends
             use https://. Matches the hostname in the backend's TLS certificate.
     """
@@ -33,13 +34,19 @@ class CacheConfigState:
     proxy_cache_valid: str | None
     healthcheck_interval: int | None
     healthcheck_path: str | None
-    fail_timeout: str | None
-    healthcheck_ssl_verify: bool = True
+    fail_timeout: str
+    healthcheck_ssl_verify: bool
     backend_hostname: str | None = None
 
     @classmethod
     def build(cls, charm: ops.CharmBase, backend_hostname: str | None = None) -> Self:
         """Build CacheConfigState from charm config.
+
+        Defaults for cache-specific options (``cache-fail-timeout``,
+        ``cache-healthcheck-ssl-verify``) are defined in charmcraft.yaml, so they are always
+        present in ``charm.config``. The shared ``health-check-interval``/``health-check-path``
+        options have no charmcraft default (they are also used by haproxy-route), so they may be
+        ``None`` here and are defaulted at serialization time in ``to_relation_data``.
 
         Args:
             charm: The ingress-configurator charm instance.
@@ -53,8 +60,8 @@ class CacheConfigState:
             proxy_cache_valid=cast(str | None, charm.config.get("cache-proxy-cache-valid")),
             healthcheck_interval=cast(int | None, charm.config.get("health-check-interval")),
             healthcheck_path=cast(str | None, charm.config.get("health-check-path")),
-            fail_timeout=cast(str | None, charm.config.get("cache-fail-timeout")),
-            healthcheck_ssl_verify=bool(charm.config.get("cache-healthcheck-ssl-verify", True)),
+            fail_timeout=cast(str, charm.config["cache-fail-timeout"]),
+            healthcheck_ssl_verify=cast(bool, charm.config["cache-healthcheck-ssl-verify"]),
             backend_hostname=backend_hostname,
         )
 
@@ -69,7 +76,9 @@ class CacheConfigState:
         """
         data: dict[str, str] = {
             "backends": json.dumps(backends),
-            "fail_timeout": self.fail_timeout or FAIL_TIMEOUT_DEFAULT,
+            "fail_timeout": self.fail_timeout,
+            # health-check-interval/path are shared with haproxy-route and have no charmcraft
+            # default, so fall back to nginx-sensible defaults (10s interval, "/" path) here.
             "healthcheck_interval": str((self.healthcheck_interval or 10) * 1000),
             "healthcheck_path": self.healthcheck_path or "/",
             "healthcheck_valid_status": json.dumps([200]),

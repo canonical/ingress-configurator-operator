@@ -60,6 +60,8 @@ class GatewayRouteState:
         hostname: Optional hostname to route traffic to.
         additional_hostnames: Additional hostnames to route traffic to.
         paths: URL path prefixes to route.
+        strip_prefix: Whether the matched path prefix should be rewritten to ``/``
+            before the request reaches the backend.
         integrator_state: Integrator-mode-specific state. Only populated for integrator mode.
     """
 
@@ -72,6 +74,7 @@ class GatewayRouteState:
         default_factory=lambda: []
     )
     paths: list[str] = Field(default_factory=lambda: ["/"])
+    strip_prefix: bool = False
     integrator_state: GatewayRouteIntegratorSubState | None = None
 
     @property
@@ -107,6 +110,7 @@ class GatewayRouteState:
         model_name: str,
         backend_port: int,
         integrator_state: GatewayRouteIntegratorSubState | None = None,
+        strip_prefix: bool = False,
     ) -> Self:
         """Build a GatewayRouteState from shared config.
 
@@ -116,6 +120,7 @@ class GatewayRouteState:
             model_name: Model/namespace for the backend application.
             backend_port: Port the backend listens on.
             integrator_state: Populated for integrator mode, None otherwise.
+            strip_prefix: Whether to rewrite the matched path prefix to ``/``.
 
         Raises:
             InvalidGatewayRouteStateError: When config values are invalid.
@@ -147,6 +152,7 @@ class GatewayRouteState:
                 hostname=hostname,
                 additional_hostnames=additional_hostnames,
                 paths=paths,
+                strip_prefix=strip_prefix,
                 integrator_state=integrator_state,
             )
         except ValidationError as exc:
@@ -174,6 +180,7 @@ class GatewayRouteState:
             application_name=ingress_data.app.name,
             model_name=ingress_data.app.model,
             backend_port=ingress_data.app.port,
+            strip_prefix=bool(ingress_data.app.strip_prefix),
         )
 
     @classmethod

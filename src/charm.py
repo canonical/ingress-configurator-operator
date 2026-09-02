@@ -440,6 +440,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 else state.application_name,
                 backend_service_port=state.backend_port,
                 hsts_max_age=provider_data.hsts_max_age,
+                strip_prefix=state.strip_prefix,
             )
         except InvalidKubernetesPermissionError as exc:
             logger.exception("Kubernetes API permission error: %s", exc)

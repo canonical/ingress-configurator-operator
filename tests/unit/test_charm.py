@@ -435,7 +435,7 @@ def test_cache_config_unsupported_for_tcp(
     """
     arrange: haproxy-route-tcp and cache-config relations are both present.
     act: trigger config-changed.
-    assert: WaitingStatus with TCP message — cache-config does not support TCP.
+    assert: BlockedStatus with TCP message — cache-config does not support TCP.
     """
     state = ops.testing.State(
         config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
@@ -446,8 +446,8 @@ def test_cache_config_unsupported_for_tcp(
         leader=True,
     )
     out = context_machine.run(context_machine.on.config_changed(), state)
-    assert out.unit_status == ops.testing.WaitingStatus(
-        "cache-config is not supported for TCP protocol"
+    assert out.unit_status == ops.testing.BlockedStatus(
+        "cache-config is not supported for the haproxy-route-tcp relation"
     )
 
 
@@ -457,7 +457,7 @@ def test_cache_config_unsupported_for_gateway_route(
     """
     arrange: gateway-route and cache-config relations are both present (Kubernetes).
     act: trigger config-changed.
-    assert: WaitingStatus with gRPC message.
+    assert: BlockedStatus indicating cache-config is unsupported for gateway-route.
     """
     state = ops.testing.State(
         relations=[
@@ -467,8 +467,8 @@ def test_cache_config_unsupported_for_gateway_route(
         leader=True,
     )
     out = context_k8s.run(context_k8s.on.config_changed(), state)
-    assert out.unit_status == ops.testing.WaitingStatus(
-        "cache-config is not supported for gRPC protocol"
+    assert out.unit_status == ops.testing.BlockedStatus(
+        "cache-config is not supported for the gateway-route relation"
     )
 
 
@@ -595,7 +595,7 @@ def test_cache_config_sends_relation_data_to_content_cache(
         config={
             "backend-addresses": "10.0.0.1",
             "backend-ports": "8080",
-            "proxy-cache-valid": "200 1h",
+            "cache-proxy-cache-valid": "200 1h",
         },
         relations=[
             ops.testing.Relation("haproxy-route"),

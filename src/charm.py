@@ -149,13 +149,13 @@ class IngressConfiguratorCharm(ops.CharmBase):
         cache_config_related = self.model.get_relation(CACHE_CONFIG_RELATION_NAME) is not None
         if cache_config_related:
             if haproxy_route_tcp_related:
-                self.unit.status = ops.WaitingStatus(
-                    "cache-config is not supported for TCP protocol"
+                self.unit.status = ops.BlockedStatus(
+                    "cache-config is not supported for the haproxy-route-tcp relation"
                 )
                 return
             if gateway_route_related:
-                self.unit.status = ops.WaitingStatus(
-                    "cache-config is not supported for gRPC protocol"
+                self.unit.status = ops.BlockedStatus(
+                    "cache-config is not supported for the gateway-route relation"
                 )
                 return
 

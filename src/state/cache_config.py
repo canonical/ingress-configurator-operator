@@ -50,11 +50,11 @@ class CacheConfigState:
             CacheConfigState populated from charm config.
         """
         return cls(
-            proxy_cache_valid=cast(str | None, charm.config.get("proxy-cache-valid")),
+            proxy_cache_valid=cast(str | None, charm.config.get("cache-proxy-cache-valid")),
             healthcheck_interval=cast(int | None, charm.config.get("health-check-interval")),
             healthcheck_path=cast(str | None, charm.config.get("health-check-path")),
-            fail_timeout=cast(str | None, charm.config.get("fail-timeout")),
-            healthcheck_ssl_verify=bool(charm.config.get("healthcheck-ssl-verify", True)),
+            fail_timeout=cast(str | None, charm.config.get("cache-fail-timeout")),
+            healthcheck_ssl_verify=bool(charm.config.get("cache-healthcheck-ssl-verify", True)),
             backend_hostname=backend_hostname,
         )
 
@@ -88,6 +88,9 @@ class CacheConfigState:
 
         content-cache writes a single plain URL string to the ``cache-backend`` key
         of its own unit databag. An empty string sentinel means the relation was cleared.
+        The returned list is sorted so the resulting backend order is deterministic across
+        hook executions (``rel.units`` is a set with no guaranteed iteration order),
+        avoiding needless haproxy config churn.
 
         Args:
             rel: The cache-config relation.
@@ -102,4 +105,4 @@ class CacheConfigState:
                 all_backends.append(raw)
             else:
                 logger.debug("Unit %s has no cache-backend in databag", unit)
-        return all_backends if all_backends else None
+        return sorted(all_backends) if all_backends else None

@@ -34,17 +34,17 @@ def test_build_with_no_config():
 
 def test_build_with_all_config():
     """
-    arrange: charm with proxy-cache-valid, health-check-interval, health-check-path set.
+    arrange: charm with cache-proxy-cache-valid, health-check-interval, health-check-path set.
     act: build CacheConfigState.
     assert: fields are populated from config.
     """
     charm = _make_charm(
         {
-            "proxy-cache-valid": "200 1h",
+            "cache-proxy-cache-valid": "200 1h",
             "health-check-interval": 5,
             "health-check-path": "/health",
-            "fail-timeout": "1m",
-            "healthcheck-ssl-verify": False,
+            "cache-fail-timeout": "1m",
+            "cache-healthcheck-ssl-verify": False,
         }
     )
     state = CacheConfigState.build(charm)

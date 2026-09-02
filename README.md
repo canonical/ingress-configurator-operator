@@ -88,7 +88,9 @@ When the relation is removed, haproxy reverts to the original backend addresses.
 
 **Optional configuration:**
 
-- `proxy-cache-valid`: Cache validity rule sent to content-cache, for example `"200 1h"`.
+- `cache-proxy-cache-valid`: Cache validity rule sent to content-cache, for example `"200 1h"`.
+- `cache-fail-timeout`: Time before marking a backend unavailable after a failed health check, for example `"30s"`.
+- `cache-healthcheck-ssl-verify`: Whether content-cache verifies backend TLS certificates during health checks.
 
 To obtain the full list of configurations, see the official [CharmHub documentation](https://charmhub.io/ingress-configurator).
 

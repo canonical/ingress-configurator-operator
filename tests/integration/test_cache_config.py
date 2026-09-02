@@ -185,7 +185,7 @@ def test_cache_config_https_backend(
             # the test CA. Disable healthcheck SSL verification to allow the healthcheck
             # to pass; nginx proxy SSL verification still uses ca-bundle.pem and the
             # backend cert's IP SAN for proper certificate verification.
-            "healthcheck-ssl-verify": "false",
+            "cache-healthcheck-ssl-verify": "false",
             "paths": "/api/v1,/api/v2",
             # hostname is required when cache-backend uses HTTPS (content-cache TLS frontend);
             # ingress-configurator passes it to haproxy for routing and SNI.

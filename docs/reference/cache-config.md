@@ -32,4 +32,4 @@ The Content Cache charm writes the following field to its **unit databag**:
 
 | Field | Type | Description |
 |---|---|---|
-| `cache-backend` | string | URL on which Content Cache is reachable (e.g. `"https://10.1.0.5:30000"`). Ingress Configurator uses this to redirect haproxy traffic through Content Cache. |
+| `cache-backend` | string | URL on which Content Cache is reachable (e.g. `"https://10.1.0.5:30000"`). Ingress Configurator uses this to redirect HAProxy traffic through Content Cache. |

@@ -8,10 +8,10 @@ myst:
 
 # The cache-config relation
 
-The `cache-config` interface connects the Ingress Configurator charm (requirer) to a
-[content-cache](https://charmhub.io/content-cache) charm (provider). It configures the
-content-cache charm with backend origins, healthcheck parameters, and caching rules so
-that haproxy can route traffic through content-cache.
+The `cache-config` interface connects the Ingress Configurator charm (requirer) to the
+[Content Cache](https://charmhub.io/content-cache) charm (provider). It configures the
+Content Cache charm with backend origins, healthcheck parameters, and caching rules so
+that HAProxy can route traffic through Content Cache.
 
 ## Databag fields
 
@@ -28,8 +28,8 @@ The Ingress Configurator charm writes the following fields to its **application 
 | `healthcheck_ssl_verify` | JSON boolean | Yes | Whether nginx should verify the backend TLS certificate during healthchecks. |
 | `proxy_cache_valid` | JSON array of strings | Yes | Cache validity rules in nginx format (e.g. `["200 1h"]`). An empty array disables caching. |
 
-content-cache writes the following field to its **unit databag**:
+The Content Cache charm writes the following field to its **unit databag**:
 
 | Field | Type | Description |
 |---|---|---|
-| `cache-backend` | string | URL on which content-cache is reachable (e.g. `"https://10.1.0.5:30000"`). Ingress Configurator uses this to redirect haproxy traffic through content-cache. |
+| `cache-backend` | string | URL on which Content Cache is reachable (e.g. `"https://10.1.0.5:30000"`). Ingress Configurator uses this to redirect haproxy traffic through Content Cache. |

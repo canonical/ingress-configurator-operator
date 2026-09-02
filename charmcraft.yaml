@@ -82,6 +82,12 @@ config:
     paths:
       type: string
       description: Comma-separated list of URL paths to route to the service.
+    strip-prefix:
+      type: boolean
+      description: |
+        Whether to strip the matched path prefix before forwarding the request to the
+        backend. When unset, the value published by the ingress requirer on the
+        ingress relation is used. Only applies to the gateway-route integration.
     deny-paths:
       type: string
       description: Comma-separated list of URL paths that should not be routed to the service.

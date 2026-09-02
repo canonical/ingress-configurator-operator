@@ -5,9 +5,11 @@
 
 import json
 import logging
+import re
 from typing import Self, cast
 
 import ops
+from pydantic import field_validator
 from pydantic.dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -59,6 +61,31 @@ class CacheConfigState:
     healthcheck_ssl_verify: bool
     backend_hostname: str | None = None
 
+    @field_validator("fail_timeout")
+    @classmethod
+    def _validate_fail_timeout(cls, value: str) -> str:
+        """Validate fail_timeout is a positive nginx time value, e.g. "30s".
+
+        content-cache passes this straight to nginx, whose time strings are a positive
+        integer followed by a unit. We mirror content-cache's own accepted units
+        (``d``/``h``/``m``/``s``) so a misconfiguration fails fast here with a clear
+        status instead of surfacing later as a content-cache error.
+
+        Args:
+            value: The configured fail_timeout string.
+
+        Raises:
+            ValueError: If the value is not a positive integer followed by a d/h/m/s unit.
+
+        Returns:
+            The validated fail_timeout string.
+        """
+        if not re.fullmatch(r"\d+[dhms]", value) or int(value[:-1]) < 1:
+            raise ValueError(
+                f"fail_timeout must be a positive integer followed by d/h/m/s, got: {value!r}"
+            )
+        return value
+
     @classmethod
     def build(cls, charm: ops.CharmBase, backend_hostname: str | None = None) -> Self:
         """Build CacheConfigState from charm config.
@@ -104,6 +131,9 @@ class CacheConfigState:
             "healthcheck_path": self.healthcheck_path or "/",
             "healthcheck_valid_status": json.dumps([200]),
             "healthcheck_ssl_verify": json.dumps(self.healthcheck_ssl_verify),
+            # An empty list is meaningful: it tells content-cache to emit no proxy_cache_valid
+            # nginx directives, so caching defers to the backend's own Cache-Control/Expires
+            # headers rather than forcing fixed cache durations.
             "proxy_cache_valid": json.dumps(
                 [self.proxy_cache_valid] if self.proxy_cache_valid else []
             ),

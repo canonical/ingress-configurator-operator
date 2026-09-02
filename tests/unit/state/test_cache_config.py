@@ -7,6 +7,8 @@ import json
 from unittest.mock import MagicMock
 
 import ops
+import pytest
+from pydantic import ValidationError
 
 from state.cache_config import CacheConfigState
 
@@ -207,3 +209,27 @@ def test_get_cache_backends_aggregates_multiple_units():
     result = CacheConfigState.get_cache_backends(rel)
     assert result is not None
     assert sorted(result) == ["http://10.1.0.5:30000", "http://10.1.0.6:30000"]
+
+
+def test_build_accepts_valid_fail_timeout_units():
+    """
+    arrange: charm config with a valid fail_timeout for each supported nginx unit.
+    act: build CacheConfigState.
+    assert: the value is accepted unchanged.
+    """
+    for value in ("1s", "30s", "5m", "2h", "1d"):
+        charm = _make_charm({"cache-fail-timeout": value})
+        state = CacheConfigState.build(charm)
+        assert state.fail_timeout == value
+
+
+def test_build_rejects_invalid_fail_timeout():
+    """
+    arrange: charm config with malformed or non-positive fail_timeout values.
+    act: build CacheConfigState.
+    assert: a validation error is raised.
+    """
+    for value in ("abc", "30", "0s", "-5s", "10x", "1.5s", ""):
+        charm = _make_charm({"cache-fail-timeout": value})
+        with pytest.raises(ValidationError):
+            CacheConfigState.build(charm)

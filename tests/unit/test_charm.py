@@ -494,6 +494,30 @@ def test_cache_config_waiting_for_cache_backends(
     )
 
 
+def test_cache_config_invalid_fail_timeout_is_blocked(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: cache-config relation present with an invalid cache-fail-timeout value.
+    act: trigger config-changed.
+    assert: BlockedStatus — invalid cache-config configuration.
+    """
+    state = ops.testing.State(
+        config={
+            "backend-addresses": "10.0.0.1",
+            "backend-ports": "8080",
+            "cache-fail-timeout": "not-a-time",
+        },
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation("cache-config"),
+        ],
+        leader=True,
+    )
+    out = context_machine.run(context_machine.on.config_changed(), state)
+    assert out.unit_status == ops.testing.BlockedStatus("Invalid cache-config configuration")
+
+
 def test_cache_config_replaces_backends_when_available(
     context_machine: ops.testing.Context["IngressConfiguratorCharm"],
 ):

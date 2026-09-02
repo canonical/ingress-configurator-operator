@@ -36,6 +36,7 @@ from charms.haproxy.v2.haproxy_route import HaproxyRouteRequirer
 from charms.traefik_k8s.v2.ingress import DEFAULT_RELATION_NAME as INGRESS_RELATION
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider, IngressRequirerData
 from lightkube import Client
+from pydantic import ValidationError
 
 from helpers import truncate_k8s_resource_name
 from http_route import (
@@ -366,7 +367,13 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
         # Only the leader may write to the app databag.
         if self.unit.is_leader():
-            cache_state = CacheConfigState.build(self, backend_hostname=state.hostname)
+            try:
+                cache_state = CacheConfigState.build(self, backend_hostname=state.hostname)
+            except ValidationError as exc:
+                logger.exception("Invalid cache-config: %s", exc)
+                raise CacheConfigNotReadyError(
+                    ops.BlockedStatus("Invalid cache-config configuration")
+                ) from exc
             rel.data[self.app].update(cache_state.to_relation_data(backends))
 
         # Read cache-backend from content-cache unit databags

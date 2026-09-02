@@ -51,9 +51,6 @@ BACKEND_PORT = INGRESS_BACKEND_PORT
 BACKEND_PATH = GATEWAY_BACKEND_OPEN_PATH
 BACKEND_BODY = GATEWAY_BACKEND_OPEN_BODY
 
-# Routing-only prefix used by the strip-prefix test; the backend never serves it.
-STRIP_PREFIX_ROUTE_PREFIX = "/proxied"
-
 
 class GatewayStack(NamedTuple):
     """All deployed app names and the shared gateway address for the multi-relation test."""
@@ -201,43 +198,3 @@ def test_gateway_route_multiple_relations(
     assert_gateway_response(
         gateway_address, ADDITIONAL_HOSTNAME_BACKEND_OPEN_PORTS, "/", expected_status=404
     )
-
-
-def test_gateway_route_strip_prefix_rewrites_path(
-    juju_k8s: jubilant.Juju, multi_relation_gateway_stack: GatewayStack
-):
-    """Strip a routing-only prefix off the request path before it reaches the backend.
-
-    The open-ports backend only serves ``BACKEND_PATH``. Routing on ``/proxied`` with
-    ``strip-prefix=true`` means a request to ``/proxied<BACKEND_PATH>`` can only succeed if the
-    gateway rewrote ``/proxied`` to ``/`` first.
-
-    Args:
-        juju_k8s: Jubilant Juju instance for the Kubernetes model.
-        multi_relation_gateway_stack: Shared gateway stack with all deployed app names.
-    """
-    gateway_address = get_gateway_address(
-        juju_k8s, multi_relation_gateway_stack.gateway_api_integrator
-    )
-    configurator = multi_relation_gateway_stack.configurator_open
-
-    juju_k8s.config(configurator, {"paths": STRIP_PREFIX_ROUTE_PREFIX, "strip-prefix": True})
-    try:
-        juju_k8s.wait(
-            lambda status: jubilant.all_active(status, configurator),
-            error=jubilant.any_error,
-        )
-
-        assert_gateway_response(
-            gateway_address,
-            HOSTNAME_BACKEND_OPEN_PORTS,
-            f"{STRIP_PREFIX_ROUTE_PREFIX}{BACKEND_PATH}",
-            expected_status=200,
-            body_contains=BACKEND_BODY,
-        )
-        # The un-prefixed path is no longer routed, proving the prefix is what matched.
-        assert_gateway_response(
-            gateway_address, HOSTNAME_BACKEND_OPEN_PORTS, BACKEND_PATH, expected_status=404
-        )
-    finally:
-        juju_k8s.config(configurator, {"paths": BACKEND_PATH, "strip-prefix": False})

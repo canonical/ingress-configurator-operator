@@ -175,18 +175,12 @@ class GatewayRouteState:
         Returns:
             GatewayRouteState instance for adapter mode.
         """
-        config_strip_prefix = cast(bool | None, charm.config.get("strip-prefix"))
-        strip_prefix = (
-            config_strip_prefix
-            if config_strip_prefix is not None
-            else bool(ingress_data.app.strip_prefix)
-        )
         return cls._build(
             charm,
             application_name=ingress_data.app.name,
             model_name=ingress_data.app.model,
             backend_port=ingress_data.app.port,
-            strip_prefix=strip_prefix,
+            strip_prefix=bool(ingress_data.app.strip_prefix),
         )
 
     @classmethod

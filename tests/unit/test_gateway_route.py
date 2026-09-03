@@ -709,3 +709,117 @@ def test_gateway_route_publishes_url_using_gateway_address_when_no_hostname(
     ingress_app_data: dict[str, str] = out.get_relations("ingress")[0].local_app_data
     published = json.loads(ingress_app_data["ingress"])
     assert published["url"] == "http://10.0.0.100/app"
+
+
+STRIP_PREFIX_FILTER = {
+    "type": "URLRewrite",
+    "urlRewrite": {"path": {"type": "ReplacePrefixMatch", "replacePrefixMatch": "/"}},
+}
+
+
+def test_ingress_requirer_strip_prefix_adds_url_rewrite_filter(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"], mock_lightkube: "LightkubeClient"
+):
+    """
+    arrange: ingress requirer publishes strip-prefix=true, https disabled, paths=/app1.
+    act: trigger config-changed.
+    assert: the single HTTPRoute rule carries the URLRewrite/ReplacePrefixMatch filter.
+    """
+    state = ops.testing.State(
+        config={"hostname": "example.com", "paths": "/app1"},
+        relations=[
+            ops.testing.Relation(
+                endpoint="ingress",
+                remote_app_data={**INGRESS_REMOTE_APP_DATA, "strip-prefix": "true"},
+                remote_units_data=INGRESS_REMOTE_UNITS_DATA,
+            ),
+            ops.testing.Relation(
+                endpoint="gateway-route",
+                remote_app_data={
+                    "gateway_name": '"my-gateway"',
+                    "gateway_model": '"gateway-model"',
+                    "https_mode": '"disabled"',
+                    "endpoints": json.dumps([]),
+                },
+            ),
+        ],
+        leader=True,
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
+    (single_call,) = mock_lightkube.apply.call_args_list  # type: ignore[attr-defined]
+    rule = single_call.args[0].spec["rules"][0]
+    assert rule["matches"][0]["path"]["value"] == "/app1"
+    assert STRIP_PREFIX_FILTER in rule["filters"]
+
+
+def test_gateway_route_requirer_strip_prefix_applies_to_https_route(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"], mock_lightkube: "LightkubeClient"
+):
+    """
+    arrange: ingress requirer publishes strip-prefix=true and https_mode is "enabled".
+    act: trigger config-changed.
+    assert: both the HTTP and HTTPS forwarding routes carry the URLRewrite filter.
+    """
+    state = ops.testing.State(
+        config={"hostname": "example.com", "paths": "/app1"},
+        relations=[
+            ops.testing.Relation(
+                endpoint="ingress",
+                remote_app_data={**INGRESS_REMOTE_APP_DATA, "strip-prefix": "true"},
+                remote_units_data=INGRESS_REMOTE_UNITS_DATA,
+            ),
+            ops.testing.Relation(
+                endpoint="gateway-route",
+                remote_app_data={
+                    "gateway_name": '"my-gateway"',
+                    "gateway_model": '"gateway-model"',
+                    "https_mode": '"enabled"',
+                    "endpoints": json.dumps([]),
+                },
+            ),
+        ],
+        leader=True,
+    )
+
+    context_k8s.run(context_k8s.on.config_changed(), state)
+
+    http_call, https_call = mock_lightkube.apply.call_args_list  # type: ignore[attr-defined]
+    assert STRIP_PREFIX_FILTER in http_call.args[0].spec["rules"][0]["filters"]
+    assert STRIP_PREFIX_FILTER in https_call.args[0].spec["rules"][0]["filters"]
+
+
+def test_gateway_route_requirer_strip_prefix_not_applied_to_redirect_rule(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"], mock_lightkube: "LightkubeClient"
+):
+    """
+    arrange: ingress requirer publishes strip-prefix=true and https_mode is "enforced".
+    act: trigger config-changed.
+    assert: the HTTP route only redirects (no URLRewrite), the HTTPS route strips the prefix.
+    """
+    state = ops.testing.State(
+        config={"hostname": "example.com", "paths": "/app1"},
+        relations=[
+            ops.testing.Relation(
+                endpoint="ingress",
+                remote_app_data={**INGRESS_REMOTE_APP_DATA, "strip-prefix": "true"},
+                remote_units_data=INGRESS_REMOTE_UNITS_DATA,
+            ),
+            ops.testing.Relation(
+                endpoint="gateway-route",
+                remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
+            ),
+        ],
+        leader=True,
+    )
+
+    context_k8s.run(context_k8s.on.config_changed(), state)
+
+    http_call, https_call = mock_lightkube.apply.call_args_list  # type: ignore[attr-defined]
+    http_rule = http_call.args[0].spec["rules"][0]
+    assert STRIP_PREFIX_FILTER not in http_rule["filters"]
+    assert any(f["type"] == "RequestRedirect" for f in http_rule["filters"])
+    https_rule = https_call.args[0].spec["rules"][0]
+    assert STRIP_PREFIX_FILTER in https_rule["filters"]

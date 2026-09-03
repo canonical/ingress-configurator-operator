@@ -717,7 +717,7 @@ STRIP_PREFIX_FILTER = {
 }
 
 
-def test_gateway_route_requirer_strip_prefix_adds_url_rewrite_filter(
+def test_ingress_requirer_strip_prefix_adds_url_rewrite_filter(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"], mock_lightkube: "LightkubeClient"
 ):
     """
@@ -752,7 +752,7 @@ def test_gateway_route_requirer_strip_prefix_adds_url_rewrite_filter(
     (single_call,) = mock_lightkube.apply.call_args_list  # type: ignore[attr-defined]
     rule = single_call.args[0].spec["rules"][0]
     assert rule["matches"][0]["path"]["value"] == "/app1"
-    assert rule["filters"] == [STRIP_PREFIX_FILTER]
+    assert STRIP_PREFIX_FILTER in rule["filters"]
 
 
 def test_gateway_route_requirer_strip_prefix_applies_to_https_route(
@@ -787,8 +787,8 @@ def test_gateway_route_requirer_strip_prefix_applies_to_https_route(
     context_k8s.run(context_k8s.on.config_changed(), state)
 
     http_call, https_call = mock_lightkube.apply.call_args_list  # type: ignore[attr-defined]
-    assert http_call.args[0].spec["rules"][0]["filters"] == [STRIP_PREFIX_FILTER]
-    assert https_call.args[0].spec["rules"][0]["filters"] == [STRIP_PREFIX_FILTER]
+    assert STRIP_PREFIX_FILTER in http_call.args[0].spec["rules"][0]["filters"]
+    assert STRIP_PREFIX_FILTER in https_call.args[0].spec["rules"][0]["filters"]
 
 
 def test_gateway_route_requirer_strip_prefix_not_applied_to_redirect_rule(

@@ -10,5 +10,6 @@ myst:
 
 ```{toctree}
 :maxdepth: 1
+cache-config.md
 gateway-route.md
 ```

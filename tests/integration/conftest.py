@@ -5,6 +5,8 @@
 
 import json
 import pathlib
+import subprocess  # nosec: B404
+import tempfile
 from ipaddress import IPv4Address, IPv6Address, ip_address
 from typing import Callable, Generator
 
@@ -17,6 +19,7 @@ from .helper import DNSResolverAdapter
 
 MOCK_HAPROXY_HOSTNAME = "haproxy.internal"
 INGRESS_REQUIRER_SRC = pathlib.Path("tests/integration/any_charm_apache.py")
+INGRESS_REQUIRER_HTTPS_SRC = pathlib.Path("tests/integration/any_charm_https.py")
 HELPER_SRC = pathlib.Path("tests/integration/helper.py")
 INGRESS_LIB_SRC = pathlib.Path("lib/charms/traefik_k8s/v2/ingress.py")
 JUJU_WAIT_TIMEOUT = 10 * 60
@@ -28,6 +31,10 @@ CERTIFICATES_APP_NAME = "self-signed-certificates"
 CERTIFICATES_CHANNEL = "1/stable"
 CERTIFICATES_REVISION = 588
 ANY_CHARM_APP_NAME = "any-charm-backend"
+HTTPS_BACKEND_APP_NAME = "any-charm-https-backend"
+CONTENT_CACHE_APP_NAME = "content-cache"
+CONTENT_CACHE_CHANNEL = "1/edge"
+CONTENT_CACHE_REVISION = 530
 INGRESS_REQUIRER_APP_NAME = "ingress-requirer"
 APP_NAME = "ingress-configurator"
 
@@ -197,6 +204,9 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
         revision=CERTIFICATES_REVISION,
     )
     juju.integrate(f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates")
+    # Allow haproxy to verify content-cache's TLS certificate when protocol=https is used
+    # in the haproxy-route relation (full HTTPS chain: haproxy → content-cache → backend).
+    juju.integrate(f"{CERTIFICATES_APP_NAME}:send-ca-cert", f"{HAPROXY_APP_NAME}:receive-ca-certs")
     juju.offer(HAPROXY_APP_NAME, endpoint="haproxy-route")
     yield HAPROXY_APP_NAME
 
@@ -234,6 +244,164 @@ def any_charm_backend_fixture(
         num_units=2,
     )
     yield ANY_CHARM_APP_NAME
+
+
+def _generate_backend_tls(hostname: str) -> tuple[str, str, str]:
+    """Generate a throwaway CA and a server certificate valid for ``hostname``.
+
+    The server certificate carries a ``DNS:<hostname>`` SAN (and no IP SAN), so it is
+    independent of any particular unit's address and can be served identically by every
+    backend unit.  content-cache verifies the backend TLS connection against this hostname
+    via ``proxy_ssl_name``, and trusts the returned CA through ``receive-ca-cert``.
+
+    The material is generated at runtime (never committed), so no secret is stored in the repo.
+
+    Args:
+        hostname: The hostname to embed as the certificate CN and SAN.
+
+    Returns:
+        A tuple of ``(ca_cert_pem, server_cert_pem, server_key_pem)``.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = pathlib.Path(tmp)
+        ca_key, ca_crt = tmp_path / "ca.key", tmp_path / "ca.crt"
+        srv_key, srv_csr, srv_crt = (
+            tmp_path / "srv.key",
+            tmp_path / "srv.csr",
+            tmp_path / "srv.crt",
+        )
+        san_ext = tmp_path / "san.ext"
+        san_ext.write_text(f"subjectAltName=DNS:{hostname}\n", encoding="utf-8")
+
+        def _run(args: list[str]) -> None:
+            subprocess.run(args, check=True, capture_output=True)  # nosec: B603
+
+        _run(["openssl", "genrsa", "-out", str(ca_key), "2048"])
+        _run(
+            [
+                "openssl",
+                "req",
+                "-x509",
+                "-new",
+                "-nodes",
+                "-key",
+                str(ca_key),
+                "-sha256",
+                "-days",
+                "3650",
+                "-out",
+                str(ca_crt),
+                "-subj",
+                "/CN=Test Backend CA",
+            ]
+        )
+        _run(["openssl", "genrsa", "-out", str(srv_key), "2048"])
+        _run(
+            [
+                "openssl",
+                "req",
+                "-new",
+                "-key",
+                str(srv_key),
+                "-out",
+                str(srv_csr),
+                "-subj",
+                f"/CN={hostname}",
+            ]
+        )
+        _run(
+            [
+                "openssl",
+                "x509",
+                "-req",
+                "-in",
+                str(srv_csr),
+                "-CA",
+                str(ca_crt),
+                "-CAkey",
+                str(ca_key),
+                "-CAcreateserial",
+                "-out",
+                str(srv_crt),
+                "-days",
+                "3650",
+                "-sha256",
+                "-extfile",
+                str(san_ext),
+            ]
+        )
+        return (
+            ca_crt.read_text(encoding="utf-8"),
+            srv_crt.read_text(encoding="utf-8"),
+            srv_key.read_text(encoding="utf-8"),
+        )
+
+
+@pytest.fixture(scope="module", name="any_charm_backend_https")
+def any_charm_backend_https_fixture(
+    pytestconfig: pytest.Config, juju: jubilant.Juju, lxd_controller: str, lxd_model: str
+):
+    """Deploy a 2-unit any-charm serving HTTPS on port 443 with a shared CA-signed cert.
+
+    Every unit serves the identical, hostname-scoped certificate (no IP SAN) and publishes
+    the same CA, so content-cache trusts all backend units and can load-balance across them.
+    """
+    if HTTPS_BACKEND_APP_NAME in juju.status().apps:
+        yield HTTPS_BACKEND_APP_NAME
+        return
+    ca_cert, server_cert, server_key = _generate_backend_tls(MOCK_HAPROXY_HOSTNAME)
+    juju.deploy(
+        charm="any-charm",
+        channel="beta",
+        app=HTTPS_BACKEND_APP_NAME,
+        config={
+            "src-overwrite": json.dumps(
+                {
+                    "any_charm.py": INGRESS_REQUIRER_HTTPS_SRC.read_text(encoding="utf-8"),
+                    "ingress.py": INGRESS_LIB_SRC.read_text(encoding="utf-8"),
+                    "config.json": json.dumps(
+                        {
+                            "port": 443,
+                            "pages": {
+                                "/api/v1/index.html": "v1 ok!",
+                                "/api/v2/index.html": "v2 ok!",
+                            },
+                            "backend_hostname": MOCK_HAPROXY_HOSTNAME,
+                            "ca_cert": ca_cert,
+                            "server_cert": server_cert,
+                            "server_key": server_key,
+                        }
+                    ),
+                }
+            ),
+            "python-packages": "pydantic",
+        },
+        num_units=2,
+    )
+    yield HTTPS_BACKEND_APP_NAME
+
+
+@pytest.fixture(scope="module", name="content_cache")
+def content_cache_fixture(juju: jubilant.Juju):
+    """Deploy content-cache from the 1/edge channel.
+
+    Args:
+        juju: Jubilant juju fixture.
+
+    Yields:
+        The content-cache application name.
+    """
+    if CONTENT_CACHE_APP_NAME in juju.status().apps:
+        yield CONTENT_CACHE_APP_NAME
+        return
+    juju.deploy(
+        charm="content-cache",
+        app=CONTENT_CACHE_APP_NAME,
+        channel=CONTENT_CACHE_CHANNEL,
+        revision=CONTENT_CACHE_REVISION,
+        base="ubuntu@24.04",
+    )
+    yield CONTENT_CACHE_APP_NAME
 
 
 @pytest.fixture(scope="module")

@@ -27,7 +27,7 @@ The following route-provider interfaces are supported:
 * - **Design**
   - {ref}`How gateway-route works <explanation_gateway_route>`
 * - **Reference**
-  - {ref}`The gateway-route relation <reference_gateway_route>`
+  - {ref}`The cache-config relation <reference_cache_config>` | {ref}`The gateway-route relation <reference_gateway_route>`
 ```
 
 ```{toctree}

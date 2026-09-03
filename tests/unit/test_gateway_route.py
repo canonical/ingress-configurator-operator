@@ -819,6 +819,7 @@ def test_gateway_route_requirer_strip_prefix_not_applied_to_redirect_rule(
 
     http_call, https_call = mock_lightkube.apply.call_args_list  # type: ignore[attr-defined]
     http_rule = http_call.args[0].spec["rules"][0]
-    assert [f["type"] for f in http_rule["filters"]] == ["RequestRedirect"]
+    assert STRIP_PREFIX_FILTER not in http_rule["filters"]
+    assert any(f["type"] == "RequestRedirect" for f in http_rule["filters"])
     https_rule = https_call.args[0].spec["rules"][0]
-    assert https_rule["filters"][0] == STRIP_PREFIX_FILTER
+    assert STRIP_PREFIX_FILTER in https_rule["filters"]

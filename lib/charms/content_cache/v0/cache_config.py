@@ -34,7 +34,7 @@ from pydantic.dataclasses import dataclass
 # Therefore the LIBID/LIBAPI/LIBPATCH entries here are dummy values
 LIBID = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 LIBAPI = 0
-LIBPATCH = 0
+LIBPATCH = 1
 
 logger = logging.getLogger(__name__)
 

@@ -31,7 +31,10 @@ from pydantic.dataclasses import dataclass
 
 # TODO: This library should be owned by the content-cache charm.
 # We are only temporary storing the requirer implementation here.
-# Therefore there's no LIBID or LIBPATCH entries
+# Therefore the LIBID/LIBAPI/LIBPATCH entries here are dummy values
+LIBID = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+LIBAPI = 0
+LIBPATCH = 0
 
 logger = logging.getLogger(__name__)
 

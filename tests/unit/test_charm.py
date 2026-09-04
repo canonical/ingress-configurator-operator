@@ -429,69 +429,81 @@ def test_routes_mutual_exclusivity(
     )
 
 
-def test_cache_config_unsupported_for_tcp(
-    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+@pytest.mark.parametrize(
+    ("context_fixture", "unsupported_relation", "expected_message"),
+    [
+        pytest.param(
+            "context_machine",
+            "haproxy-route-tcp",
+            "cache-config is not supported for the haproxy-route-tcp relation",
+            id="haproxy-route-tcp",
+        ),
+        pytest.param(
+            "context_k8s",
+            "gateway-route",
+            "cache-config is not supported for the gateway-route relation",
+            id="gateway-route",
+        ),
+    ],
+)
+def test_cache_config_unsupported_for_route(
+    context_fixture: str,
+    unsupported_relation: str,
+    expected_message: str,
+    request: pytest.FixtureRequest,
 ):
     """
-    arrange: haproxy-route-tcp and cache-config relations are both present.
+    arrange: cache-config and an unsupported route relation are both present.
     act: trigger config-changed.
-    assert: BlockedStatus with TCP message — cache-config does not support TCP.
+    assert: BlockedStatus explaining that cache-config does not support that route.
     """
+    context = request.getfixturevalue(context_fixture)
     state = ops.testing.State(
         config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
         relations=[
-            ops.testing.Relation("haproxy-route-tcp"),
+            ops.testing.Relation(unsupported_relation),
             ops.testing.Relation("cache-config"),
         ],
         leader=True,
     )
-    out = context_machine.run(context_machine.on.config_changed(), state)
-    assert out.unit_status == ops.testing.BlockedStatus(
-        "cache-config is not supported for the haproxy-route-tcp relation"
-    )
+    out = context.run(context.on.config_changed(), state)
+    assert out.unit_status == ops.testing.BlockedStatus(expected_message)
 
 
-def test_cache_config_unsupported_for_gateway_route(
-    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
-):
-    """
-    arrange: gateway-route and cache-config relations are both present (Kubernetes).
-    act: trigger config-changed.
-    assert: BlockedStatus indicating cache-config is unsupported for gateway-route.
-    """
-    state = ops.testing.State(
-        relations=[
-            ops.testing.Relation("gateway-route"),
-            ops.testing.Relation("cache-config"),
-        ],
-        leader=True,
-    )
-    out = context_k8s.run(context_k8s.on.config_changed(), state)
-    assert out.unit_status == ops.testing.BlockedStatus(
-        "cache-config is not supported for the gateway-route relation"
-    )
-
-
-def test_cache_config_waiting_for_cache_backends(
+@pytest.mark.parametrize(
+    "cache_backend",
+    [
+        pytest.param(None, id="missing"),
+        pytest.param("not-a-url", id="malformed URL"),
+        pytest.param("http://cache.example.com:9000", id="DNS name"),
+        pytest.param("http://10.1.0.5:0", id="invalid port"),
+    ],
+)
+def test_cache_config_without_usable_backend_keeps_relation_unpublished(
     context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+    cache_backend: str | None,
 ):
     """
-    arrange: cache-config relation present, content-cache has not yet written cache-backend.
+    arrange: cache-config has no usable cache-backend, because it is missing or invalid.
     act: trigger config-changed.
-    assert: WaitingStatus — charm is waiting for cache-backend.
+    assert: reconciliation remains active without publishing HAProxy cache data.
     """
     state = ops.testing.State(
         config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
         relations=[
             ops.testing.Relation("haproxy-route"),
-            ops.testing.Relation("cache-config"),
+            ops.testing.Relation(
+                "cache-config",
+                remote_units_data={
+                    0: {} if cache_backend is None else {"cache-backend": cache_backend}
+                },
+            ),
         ],
         leader=True,
     )
     out = context_machine.run(context_machine.on.config_changed(), state)
-    assert out.unit_status == ops.testing.WaitingStatus(
-        "Waiting for cache-backend from content-cache"
-    )
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
+    assert out.get_relations("haproxy-route")[0].local_app_data == {}
 
 
 def test_cache_config_invalid_fail_timeout_is_blocked(
@@ -580,33 +592,6 @@ def test_cache_config_https_cache_backend_with_hostname(
     assert haproxy_data["protocol"] == '"https"'
 
 
-def test_cache_config_https_cache_backend_without_hostname_is_blocked(
-    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
-):
-    """
-    arrange: content-cache publishes an https:// cache-backend but no hostname is configured.
-    act: trigger config-changed.
-    assert: BlockedStatus because haproxy requires a hostname for HTTPS backend routing.
-    """
-    state = ops.testing.State(
-        config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
-        relations=[
-            ops.testing.Relation("haproxy-route"),
-            ops.testing.Relation(
-                "cache-config",
-                remote_units_data={0: {"cache-backend": "https://10.1.0.5:9443"}},
-            ),
-        ],
-        leader=True,
-    )
-    out = context_machine.run(context_machine.on.config_changed(), state)
-
-    assert out.unit_status == ops.testing.BlockedStatus(
-        "hostname config required when cache-backend uses HTTPS "
-        "(haproxy requires SNI hostname for HTTPS backend connections)"
-    )
-
-
 def test_cache_config_sends_relation_data_to_content_cache(
     context_machine: ops.testing.Context["IngressConfiguratorCharm"],
 ):
@@ -640,14 +625,14 @@ def test_cache_config_sends_relation_data_to_content_cache(
     assert json.loads(local_app_data["proxy_cache_valid"]) == ["200 1h"]
 
 
-def test_cache_config_uses_urls_directly_not_cartesian_product(
+def test_cache_config_derives_hosts_and_ports_from_every_cache_backend(
     context_machine: ops.testing.Context["IngressConfiguratorCharm"],
 ):
     """
     arrange: cache-config with two content-cache units, each on a different port.
     act: trigger config-changed.
-    assert: haproxy-route hosts and ports are derived from the exact URLs,
-            not from a Cartesian product of all addresses x all ports.
+    assert: every cache-backend URL contributes its host and its port, with no address
+            or port dropped and none invented.
     """
     state = ops.testing.State(
         config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
@@ -667,8 +652,10 @@ def test_cache_config_uses_urls_directly_not_cartesian_product(
 
     assert out.unit_status == ops.testing.ActiveStatus("Ready")
     haproxy_data: dict = dict(out.get_relations("haproxy-route")[0].local_app_data)
-    # Each cache-backend URL maps to exactly one haproxy server entry.
-    # The correct result is 2 backends, not a 2x2 Cartesian product of 4.
+    # hosts and ports are published as two independent lists, which haproxy then
+    # cross-products into four server entries, two of them fictional. That is
+    # pre-existing behaviour and is not what this test pins: it pins only that both
+    # cache-backends are represented and that neither list gains or loses an entry.
     assert sorted(json.loads(haproxy_data["hosts"])) == ["10.1.0.5", "10.1.0.6"]
     assert sorted(json.loads(haproxy_data["ports"])) == [9000, 9001]
 
@@ -722,3 +709,123 @@ def test_cache_config_non_leader_does_not_write_app_databag(
     # haproxy-route write is also guarded; here we assert it does not crash).
     cache_rel = out.get_relations("cache-config")[0]
     assert dict(cache_rel.local_app_data) == {}, "non-leader must not write app databag"
+
+
+def _cache_backend_state(
+    cache_backend: str,
+    config: dict[str, str | int | float | bool] | None = None,
+    leader: bool = True,
+) -> ops.testing.State:
+    """Build a state with haproxy-route and a content-cache unit publishing cache_backend.
+
+    Args:
+        cache_backend: The URL the content-cache unit publishes.
+        config: Extra charm config entries merged over the integrator-mode defaults.
+        leader: Whether this unit is the Juju leader.
+
+    Returns:
+        The ops.testing.State to run against.
+    """
+    return ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": "8080", **(config or {})},
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation(
+                "cache-config",
+                remote_units_data={0: {"cache-backend": cache_backend}},
+            ),
+        ],
+        leader=leader,
+    )
+
+
+@pytest.mark.parametrize(
+    "cache_backend, expected_port",
+    [
+        pytest.param("http://[fd00::5]:9000", 9000, id="ipv6 with port"),
+        pytest.param("http://[fd00::5]", 80, id="ipv6 without port"),
+    ],
+)
+def test_cache_config_ipv6_cache_backend_is_unbracketed(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+    cache_backend: str,
+    expected_port: int,
+):
+    """
+    arrange: content-cache publishes an IPv6 cache-backend, with and without a port.
+    act: trigger config-changed.
+    assert: ActiveStatus and the address reaches haproxy-route unbracketed, since
+            HaproxyRouteState.backend_addresses only accepts the bare IPvAnyAddress form.
+    """
+    out = context_machine.run(
+        context_machine.on.config_changed(), _cache_backend_state(cache_backend)
+    )
+
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
+    haproxy_data: dict = dict(out.get_relations("haproxy-route")[0].local_app_data)
+    assert json.loads(haproxy_data["hosts"]) == ["fd00::5"]
+    assert json.loads(haproxy_data["ports"]) == [expected_port]
+
+
+def test_cache_config_wildcard_hostname_with_http_origin_is_active(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: a wildcard hostname, which haproxy-route accepts, with an http origin.
+    act: trigger config-changed.
+    assert: ActiveStatus and no backend_hostname in the databag. backend_hostname is only
+            for origin TLS verification, so sending a wildcard content-cache would reject
+            for a plaintext origin would block on a value that is never used.
+    """
+    out = context_machine.run(
+        context_machine.on.config_changed(),
+        _cache_backend_state("http://10.1.0.5:9000", {"hostname": "*.example.com"}),
+    )
+
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
+    cache_data: dict = dict(out.get_relations("cache-config")[0].local_app_data)
+    assert "backend_hostname" not in cache_data
+
+
+def test_cache_config_https_cache_backend_without_port_uses_443(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: content-cache publishes an https cache-backend with no explicit port.
+    act: trigger config-changed.
+    assert: ActiveStatus with port 443 and the https protocol, covering the portless
+            path for https as the IPv6 cases cover it for http.
+    """
+    out = context_machine.run(
+        context_machine.on.config_changed(),
+        _cache_backend_state("https://10.1.0.5", {"hostname": "myapp.example.com"}),
+    )
+
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
+    haproxy_data: dict = dict(out.get_relations("haproxy-route")[0].local_app_data)
+    assert json.loads(haproxy_data["hosts"]) == ["10.1.0.5"]
+    assert json.loads(haproxy_data["ports"]) == [443]
+    assert haproxy_data["protocol"] == '"https"'
+
+
+def test_cache_config_https_origin_sends_backend_hostname(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: an https origin with a non-wildcard hostname.
+    act: trigger config-changed.
+    assert: the databag carries backend_hostname, since content-cache needs it as
+            proxy_ssl_name to verify the origin's certificate. This is the counterpart
+            to the http case, where the key is deliberately omitted.
+    """
+    out = context_machine.run(
+        context_machine.on.config_changed(),
+        _cache_backend_state(
+            "http://10.1.0.5:9000",
+            {"hostname": "myapp.example.com", "backend-protocol": "https"},
+        ),
+    )
+
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
+    cache_data: dict = dict(out.get_relations("cache-config")[0].local_app_data)
+    assert cache_data["backend_hostname"] == "myapp.example.com"

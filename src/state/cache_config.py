@@ -52,8 +52,6 @@ class CacheConfigState:
         healthcheck_ssl_verify: Whether to verify backend TLS certificates when checking.
         proxy_cache_valid: nginx cache validity rules. Empty means no rules are emitted,
             so caching defers to the backend's own Cache-Control and Expires headers.
-        backend_hostname: SNI hostname for backend TLS verification, required when the
-            backends use https.
     """
 
     fail_timeout: str
@@ -62,10 +60,9 @@ class CacheConfigState:
     healthcheck_valid_status: list[int]
     healthcheck_ssl_verify: bool
     proxy_cache_valid: list[str]
-    backend_hostname: str | None = None
 
     @classmethod
-    def from_charm(cls, charm: ops.CharmBase, backend_hostname: str | None = None) -> Self:
+    def from_charm(cls, charm: ops.CharmBase) -> Self:
         """Build CacheConfigState from charm config.
 
         Defaults for the cache-specific options (``cache-fail-timeout``,
@@ -94,5 +91,4 @@ class CacheConfigState:
             healthcheck_valid_status=list(DEFAULT_HEALTHCHECK_VALID_STATUS),
             healthcheck_ssl_verify=cast(bool, charm.config["cache-healthcheck-ssl-verify"]),
             proxy_cache_valid=[proxy_cache_valid] if proxy_cache_valid else [],
-            backend_hostname=backend_hostname,
         )

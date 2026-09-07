@@ -616,7 +616,11 @@ class IngressConfiguratorCharm(ops.CharmBase):
         backend_hostname = (
             charm_state.hostname if charm_state.backend_protocol == "https" else None
         )
-        cache_config_state = CacheConfigState.from_charm(self, backend_hostname)
+        if not backend_hostname and charm_state.backend_protocol == "https":
+            self.unit.status = ops.BlockedStatus("Missing backend hostname for HTTPS backend")
+            return False
+
+        cache_config_state = CacheConfigState.from_charm(self)
         backends = [
             f"{charm_state.backend_protocol}://{_format_backend_host(addr)}:{port}"
             for addr in charm_state.backend_addresses
@@ -624,7 +628,9 @@ class IngressConfiguratorCharm(ops.CharmBase):
         ]
         try:
             self._cache_config.publish_cache_config(
-                backends=backends, **cache_config_state.__dict__
+                backends=backends,
+                backend_hostname=backend_hostname,
+                **cache_config_state.__dict__,
             )
         except CacheConfigInvalidRelationDataError as exc:
             logger.exception("Invalid cache-config relation data: %s", exc)

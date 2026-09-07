@@ -318,7 +318,7 @@ class CacheConfigProviderUnitsData:
     @property
     def cache_backend_ports(self) -> list[int]:
         """Return cache backend ports."""
-        return [backend.cache_backend.port for backend in self.cache_backends]
+        return list({backend.cache_backend.port for backend in self.cache_backends})
 
     @model_validator(mode="after")
     def validate_cache_protocol(self) -> "CacheConfigProviderUnitsData":
@@ -421,7 +421,7 @@ class CacheConfigRequirer(Object):
         the string form.
 
         Returns:
-            The cache backend URLs, sorted for a stable ordering across hooks.
+            The cache backend URLs.
         """
         if not (relation := self.relation):
             return CacheConfigProviderUnitsData([])

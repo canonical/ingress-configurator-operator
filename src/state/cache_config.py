@@ -73,7 +73,6 @@ class CacheConfigState:
 
         Args:
             charm: The ingress-configurator charm instance.
-            backend_hostname: SNI hostname to use for backend TLS verification.
 
         Returns:
             CacheConfigState populated from charm config.

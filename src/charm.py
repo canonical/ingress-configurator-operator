@@ -267,7 +267,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
         if not self._provide_cache_config_requirements(charm_state):
             return
-        self._provide_haproxy_route_requirements(charm_state)
+        if not self._provide_haproxy_route_requirements(charm_state):
+            return
         if proxied_endpoints := self._haproxy_route.get_proxied_endpoints():
             self._ingress.publish_url(ingress_relation, str(proxied_endpoints[0]))
 
@@ -283,11 +284,19 @@ class IngressConfiguratorCharm(ops.CharmBase):
             return
         if not self._provide_cache_config_requirements(charm_state):
             return
-        self._provide_haproxy_route_requirements(charm_state)
+        if not self._provide_haproxy_route_requirements(charm_state):
+            return
         self.unit.status = ops.ActiveStatus("Ready")
 
-    def _provide_haproxy_route_requirements(self, charm_state: HaproxyRouteState) -> None:
-        """Publish haproxy-route requirements."""
+    def _provide_haproxy_route_requirements(self, charm_state: HaproxyRouteState) -> bool:
+        """Publish haproxy-route requirements.
+
+        Args:
+            charm_state: The current state of the haproxy-route relation.
+
+        Returns:
+            False when invalid relation data prevented reconciliation, otherwise True.
+        """
         hosts = [str(address) for address in charm_state.backend_addresses]
         ports = charm_state.backend_ports
         protocol = charm_state.backend_protocol
@@ -302,14 +311,14 @@ class IngressConfiguratorCharm(ops.CharmBase):
                 self.unit.status = ops.BlockedStatus(
                     "Invalid cache backends data from content-cache."
                 )
-                return
+                return False
 
             # No cache backends available yet, we wait for the provider to publish them.
             if not (cache_backends := cache_config_provider_units_data.cache_backends):
                 self.unit.status = ops.WaitingStatus(
                     "Waiting for cache backends data from content-cache."
                 )
-                return
+                return False
 
             hosts = cache_config_provider_units_data.cache_backend_hosts
             ports = cache_config_provider_units_data.cache_backend_ports

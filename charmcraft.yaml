@@ -82,6 +82,15 @@ config:
         health checks against backends. Set to false when backends use
         self-signed certificates.
         Only used when the cache-config relation is present.
+    cache-backend-hostname:
+      type: string
+      description: |
+        Hostname content-cache should present (SNI and HTTP Host header) when
+        connecting to the origin backend over HTTPS. Use this when the origin's own
+        hostname differs from the externally-facing hostname (e.g. backend-addresses
+        point at "blog.ubuntu.internal" while hostname is "blog.ubuntu.com").
+        If not set, falls back to hostname.
+        Only used when the cache-config relation is present.
     external-grpc-port:
       type: int
       description: |

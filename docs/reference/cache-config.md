@@ -20,7 +20,7 @@ The Ingress Configurator charm writes the following fields to its **application 
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `backends` | JSON array of strings | Yes | List of backend URLs (e.g. `["http://10.0.0.1:8080"]`) that content-cache should proxy. |
-| `backend_hostname` | string | No | Hostname for backend TLS verification. Required when `backend-protocol` is `https`. content-cache passes this to nginx as `proxy_ssl_name`. When unset, the key is absent from the databag rather than present and empty. |
+| `backend_hostname` | string | No | Hostname for backend TLS verification. Required when `backend-protocol` is `https`. content-cache passes this to nginx in `proxy_ssl_name` and `proxy_set_header`. When unset, the key is absent from the databag rather than present and empty. |
 | `fail_timeout` | string | Yes | Time after which a backend is marked unavailable following a failure (e.g. `"30s"`). |
 | `healthcheck_interval` | string | Yes | Healthcheck interval in milliseconds (e.g. `"10000"` for 10 s). |
 | `healthcheck_path` | string | Yes | URL path used for healthchecks (e.g. `"/"`). |

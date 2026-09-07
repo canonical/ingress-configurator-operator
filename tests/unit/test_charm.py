@@ -640,6 +640,70 @@ def test_cache_config_sends_relation_data_to_content_cache(
     assert json.loads(local_app_data["proxy_cache_valid"]) == ["200 1h"]
 
 
+def test_cache_config_backend_hostname_config_overrides_frontend_hostname(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: both hostname (frontend/SNI) and cache-backend-hostname (origin backend) are
+             configured with different values.
+    act: trigger config-changed.
+    assert: the cache-config relation carries cache-backend-hostname, not hostname, so
+            content-cache uses the origin's own hostname for backend TLS verification.
+    """
+    state = ops.testing.State(
+        config={
+            "backend-addresses": "10.0.0.1",
+            "backend-ports": "8080",
+            "hostname": "blog.ubuntu.com",
+            "cache-backend-hostname": "blog.ubuntu.internal",
+        },
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation(
+                "cache-config",
+                remote_units_data={0: {"cache-backend": "http://10.1.0.5:9000"}},
+            ),
+        ],
+        leader=True,
+    )
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    cache_config_rel = out.get_relations("cache-config")[0]
+    local_app_data: dict = dict(cache_config_rel.local_app_data)
+    assert local_app_data["backend_hostname"] == "blog.ubuntu.internal"
+
+
+def test_cache_config_backend_hostname_falls_back_to_hostname(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: only hostname (frontend/SNI) is configured; cache-backend-hostname is unset.
+    act: trigger config-changed.
+    assert: the cache-config relation falls back to hostname for backend_hostname, preserving
+            prior behavior for operators who don't need a distinct origin hostname.
+    """
+    state = ops.testing.State(
+        config={
+            "backend-addresses": "10.0.0.1",
+            "backend-ports": "8080",
+            "hostname": "myapp.example.com",
+        },
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation(
+                "cache-config",
+                remote_units_data={0: {"cache-backend": "http://10.1.0.5:9000"}},
+            ),
+        ],
+        leader=True,
+    )
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    cache_config_rel = out.get_relations("cache-config")[0]
+    local_app_data: dict = dict(cache_config_rel.local_app_data)
+    assert local_app_data["backend_hostname"] == "myapp.example.com"
+
+
 def test_cache_config_uses_urls_directly_not_cartesian_product(
     context_machine: ops.testing.Context["IngressConfiguratorCharm"],
 ):

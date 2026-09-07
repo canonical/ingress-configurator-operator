@@ -367,8 +367,14 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
         # Only the leader may write to the app databag.
         if self.unit.is_leader():
+            # cache-backend-hostname lets the origin backend's own hostname (e.g. an internal
+            # DNS name) differ from the externally-facing hostname used for ingress/SNI routing.
+            # Fall back to hostname to preserve prior behavior when they are the same.
+            backend_hostname = self.config.get("cache-backend-hostname") or state.hostname
             try:
-                cache_state = CacheConfigState.build(self, backend_hostname=state.hostname)
+                cache_state = CacheConfigState.build(
+                    self, backend_hostname=typing.cast("str | None", backend_hostname)
+                )
             except ValidationError as exc:
                 logger.exception("Invalid cache-config: %s", exc)
                 raise CacheConfigNotReadyError(

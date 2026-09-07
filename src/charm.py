@@ -248,7 +248,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
         if not self._provide_cache_config_requirements(charm_state):
             return
-        self._provide_haproxy_route_requirements(charm_state)
+        if not self._provide_haproxy_route_requirements(charm_state):
+            return
         if proxied_endpoints := self._haproxy_route.get_proxied_endpoints():
             self._ingress.publish_url(ingress_relation, str(proxied_endpoints[0]))
 

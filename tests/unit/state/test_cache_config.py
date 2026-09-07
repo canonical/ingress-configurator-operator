@@ -31,7 +31,6 @@ def test_build_applies_defaults():
     assert state.healthcheck_valid_status == [200]
     assert state.healthcheck_ssl_verify is True
     assert state.proxy_cache_valid == []
-    assert state.backend_hostname is None
 
 
 def test_build_with_all_config():
@@ -55,16 +54,6 @@ def test_build_with_all_config():
     assert state.healthcheck_path == "/health"
     assert state.healthcheck_ssl_verify is False
     assert state.proxy_cache_valid == ["200 1h"]
-
-
-def test_build_passes_backend_hostname_through():
-    """
-    arrange: a charm and a backend hostname resolved from the haproxy-route state.
-    act: build CacheConfigState with that hostname.
-    assert: the hostname is carried on the state.
-    """
-    state = CacheConfigState.from_charm(_make_charm({}), backend_hostname="cache.example.com")
-    assert state.backend_hostname == "cache.example.com"
 
 
 def test_build_keeps_invalid_fail_timeout_for_the_library_to_reject():

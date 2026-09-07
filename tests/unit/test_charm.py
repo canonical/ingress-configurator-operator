@@ -502,7 +502,9 @@ def test_cache_config_without_usable_backend_keeps_relation_unpublished(
         leader=True,
     )
     out = context_machine.run(context_machine.on.config_changed(), state)
-    assert out.unit_status == ops.testing.ActiveStatus("Ready")
+    assert out.unit_status == ops.testing.WaitingStatus(
+        "Waiting for cache backends data from content-cache."
+    )
     assert out.get_relations("haproxy-route")[0].local_app_data == {}
 
 

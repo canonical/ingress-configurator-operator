@@ -90,7 +90,11 @@ config:
         hostname differs from the externally-facing hostname (e.g. backend-addresses
         point at "blog.ubuntu.internal" while hostname is "blog.ubuntu.com").
         Required when backend-protocol is https; unrelated to and never derived from
-        hostname.
+        hostname. Generally left unset for HTTP backends: content-cache passes the
+        incoming Host header through unchanged in that case. Setting it changes the
+        Host header the backend receives, so the backend application must be aware
+        it's being fronted by a cache (e.g. its own hostname allowlist/CORS config
+        must accept this value).
         Only used when the cache-config relation is present.
     external-grpc-port:
       type: int

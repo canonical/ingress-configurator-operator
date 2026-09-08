@@ -28,6 +28,12 @@ The Ingress Configurator charm writes the following fields to its **application 
 | `healthcheck_ssl_verify` | JSON boolean | Yes | Whether nginx should verify the backend TLS certificate during healthchecks. |
 | `proxy_cache_valid` | JSON array of strings | Yes | Cache validity rules in nginx format (e.g. `["200 1h"]`). An empty array disables caching. |
 
+`backend_hostname` is sourced from the `cache-backend-hostname` charm config, which is normally
+left unset for HTTP backends -- content-cache passes the incoming `Host` header through
+unchanged in that case. Setting `cache-backend-hostname` changes the `Host` header the backend
+receives on every request, so only set it when the backend application is aware it's being
+fronted by a cache (e.g. its own hostname allowlist or CORS configuration accepts this value).
+
 The Content Cache charm writes the following field to its **unit databag**:
 
 | Field | Type | Description |

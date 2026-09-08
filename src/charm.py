@@ -615,9 +615,11 @@ class IngressConfiguratorCharm(ops.CharmBase):
         if not self._cache_config.relation:
             return True
 
-        backend_hostname = (
-            charm_state.hostname if charm_state.backend_protocol == "https" else None
-        )
+        backend_hostname = None
+        if charm_state.backend_protocol == "https":
+            backend_hostname = typing.cast(
+                "str | None", self.config.get("cache-backend-hostname")
+            ) or charm_state.hostname
         if not backend_hostname and charm_state.backend_protocol == "https":
             self.unit.status = ops.BlockedStatus("Missing backend hostname for HTTPS backend")
             return False

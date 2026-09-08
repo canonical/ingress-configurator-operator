@@ -397,7 +397,18 @@ class IngressConfiguratorCharm(ops.CharmBase):
             )
         # hostname may be an IP or a DNS name in future; avoid constraining to IPvAnyAddress.
         cache_addresses = [p.hostname for p in parsed_urls]  # type: ignore[misc]
-        cache_ports = list({p.port for p in parsed_urls})
+        cache_ports = sorted({p.port for p in parsed_urls})
+        # content-cache units coordinate a single shared port per cache-config relation (see
+        # its peer-relation port allocation). More than one distinct port here means either a
+        # content-cache revision without that coordination, or units mid-transition/disagreeing
+        # -- haproxy can't route a single backend service to mismatched per-unit ports.
+        if len(cache_ports) > 1:
+            raise CacheConfigNotReadyError(
+                ops.BlockedStatus(
+                    "content-cache units reported mismatched ports for the cache-config "
+                    f"relation (expected a single shared port across all units): {cache_ports}"
+                )
+            )
         # Derive the haproxy→content-cache protocol from the cache-backend URL scheme.
         # When content-cache has a TLS certificate for its own frontend (via the
         # certificates relation), it publishes https:// cache-backend URLs; otherwise http://.

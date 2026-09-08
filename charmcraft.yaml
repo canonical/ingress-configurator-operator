@@ -89,7 +89,8 @@ config:
         connecting to the origin backend over HTTPS. Use this when the origin's own
         hostname differs from the externally-facing hostname (e.g. backend-addresses
         point at "blog.ubuntu.internal" while hostname is "blog.ubuntu.com").
-        If not set, falls back to hostname.
+        Required when backend-protocol is https; unrelated to and never derived from
+        hostname.
         Only used when the cache-config relation is present.
     external-grpc-port:
       type: int

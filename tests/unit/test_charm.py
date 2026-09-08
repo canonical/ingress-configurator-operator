@@ -673,14 +673,16 @@ def test_cache_config_backend_hostname_config_overrides_frontend_hostname(
     assert local_app_data["backend_hostname"] == "blog.ubuntu.internal"
 
 
-def test_cache_config_backend_hostname_falls_back_to_hostname(
+def test_cache_config_backend_hostname_unset_when_cache_backend_hostname_not_configured(
     context_machine: ops.testing.Context["IngressConfiguratorCharm"],
 ):
     """
-    arrange: only hostname (frontend/SNI) is configured; cache-backend-hostname is unset.
+    arrange: hostname (frontend/SNI) is configured but cache-backend-hostname is unset;
+             backend-protocol is http, so backend_hostname is not required.
     act: trigger config-changed.
-    assert: the cache-config relation falls back to hostname for backend_hostname, preserving
-            prior behavior for operators who don't need a distinct origin hostname.
+    assert: backend_hostname is omitted from the cache-config relation -- it no longer falls
+            back to hostname, since hostname is a distinct, unrelated concept (frontend/SNI
+            hostname for haproxy, not the origin backend's hostname).
     """
     state = ops.testing.State(
         config={
@@ -699,9 +701,44 @@ def test_cache_config_backend_hostname_falls_back_to_hostname(
     )
     out = context_machine.run(context_machine.on.config_changed(), state)
 
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
     cache_config_rel = out.get_relations("cache-config")[0]
     local_app_data: dict = dict(cache_config_rel.local_app_data)
-    assert local_app_data["backend_hostname"] == "myapp.example.com"
+    assert "backend_hostname" not in local_app_data
+
+
+def test_cache_config_https_backend_requires_cache_backend_hostname(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: backend-protocol is https but cache-backend-hostname is unset (hostname is set,
+             but must not be used as a fallback).
+    act: trigger config-changed.
+    assert: BlockedStatus, since content-cache needs an explicit backend hostname to verify
+            the origin's TLS certificate and set the Host header over HTTPS.
+    """
+    state = ops.testing.State(
+        config={
+            "backend-addresses": "10.0.0.1",
+            "backend-ports": "8080",
+            "backend-protocol": "https",
+            "hostname": "myapp.example.com",
+        },
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation(
+                "cache-config",
+                remote_units_data={0: {"cache-backend": "http://10.1.0.5:9000"}},
+            ),
+        ],
+        leader=True,
+    )
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.BlockedStatus(
+        "cache-backend-hostname config required when backend-protocol is https "
+        "(content-cache needs it for backend TLS verification and Host header)"
+    )
 
 
 def test_cache_config_uses_urls_directly_not_cartesian_product(

@@ -191,6 +191,11 @@ def test_cache_config_https_backend(
             # hostname is required when cache-backend uses HTTPS (content-cache TLS frontend);
             # ingress-configurator passes it to haproxy for routing and SNI.
             "hostname": MOCK_HAPROXY_HOSTNAME,
+            # cache-backend-hostname is required whenever backend-protocol is https: it's what
+            # content-cache uses for SNI/Host when connecting to the origin. The origin's own
+            # cert here (see any_charm_backend_https fixture) is issued for MOCK_HAPROXY_HOSTNAME,
+            # so it must match, even though it's a distinct config from hostname.
+            "cache-backend-hostname": MOCK_HAPROXY_HOSTNAME,
         },
     )
 

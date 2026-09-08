@@ -367,10 +367,19 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
         # Only the leader may write to the app databag.
         if self.unit.is_leader():
-            # cache-backend-hostname lets the origin backend's own hostname (e.g. an internal
-            # DNS name) differ from the externally-facing hostname used for ingress/SNI routing.
-            # Fall back to hostname to preserve prior behavior when they are the same.
-            backend_hostname = self.config.get("cache-backend-hostname") or state.hostname
+            # cache-backend-hostname is the hostname content-cache should present (SNI + Host
+            # header) to the origin backend over HTTPS. It's unrelated to hostname (frontend
+            # hostname used by haproxy), so it does not fall back to it: reusing hostname would
+            # silently pass the wrong value whenever the origin's hostname genuinely differs.
+            backend_hostname = self.config.get("cache-backend-hostname")
+            if state.backend_protocol == "https" and not backend_hostname:
+                raise CacheConfigNotReadyError(
+                    ops.BlockedStatus(
+                        "cache-backend-hostname config required when backend-protocol is "
+                        "https (content-cache needs it for backend TLS verification and "
+                        "Host header)"
+                    )
+                )
             try:
                 cache_state = CacheConfigState.build(
                     self, backend_hostname=typing.cast("str | None", backend_hostname)

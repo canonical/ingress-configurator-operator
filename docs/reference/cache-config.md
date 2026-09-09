@@ -26,7 +26,7 @@ The Ingress Configurator charm writes the following fields to its **application 
 | `healthcheck_path` | string | Yes | URL path used for healthchecks (e.g. `"/"`). |
 | `healthcheck_valid_status` | JSON array of integers | Yes | HTTP status codes that indicate a healthy backend (e.g. `[200]`). |
 | `healthcheck_ssl_verify` | JSON boolean | Yes | Whether nginx should verify the backend TLS certificate during healthchecks. |
-| `proxy_cache_valid` | JSON array of strings | Yes | Cache validity rules in nginx format (e.g. `["200 1h"]`). An empty array disables caching. |
+| `proxy_cache_valid` | JSON array of strings | Yes | Cache validity rules in nginx format (e.g. `["200 1h"]`). An empty array emits no `proxy_cache_valid` directives, so caching defers to the `Cache-Control` and `Expires` headers of the backend. |
 
 `backend_hostname` is sourced from the `cache-backend-hostname` charm config, which is normally
 left unset for HTTP backends -- content-cache passes the incoming `Host` header through

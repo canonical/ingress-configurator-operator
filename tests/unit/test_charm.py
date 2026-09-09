@@ -627,14 +627,151 @@ def test_cache_config_sends_relation_data_to_content_cache(
     assert json.loads(local_app_data["proxy_cache_valid"]) == ["200 1h"]
 
 
+def test_cache_config_backend_hostname_config_overrides_frontend_hostname(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: both hostname (frontend/SNI) and cache-backend-hostname (origin backend) are
+             configured with different values.
+    act: trigger config-changed.
+    assert: the cache-config relation carries cache-backend-hostname, not hostname, so
+            content-cache uses the origin's own hostname for backend TLS verification.
+    """
+    state = ops.testing.State(
+        config={
+            "backend-addresses": "10.0.0.1",
+            "backend-ports": "8080",
+            "hostname": "blog.ubuntu.com",
+            "cache-backend-hostname": "blog.ubuntu.internal",
+        },
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation(
+                "cache-config",
+                remote_units_data={0: {"cache-backend": "http://10.1.0.5:9000"}},
+            ),
+        ],
+        leader=True,
+    )
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    cache_config_rel = out.get_relations("cache-config")[0]
+    local_app_data: dict = dict(cache_config_rel.local_app_data)
+    assert local_app_data["backend_hostname"] == "blog.ubuntu.internal"
+
+
+def test_cache_config_backend_hostname_unset_when_cache_backend_hostname_not_configured(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: hostname (frontend/SNI) is configured but cache-backend-hostname is unset;
+             backend-protocol is http, so backend_hostname is not required.
+    act: trigger config-changed.
+    assert: backend_hostname is omitted from the cache-config relation -- it no longer falls
+            back to hostname, since hostname is a distinct, unrelated concept (frontend/SNI
+            hostname for haproxy, not the origin backend's hostname).
+    """
+    state = ops.testing.State(
+        config={
+            "backend-addresses": "10.0.0.1",
+            "backend-ports": "8080",
+            "hostname": "myapp.example.com",
+        },
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation(
+                "cache-config",
+                remote_units_data={0: {"cache-backend": "http://10.1.0.5:9000"}},
+            ),
+        ],
+        leader=True,
+    )
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
+    cache_config_rel = out.get_relations("cache-config")[0]
+    local_app_data: dict = dict(cache_config_rel.local_app_data)
+    assert "backend_hostname" not in local_app_data
+
+
+def test_cache_config_https_backend_requires_cache_backend_hostname(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: backend-protocol is https but cache-backend-hostname is unset (hostname is set,
+             but must not be used as a fallback).
+    act: trigger config-changed.
+    assert: BlockedStatus, since content-cache needs an explicit backend hostname to verify
+            the origin's TLS certificate and set the Host header over HTTPS.
+    """
+    state = ops.testing.State(
+        config={
+            "backend-addresses": "10.0.0.1",
+            "backend-ports": "8080",
+            "backend-protocol": "https",
+            "hostname": "myapp.example.com",
+        },
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation(
+                "cache-config",
+                remote_units_data={0: {"cache-backend": "http://10.1.0.5:9000"}},
+            ),
+        ],
+        leader=True,
+    )
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.BlockedStatus(
+        "cache-backend-hostname config required when backend-protocol is https "
+        "(content-cache needs it for backend TLS verification and Host header)"
+    )
+
+
 def test_cache_config_derives_hosts_and_ports_from_every_cache_backend(
     context_machine: ops.testing.Context["IngressConfiguratorCharm"],
 ):
     """
-    arrange: cache-config with two content-cache units, each on a different port.
+    arrange: cache-config with two content-cache units, both sharing the same port
+             (as guaranteed by content-cache's peer-coordinated port allocation).
     act: trigger config-changed.
     assert: every cache-backend URL contributes its host and its port, with no address
             or port dropped and none invented.
+    """
+    state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation(
+                "cache-config",
+                remote_units_data={
+                    0: {"cache-backend": "http://10.1.0.5:9000"},
+                    1: {"cache-backend": "http://10.1.0.6:9000"},
+                },
+            ),
+        ],
+        leader=True,
+    )
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
+    haproxy_data: dict = dict(out.get_relations("haproxy-route")[0].local_app_data)
+    # Each cache-backend URL maps to exactly one haproxy server entry.
+    # The correct result is 2 backends, not a 2x2 Cartesian product of 4.
+    assert sorted(json.loads(haproxy_data["hosts"])) == ["10.1.0.5", "10.1.0.6"]
+    assert json.loads(haproxy_data["ports"]) == [9000]
+
+
+def test_cache_config_mismatched_unit_ports_is_blocked(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: cache-config with two content-cache units reporting different ports for the
+             same relation (violates the invariant that all units share one port per relation,
+             e.g. a content-cache revision without the peer-coordinated port allocation).
+    act: trigger config-changed.
+    assert: BlockedStatus, since haproxy cannot route to a single backend across mismatched
+            ports and mixing ports would silently produce an invalid Cartesian-like config.
     """
     state = ops.testing.State(
         config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
@@ -652,14 +789,10 @@ def test_cache_config_derives_hosts_and_ports_from_every_cache_backend(
     )
     out = context_machine.run(context_machine.on.config_changed(), state)
 
-    assert out.unit_status == ops.testing.ActiveStatus("Ready")
-    haproxy_data: dict = dict(out.get_relations("haproxy-route")[0].local_app_data)
-    # hosts and ports are published as two independent lists, which haproxy then
-    # cross-products into four server entries, two of them fictional. That is
-    # pre-existing behaviour and is not what this test pins: it pins only that both
-    # cache-backends are represented and that neither list gains or loses an entry.
-    assert sorted(json.loads(haproxy_data["hosts"])) == ["10.1.0.5", "10.1.0.6"]
-    assert sorted(json.loads(haproxy_data["ports"])) == [9000, 9001]
+    assert out.unit_status == ops.testing.BlockedStatus(
+        "content-cache units reported mismatched ports for the cache-config relation "
+        "(expected a single shared port across all units): [9000, 9001]"
+    )
 
 
 def test_cache_config_removed_reverts_to_original_backends(

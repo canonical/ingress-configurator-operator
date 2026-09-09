@@ -957,10 +957,14 @@ def test_cache_config_https_origin_sends_backend_hostname(
         context_machine.on.config_changed(),
         _cache_backend_state(
             "http://10.1.0.5:9000",
-            {"hostname": "myapp.example.com", "backend-protocol": "https"},
+            {
+                "hostname": "myapp.example.com",
+                "backend-protocol": "https",
+                "cache-backend-hostname": "origin.example.com",
+            },
         ),
     )
 
     assert out.unit_status == ops.testing.ActiveStatus("Ready")
     cache_data: dict = dict(out.get_relations("cache-config")[0].local_app_data)
-    assert cache_data["backend_hostname"] == "myapp.example.com"
+    assert cache_data["backend_hostname"] == "origin.example.com"

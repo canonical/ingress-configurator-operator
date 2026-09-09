@@ -323,6 +323,13 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
             hosts = cache_config_provider_units_data.cache_backend_hosts
             ports = cache_config_provider_units_data.cache_backend_ports
+            if len(ports) > 1:
+                self.unit.status = ops.BlockedStatus(
+                    "content-cache units reported mismatched ports for the cache-config "
+                    "relation (expected a single shared port across all units): "
+                    f"{ports}"
+                )
+                return False
             protocol = cache_backends[0].cache_backend.scheme
 
         params = {
@@ -615,13 +622,12 @@ class IngressConfiguratorCharm(ops.CharmBase):
         if not self._cache_config.relation:
             return True
 
-        backend_hostname = None
-        if charm_state.backend_protocol == "https":
-            backend_hostname = typing.cast(
-                "str | None", self.config.get("cache-backend-hostname")
-            ) or charm_state.hostname
+        backend_hostname = typing.cast("str | None", self.config.get("cache-backend-hostname"))
         if not backend_hostname and charm_state.backend_protocol == "https":
-            self.unit.status = ops.BlockedStatus("Missing backend hostname for HTTPS backend")
+            self.unit.status = ops.BlockedStatus(
+                "cache-backend-hostname config required when backend-protocol is https "
+                "(content-cache needs it for backend TLS verification and Host header)"
+            )
             return False
 
         cache_config_state = CacheConfigState.from_charm(self)

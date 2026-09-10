@@ -36,6 +36,10 @@ from charms.haproxy.v1.haproxy_route_tcp import (
 )
 from charms.haproxy.v2.haproxy_route import HAPROXY_ROUTE_RELATION_NAME as HAPROXY_ROUTE_RELATION
 from charms.haproxy.v2.haproxy_route import HaproxyRouteRequirer
+from charms.traefik_k8s.v1.ingress_per_unit import (
+    DEFAULT_RELATION_NAME as INGRESS_PER_UNIT_RELATION,
+)
+from charms.traefik_k8s.v1.ingress_per_unit import IngressPerUnitProvider
 from charms.traefik_k8s.v2.ingress import DEFAULT_RELATION_NAME as INGRESS_RELATION
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider, IngressRequirerData
 from lightkube import Client
@@ -56,6 +60,7 @@ from kubernetes import (
 )
 from state.cache_config import CacheConfigState
 from state.gateway_route import (
+    GatewayRoutePerUnitState,
     GatewayRouteState,
     InvalidGatewayRouteStateError,
 )
@@ -88,6 +93,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         self._cache_config = CacheConfigRequirer(self)
 
         self._ingress = IngressPerAppProvider(self)
+        self._ingress_per_unit = IngressPerUnitProvider(self)
         self.framework.observe(self.on.config_changed, self._reconcile)
         self.framework.observe(self.on[HAPROXY_ROUTE_RELATION].relation_changed, self._reconcile)
         self.framework.observe(self.on[HAPROXY_ROUTE_RELATION].relation_broken, self._reconcile)
@@ -104,6 +110,15 @@ class IngressConfiguratorCharm(ops.CharmBase):
         self.framework.observe(self.on[INGRESS_RELATION].relation_broken, self._reconcile)
         self.framework.observe(self.on[INGRESS_RELATION].relation_departed, self._reconcile)
         self.framework.observe(self.on[INGRESS_RELATION].relation_changed, self._reconcile)
+        self.framework.observe(
+            self.on[INGRESS_PER_UNIT_RELATION].relation_changed, self._reconcile
+        )
+        self.framework.observe(
+            self.on[INGRESS_PER_UNIT_RELATION].relation_broken, self._reconcile
+        )
+        self.framework.observe(
+            self.on[INGRESS_PER_UNIT_RELATION].relation_departed, self._reconcile
+        )
         self.framework.observe(self.on[GATEWAY_ROUTE_RELATION].relation_changed, self._reconcile)
         self.framework.observe(self.on[GATEWAY_ROUTE_RELATION].relation_broken, self._reconcile)
         self.framework.observe(self.on[GATEWAY_ROUTE_RELATION].relation_departed, self._reconcile)
@@ -158,12 +173,32 @@ class IngressConfiguratorCharm(ops.CharmBase):
             )
             return
 
+        ingress_per_unit_related = (
+            self.model.get_relation(INGRESS_PER_UNIT_RELATION) is not None
+        )
+
+        if ingress_per_unit_related and (haproxy_route_related or haproxy_route_tcp_related):
+            self.unit.status = ops.BlockedStatus(
+                "ingress-per-unit is only supported with the gateway-route relation."
+            )
+            return
+
+        if ingress_per_unit_related and self.model.get_relation(self._ingress.relation_name):
+            self.unit.status = ops.BlockedStatus(
+                "ingress and ingress-per-unit cannot be used simultaneously."
+            )
+            return
+
         if gateway_route_related:
             self._reconcile_gateway_route()
         elif haproxy_route_related:
             self._reconcile_haproxy_route()
         elif haproxy_route_tcp_related:
             self._reconcile_haproxy_route_tcp()
+        elif ingress_per_unit_related:
+            self.unit.status = ops.BlockedStatus(
+                "ingress-per-unit requires a gateway-route relation."
+            )
         else:
             self.unit.status = ops.BlockedStatus("Route relation required.")
 
@@ -391,6 +426,11 @@ class IngressConfiguratorCharm(ops.CharmBase):
         ingress_relation = self.model.get_relation(self._ingress.relation_name)
         has_integrator_config = GatewayRouteState.has_integrator_config(self)
 
+        ingress_per_unit_relation = self.model.get_relation(INGRESS_PER_UNIT_RELATION)
+        if ingress_per_unit_relation is not None:
+            self._reconcile_gateway_route_per_unit(ingress_per_unit_relation)
+            return
+
         if has_integrator_config:
             self.unit.status = ops.BlockedStatus(
                 "Backend config not supported with gateway-route; use an ingress relation."
@@ -536,6 +576,17 @@ class IngressConfiguratorCharm(ops.CharmBase):
             endpoint = f"{scheme}://{host}/{path}" if path else f"{scheme}://{host}"
             self._ingress.publish_url(ingress_relation, url=endpoint)
 
+        self.unit.status = ops.ActiveStatus("Ready")
+
+    def _reconcile_gateway_route_per_unit(
+        self, ingress_per_unit_relation: ops.Relation
+    ) -> None:
+        """Reconcile gateway-route in ingress-per-unit mode."""
+        if not self._ingress_per_unit.is_ready(ingress_per_unit_relation):
+            self.unit.status = ops.WaitingStatus(
+                "Waiting for ingress-per-unit relation data."
+            )
+            return
         self.unit.status = ops.ActiveStatus("Ready")
 
     def _reconcile_haproxy_route_tcp(self) -> None:

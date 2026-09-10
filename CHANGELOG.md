@@ -16,3 +16,7 @@ Each revision is versioned by the date of the revision.
   selector) and `HTTPRoute`. Kubernetes only; the requirer must be deployed in the
   same model as ingress-configurator; mutually exclusive with the `ingress`,
   `haproxy-route`, and `haproxy-route-tcp` relations.
+
+### Changed
+
+- ingress-configurator now blocks when scaled beyond a single unit; it only supports one unit.

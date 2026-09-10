@@ -15,6 +15,26 @@ if TYPE_CHECKING:
     from charm import IngressConfiguratorCharm
 
 
+def test_multiple_units_blocks(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: prepare state with more than one planned unit.
+    act: trigger a config changed event.
+    assert: the unit is blocked asking to scale down.
+    """
+    charm_state = ops.testing.State(
+        planned_units=2,
+        relations=[ops.testing.Relation("haproxy-route")],
+        leader=True,
+    )
+
+    out = context_machine.run(context_machine.on.config_changed(), charm_state)
+
+    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
+    assert "multiple units" in out.unit_status.message
+
+
 def test_config_changed_invalid_state(
     context_machine: ops.testing.Context["IngressConfiguratorCharm"],
 ):

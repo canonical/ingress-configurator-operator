@@ -700,6 +700,8 @@ class IngressConfiguratorCharm(ops.CharmBase):
         provider_data: GatewayRouteProviderAppData,
     ) -> None:
         """Publish each ready requirer unit's ingress URL."""
+        if not self.unit.is_leader():
+            return
         scheme = (
             "https"
             if provider_data.https_mode in (HttpsMode.ENABLED, HttpsMode.ENFORCED)

@@ -271,3 +271,83 @@ def test_ipu_relation_broken_cleans_up(
 
     assert isinstance(out.unit_status, ops.testing.BlockedStatus)
     assert mock_lightkube.list.called
+
+
+@pytest.mark.usefixtures("mock_lightkube")
+def test_ipu_ignores_paths_config(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: ingress-per-unit (1 unit) + gateway-route, with a `paths` config set.
+    act: config-changed.
+    assert: the published URL uses the provider-assigned /<model>-<unit_name> path,
+        NOT the `paths` config value.
+    """
+    state = ops.testing.State(
+        leader=True,
+        model=ops.testing.Model(name="testing"),
+        config={"hostname": "example.com", "paths": "/should-not-be-used"},
+        relations=[
+            ops.testing.Relation(
+                endpoint="ingress-per-unit",
+                interface="ingress_per_unit",
+                remote_app_name="requirer",
+                remote_units_data={
+                    0: {
+                        "model": "testing",
+                        "name": "requirer/0",
+                        "host": "requirer-0.local",
+                        "port": "8080",
+                    },
+                },
+            ),
+            ops.testing.Relation(
+                endpoint="gateway-route", remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA
+            ),
+        ],
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
+    published = yaml.safe_load(out.get_relations("ingress-per-unit")[0].local_app_data["ingress"])
+    assert published["requirer/0"]["url"] == "https://example.com/testing-requirer/0"
+
+
+@pytest.mark.usefixtures("mock_lightkube")
+def test_ipu_cross_model_unit_blocks(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: ingress-per-unit unit reports a different model than the charm's.
+    act: config-changed.
+    assert: BlockedStatus (cross-model per-unit is unsupported).
+    """
+    state = ops.testing.State(
+        leader=True,
+        model=ops.testing.Model(name="testing"),
+        config={"hostname": "example.com"},
+        relations=[
+            ops.testing.Relation(
+                endpoint="ingress-per-unit",
+                interface="ingress_per_unit",
+                remote_app_name="requirer",
+                remote_units_data={
+                    0: {
+                        "model": "other-model",
+                        "name": "requirer/0",
+                        "host": "requirer-0.local",
+                        "port": "8080",
+                    },
+                },
+            ),
+            ops.testing.Relation(
+                endpoint="gateway-route", remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA
+            ),
+        ],
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+
+    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
+    assert "ingress-per-unit" in out.unit_status.message

@@ -64,6 +64,17 @@ Gateway API is supported through the `gateway-route` relation.
 - Requires that the backend related through `ingress` has opened its ports.
 - `https` option for `backend-protocol` is not supported.
 
+#### Ingress per unit (Gateway API)
+
+Per-unit ingress is supported through the `ingress-per-unit` relation, forwarded to the
+`gateway-route` relation.
+
+- Kubernetes only; supported only together with `gateway-route`.
+- Each requirer unit gets its own URL (`/<model>-<unit_name>`), backed by a per-unit
+  `Service` (pod-name selector) and `HTTPRoute`.
+- The requirer must be deployed in the same model as ingress-configurator.
+- Mutually exclusive with the `ingress`, `haproxy-route`, and `haproxy-route-tcp` relations.
+
 #### Content-cache (optional)
 
 The `cache-config` relation integrates with [content-cache](https://charmhub.io/content-cache)

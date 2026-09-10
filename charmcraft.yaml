@@ -45,6 +45,9 @@ provides:
   ingress:
     interface: ingress
     limit: 1
+  ingress-per-unit:
+    interface: ingress_per_unit
+    limit: 1
 
 config:
   options:
@@ -298,6 +301,8 @@ charm-libs:
     version: "1"
   - lib: traefik_k8s.ingress
     version: "2"
+  - lib: traefik_k8s.ingress_per_unit
+    version: "1"
   - lib: gateway_api_integrator.gateway_route
     version: "1"
 

@@ -18,6 +18,7 @@ dependencies = [
   "ops==3.8.2",
   "pydantic==2.13.5",
   "validators>=0.35.0",
+  "jsonschema",
 ]
 
 [dependency-groups]

@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 import ops.testing
 import pytest
+import yaml
 
 if TYPE_CHECKING:
     from charm import IngressConfiguratorCharm
@@ -77,7 +78,9 @@ def test_ipu_with_ingress_relation_blocks(
                 remote_app_name="requirer",
                 remote_units_data=IPU_REMOTE_UNITS_DATA,
             ),
-            ops.testing.Relation(endpoint="gateway-route", remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA),
+            ops.testing.Relation(
+                endpoint="gateway-route", remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA
+            ),
         ],
     )
 
@@ -113,3 +116,133 @@ def test_ipu_with_haproxy_route_blocks(
 
     assert isinstance(out.unit_status, ops.testing.BlockedStatus)
     assert "gateway-route" in out.unit_status.message
+
+
+@pytest.mark.usefixtures("mock_lightkube")
+def test_ipu_happy_path_publishes_per_unit_urls(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: ingress-per-unit (2 units) + gateway-route with provider data, hostname set.
+    act: config-changed.
+    assert: Active; per-unit URLs published to the ingress-per-unit app databag.
+    """
+    state = ops.testing.State(
+        leader=True,
+        model=ops.testing.Model(name="testing"),
+        config={"hostname": "example.com"},
+        relations=[
+            ops.testing.Relation(
+                endpoint="ingress-per-unit",
+                interface="ingress_per_unit",
+                remote_app_name="requirer",
+                remote_units_data={
+                    0: {
+                        "model": "testing",
+                        "name": "requirer/0",
+                        "host": "requirer-0.local",
+                        "port": "8080",
+                    },
+                    1: {
+                        "model": "testing",
+                        "name": "requirer/1",
+                        "host": "requirer-1.local",
+                        "port": "8080",
+                    },
+                },
+            ),
+            ops.testing.Relation(
+                endpoint="gateway-route", remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA
+            ),
+        ],
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
+    ipu_app_data = out.get_relations("ingress-per-unit")[0].local_app_data
+    published = yaml.safe_load(ipu_app_data["ingress"])
+    assert published["requirer/0"]["url"] == "https://example.com/testing-requirer/0"
+    assert published["requirer/1"]["url"] == "https://example.com/testing-requirer/1"
+
+
+@pytest.mark.usefixtures("mock_lightkube")
+def test_ipu_creates_pod_services_and_routes(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    mock_lightkube,
+):
+    """
+    arrange: ingress-per-unit (1 unit) + gateway-route.
+    act: config-changed.
+    assert: a pod-name-selector Service was applied for the unit.
+    """
+    state = ops.testing.State(
+        leader=True,
+        model=ops.testing.Model(name="testing"),
+        config={"hostname": "example.com"},
+        relations=[
+            ops.testing.Relation(
+                endpoint="ingress-per-unit",
+                interface="ingress_per_unit",
+                remote_app_name="requirer",
+                remote_units_data={
+                    0: {
+                        "model": "testing",
+                        "name": "requirer/0",
+                        "host": "requirer-0.local",
+                        "port": "8080",
+                    },
+                },
+            ),
+            ops.testing.Relation(
+                endpoint="gateway-route", remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA
+            ),
+        ],
+    )
+
+    context_k8s.run(context_k8s.on.config_changed(), state)
+
+    applied_services = [
+        call.args[0]
+        for call in mock_lightkube.apply.call_args_list
+        if getattr(call.args[0], "kind", "") == "Service"
+        or type(call.args[0]).__name__ == "Service"
+    ]
+    selectors = [svc.spec.selector for svc in applied_services if svc.spec and svc.spec.selector]
+    assert {"statefulset.kubernetes.io/pod-name": "requirer-0"} in selectors
+
+
+@pytest.mark.usefixtures("mock_lightkube")
+def test_ipu_waiting_when_no_provider_data(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: ingress-per-unit ready but gateway-route provider data missing.
+    act: config-changed.
+    assert: WaitingStatus.
+    """
+    state = ops.testing.State(
+        leader=True,
+        model=ops.testing.Model(name="testing"),
+        config={"hostname": "example.com"},
+        relations=[
+            ops.testing.Relation(
+                endpoint="ingress-per-unit",
+                interface="ingress_per_unit",
+                remote_app_name="requirer",
+                remote_units_data={
+                    0: {
+                        "model": "testing",
+                        "name": "requirer/0",
+                        "host": "requirer-0.local",
+                        "port": "8080",
+                    },
+                },
+            ),
+            ops.testing.Relation(endpoint="gateway-route"),
+        ],
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+
+    assert isinstance(out.unit_status, ops.testing.WaitingStatus)

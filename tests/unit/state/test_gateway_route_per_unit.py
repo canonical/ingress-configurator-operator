@@ -79,7 +79,14 @@ def test_build_from_provider_computes_pod_name_and_path():
 
 def test_build_from_provider_skips_unready_units():
     provider, relation = _provider(
-        {"requirer/0": {"name": "requirer/0", "model": "testing", "port": 8080, "strip-prefix": False}}
+        {
+            "requirer/0": {
+                "name": "requirer/0",
+                "model": "testing",
+                "port": 8080,
+                "strip-prefix": False,
+            }
+        }
     )
     provider.is_unit_ready.return_value = False
     charm = _charm()
@@ -91,7 +98,14 @@ def test_build_from_provider_skips_unready_units():
 
 def test_build_from_provider_rejects_cross_model_unit():
     provider, relation = _provider(
-        {"requirer/0": {"name": "requirer/0", "model": "other-model", "port": 8080, "strip-prefix": False}}
+        {
+            "requirer/0": {
+                "name": "requirer/0",
+                "model": "other-model",
+                "port": 8080,
+                "strip-prefix": False,
+            }
+        }
     )
     charm = _charm(model_name="testing")
 
@@ -101,7 +115,14 @@ def test_build_from_provider_rejects_cross_model_unit():
 
 def test_build_from_provider_rejects_invalid_port():
     provider, relation = _provider(
-        {"requirer/0": {"name": "requirer/0", "model": "testing", "port": 0, "strip-prefix": False}}
+        {
+            "requirer/0": {
+                "name": "requirer/0",
+                "model": "testing",
+                "port": 0,
+                "strip-prefix": False,
+            }
+        }
     )
     charm = _charm()
 

@@ -24,6 +24,7 @@ from charms.gateway_api_integrator.v1.gateway_route import (
 )
 from charms.gateway_api_integrator.v1.gateway_route import (
     GatewayRouteInvalidRelationDataError,
+    GatewayRouteProviderAppData,
     GatewayRouteRequirer,
     HttpsMode,
 )
@@ -48,8 +49,11 @@ from helpers import truncate_k8s_resource_name
 from http_route import (
     MANAGED_BY_LABEL,
     HTTPRouteManager,
+    PerUnitBackend,
     create_http_routes,
+    create_per_unit_http_routes,
     delete_backend_services_owned_by,
+    ensure_pod_backend_service,
     ensure_workload_backend_service,
 )
 from kubernetes import (
@@ -60,6 +64,7 @@ from kubernetes import (
 )
 from state.cache_config import CacheConfigState
 from state.gateway_route import (
+    GatewayRoutePerUnitBackend,
     GatewayRoutePerUnitState,
     GatewayRouteState,
     InvalidGatewayRouteStateError,
@@ -113,9 +118,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
         self.framework.observe(
             self.on[INGRESS_PER_UNIT_RELATION].relation_changed, self._reconcile
         )
-        self.framework.observe(
-            self.on[INGRESS_PER_UNIT_RELATION].relation_broken, self._reconcile
-        )
+        self.framework.observe(self.on[INGRESS_PER_UNIT_RELATION].relation_broken, self._reconcile)
         self.framework.observe(
             self.on[INGRESS_PER_UNIT_RELATION].relation_departed, self._reconcile
         )
@@ -173,9 +176,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
             )
             return
 
-        ingress_per_unit_related = (
-            self.model.get_relation(INGRESS_PER_UNIT_RELATION) is not None
-        )
+        ingress_per_unit_related = self.model.get_relation(INGRESS_PER_UNIT_RELATION) is not None
 
         if ingress_per_unit_related and (haproxy_route_related or haproxy_route_tcp_related):
             self.unit.status = ops.BlockedStatus(
@@ -578,16 +579,138 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
         self.unit.status = ops.ActiveStatus("Ready")
 
-    def _reconcile_gateway_route_per_unit(
-        self, ingress_per_unit_relation: ops.Relation
-    ) -> None:
-        """Reconcile gateway-route in ingress-per-unit mode."""
+    def _reconcile_gateway_route_per_unit(self, ingress_per_unit_relation: ops.Relation) -> None:
+        """Reconcile gateway-route in ingress-per-unit mode.
+
+        For each ready requirer unit, create a pod-selector backend Service and a
+        per-unit HTTPRoute matching ``/<model>-<unit_name>``, then publish that
+        unit's URL back over the ingress-per-unit relation.
+        """
         if not self._ingress_per_unit.is_ready(ingress_per_unit_relation):
-            self.unit.status = ops.WaitingStatus(
-                "Waiting for ingress-per-unit relation data."
+            self.unit.status = ops.WaitingStatus("Waiting for ingress-per-unit relation data.")
+            return
+
+        try:
+            state = GatewayRoutePerUnitState.build_from_provider(
+                self, self._ingress_per_unit, ingress_per_unit_relation
+            )
+        except InvalidGatewayRouteStateError as exc:
+            logger.exception("Invalid ingress-per-unit config: %s", exc)
+            self.unit.status = ops.BlockedStatus("Invalid ingress-per-unit configuration")
+            return
+
+        try:
+            self._gateway_route.publish_requirer_data(
+                hostname=state.hostname,
+                additional_hostnames=list(state.additional_hostnames),
+            )
+        except GatewayRouteInvalidRelationDataError as exc:
+            logger.exception("Invalid gateway-route relation data: %s", exc)
+            self.unit.status = ops.BlockedStatus("Invalid gateway-route relation data")
+            return
+
+        try:
+            provider_data = self._gateway_route.get_provider_data()
+        except GatewayRouteInvalidRelationDataError:
+            logger.exception("Invalid gateway-route provider data.")
+            self.unit.status = ops.WaitingStatus("Invalid gateway-route provider data")
+            return
+        if provider_data is None:
+            self.unit.status = ops.WaitingStatus("Waiting for gateway-route provider data.")
+            return
+
+        per_unit_service_names = self._ensure_per_unit_backend_services(state.backends)
+        if per_unit_service_names is None:
+            return
+
+        route_manager = HTTPRouteManager(
+            client=self.lightkube_client,
+            namespace=self.model.name,
+            labels={MANAGED_BY_LABEL: self.app.name},
+        )
+        try:
+            create_per_unit_http_routes(
+                http_route_manager=route_manager,
+                app_name=self.app.name,
+                gateway_name=provider_data.gateway_name,
+                gateway_model=provider_data.gateway_model,
+                https_mode=provider_data.https_mode,
+                hostnames=state.hostnames,
+                backends=[
+                    PerUnitBackend(
+                        path=backend.path,
+                        backend_service_name=per_unit_service_names[backend.unit_name],
+                        backend_service_port=backend.port,
+                        strip_prefix=backend.strip_prefix,
+                    )
+                    for backend in state.backends
+                ],
+                hsts_max_age=provider_data.hsts_max_age,
+            )
+        except InvalidKubernetesPermissionError as exc:
+            logger.exception("Kubernetes API permission error: %s", exc)
+            self.unit.status = ops.BlockedStatus(
+                "Kubernetes API permission error. This charm needs --trust to run on k8s substrates."
             )
             return
+
+        self._publish_per_unit_urls(ingress_per_unit_relation, state, provider_data)
         self.unit.status = ops.ActiveStatus("Ready")
+
+    def _ensure_per_unit_backend_services(
+        self, backends: list[GatewayRoutePerUnitBackend]
+    ) -> dict[str, str] | None:
+        """Create one pod-selector Service per requirer unit.
+
+        Returns a mapping of unit name to Service name, or ``None`` after setting a
+        blocked status when the charm lacks Kubernetes permissions.
+        """
+        per_unit_service_names = {
+            backend.unit_name: truncate_k8s_resource_name(f"{self.app.name}-{backend.pod_name}")
+            for backend in backends
+        }
+        try:
+            delete_backend_services_owned_by(
+                self.lightkube_client,
+                self.model.name,
+                self.app.name,
+                exclude=set(per_unit_service_names.values()),
+            )
+            for backend in backends:
+                ensure_pod_backend_service(
+                    self.lightkube_client,
+                    self.model.name,
+                    per_unit_service_names[backend.unit_name],
+                    backend.pod_name,
+                    backend.port,
+                    self.app.name,
+                )
+        except InvalidKubernetesPermissionError as exc:
+            logger.exception("Kubernetes API permission error: %s", exc)
+            self.unit.status = ops.BlockedStatus(
+                "Kubernetes API permission error. This charm needs --trust to run on k8s substrates."
+            )
+            return None
+        return per_unit_service_names
+
+    def _publish_per_unit_urls(
+        self,
+        ingress_per_unit_relation: ops.Relation,
+        state: GatewayRoutePerUnitState,
+        provider_data: GatewayRouteProviderAppData,
+    ) -> None:
+        """Publish each ready requirer unit's ingress URL."""
+        scheme = (
+            "https"
+            if provider_data.https_mode in (HttpsMode.ENABLED, HttpsMode.ENFORCED)
+            else "http"
+        )
+        host = state.hostname or provider_data.gateway_address
+        if not host:
+            return
+        for backend in state.backends:
+            url = f"{scheme}://{host}/{backend.path.lstrip('/')}"
+            self._ingress_per_unit.publish_url(ingress_per_unit_relation, backend.unit_name, url)
 
     def _reconcile_haproxy_route_tcp(self) -> None:
         """Reconcile haproxy-route-tcp requirer data."""

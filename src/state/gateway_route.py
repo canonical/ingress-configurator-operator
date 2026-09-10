@@ -323,9 +323,7 @@ class GatewayRoutePerUnitState:
                     )
                 )
             except ValidationError as exc:
-                logger.error(
-                    "Invalid ingress-per-unit data for %s: %s", unit_name, exc
-                )
+                logger.error("Invalid ingress-per-unit data for %s: %s", unit_name, exc)
                 raise InvalidGatewayRouteStateError(
                     "Invalid ingress-per-unit relation data."
                 ) from exc

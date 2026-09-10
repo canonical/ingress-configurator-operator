@@ -13,7 +13,9 @@ from http_route import (
     MANAGED_BY_LABEL,
     HTTPRouteConfig,
     HTTPRouteManager,
+    PerUnitBackend,
     create_http_routes,
+    create_per_unit_http_routes,
     delete_backend_services_owned_by,
     ensure_pod_backend_service,
     ensure_workload_backend_service,
@@ -646,3 +648,78 @@ def test_ensure_pod_backend_service_uses_pod_name_selector():
     assert applied.spec.selector == {"statefulset.kubernetes.io/pod-name": "requirer-0"}
     assert applied.spec.ports[0].port == 8080
     assert applied.spec.ports[0].targetPort == 8080
+
+
+def test_create_per_unit_http_routes_prunes_once_across_units():
+    manager = MagicMock(spec=HTTPRouteManager)
+    # apply() returns the resource name it created, echo a unique name per call.
+    manager.apply.side_effect = lambda cfg: f"{cfg.backend_service_name}-{cfg.scheme}"
+
+    backends = [
+        PerUnitBackend(
+            path="/testing-requirer/0",
+            backend_service_name="ic-requirer-0",
+            backend_service_port=8080,
+            strip_prefix=True,
+        ),
+        PerUnitBackend(
+            path="/testing-requirer/1",
+            backend_service_name="ic-requirer-1",
+            backend_service_port=8080,
+            strip_prefix=True,
+        ),
+    ]
+
+    create_per_unit_http_routes(
+        http_route_manager=manager,
+        app_name="ingress-configurator",
+        gateway_name="my-gateway",
+        gateway_model="gateway-model",
+        https_mode="enforced",
+        hostnames=["example.com"],
+        backends=backends,
+    )
+
+    # enforced => per unit: 1 HTTP (redirect) + 1 HTTPS = 2 applies; 2 units => 4.
+    assert manager.apply.call_count == 4
+    # delete_stale called exactly ONCE with the union of all managed names.
+    manager.delete_stale.assert_called_once()
+    excluded = set(manager.delete_stale.call_args.kwargs["exclude"])
+    assert excluded == {
+        "ic-requirer-0-http",
+        "ic-requirer-0-https",
+        "ic-requirer-1-http",
+        "ic-requirer-1-https",
+    }
+
+
+def test_create_per_unit_http_routes_uses_per_unit_path_and_strip_prefix():
+    manager = MagicMock(spec=HTTPRouteManager)
+    manager.apply.side_effect = lambda cfg: cfg.backend_service_name
+
+    create_per_unit_http_routes(
+        http_route_manager=manager,
+        app_name="ingress-configurator",
+        gateway_name="my-gateway",
+        gateway_model="gateway-model",
+        https_mode="disabled",
+        hostnames=["example.com"],
+        backends=[
+            PerUnitBackend(
+                path="/testing-requirer/0",
+                backend_service_name="ic-requirer-0",
+                backend_service_port=8080,
+                strip_prefix=True,
+            )
+        ],
+    )
+
+    # disabled => only the HTTP route (no redirect, no https).
+    assert manager.apply.call_count == 1
+    http_cfg = manager.apply.call_args_list[0].args[0]
+    assert http_cfg.scheme == "http"
+    assert http_cfg.paths == ["/testing-requirer/0"]
+    assert http_cfg.backend_service_name == "ic-requirer-0"
+    assert http_cfg.backend_service_port == 8080
+    assert http_cfg.strip_prefix is True
+    assert http_cfg.redirect_https is False

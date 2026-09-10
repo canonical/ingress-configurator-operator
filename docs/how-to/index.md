@@ -8,13 +8,39 @@ myst:
 
 # How-to guides
 
+These guides cover key operations and customizations for `ingress-configurator`.
+Guides are grouped by which route-provider interface your deployment uses:
+
+* **Generic** guides apply regardless of the route-provider interface in use.
+* **HAProxy** guides apply to deployments using the `haproxy-route` or
+  `haproxy-route-tcp` interfaces.
+* **Gateway API** guides apply to deployments using the `gateway-route`
+  interface.
+
+## Generic
+
+These guides apply regardless of the route-provider interface in use.
+
 ```{toctree}
 :maxdepth: 1
-Add Kubernetes Gateway API features to an ingress requirer <gateway-api-add-features-to-ingress-requirer.md>
-Route traffic for multiple workloads through a single Gateway <gateway-api-route-multiple-workloads.md>
-Route HTTP traffic to a non-charmed workload with HAProxy <haproxy-integrate-non-charm-workload.md>
-Route TCP traffic to a non-charmed workload with HAProxy <haproxy-integrate-tcp-non-charm-workload.md>
-Add HAProxy features to an ingress requirer <add-haproxy-features-to-ingress-requirer.md>
-Load balance a gRPC server with HAProxy <haproxy-loadbalancing-grpc.md>
 Upgrade <upgrade.md>
+```
+
+## HAProxy
+
+These guides apply to deployments using the `haproxy-route` or
+`haproxy-route-tcp` interfaces.
+
+```{toctree}
+:maxdepth: 1
+HAProxy guides <haproxy/index.md>
+```
+
+## Gateway API
+
+These guides apply to deployments using the `gateway-route` interface.
+
+```{toctree}
+:maxdepth: 1
+Gateway API guides <gateway-api/index.md>
 ```

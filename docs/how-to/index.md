@@ -19,24 +19,28 @@ Guides are grouped by which route-provider interface your deployment uses:
 
 ## Generic
 
-- {ref}`how_to_upgrade`
+These guides apply regardless of the route-provider interface in use.
+
+```{toctree}
+:maxdepth: 1
+Upgrade <upgrade.md>
+```
 
 ## HAProxy
 
-- {ref}`how_to_haproxy_integrate_non_charm_workload`
-- {ref}`how_to_haproxy_integrate_tcp_non_charm_workload`
-- {ref}`how_to_add_haproxy_features_to_ingress_requirer`
-- {ref}`how_to_haproxy_loadbalancing_grpc`
+These guides apply to deployments using the `haproxy-route` or
+`haproxy-route-tcp` interfaces.
+
+```{toctree}
+:maxdepth: 1
+HAProxy guides <haproxy/index.md>
+```
 
 ## Gateway API
 
-- {ref}`how_to_add_gateway_api_features_to_ingress_requirer`
-- {ref}`how_to_gateway_api_route_multiple_workloads`
+These guides apply to deployments using the `gateway-route` interface.
 
 ```{toctree}
-:hidden:
-:maxdepth: 2
-Upgrade <upgrade.md>
-HAProxy <haproxy/index.md>
-Gateway API <gateway-api/index.md>
+:maxdepth: 1
+Gateway API guides <gateway-api/index.md>
 ```

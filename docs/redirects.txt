@@ -6,3 +6,10 @@
 # The old path must be a file that doesn"t exist in the source. The current path must be
 # a file that does exist in the source.
 
+"how-to/add-haproxy-features-to-ingress-requirer.md" "how-to/haproxy/add-features-to-ingress-requirer.md"
+"how-to/haproxy-integrate-non-charm-workload.md" "how-to/haproxy/integrate-non-charm-workload.md"
+"how-to/haproxy-integrate-tcp-non-charm-workload.md" "how-to/haproxy/integrate-tcp-non-charm-workload.md"
+"how-to/haproxy-loadbalancing-grpc.md" "how-to/haproxy/loadbalancing-grpc.md"
+"how-to/gateway-api-add-features-to-ingress-requirer.md" "how-to/gateway-api/add-features-to-ingress-requirer.md"
+"how-to/gateway-api-route-multiple-workloads.md" "how-to/gateway-api/route-multiple-workloads.md"
+

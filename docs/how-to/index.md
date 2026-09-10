@@ -8,13 +8,35 @@ myst:
 
 # How-to guides
 
+These guides cover key operations and customizations for `ingress-configurator`.
+Guides are grouped by which route-provider interface your deployment uses:
+
+* **Generic** guides apply regardless of the route-provider interface in use.
+* **HAProxy** guides apply to deployments using the `haproxy-route` or
+  `haproxy-route-tcp` interfaces.
+* **Gateway API** guides apply to deployments using the `gateway-route`
+  interface.
+
+## Generic
+
+- {ref}`how_to_upgrade`
+
+## HAProxy
+
+- {ref}`how_to_haproxy_integrate_non_charm_workload`
+- {ref}`how_to_haproxy_integrate_tcp_non_charm_workload`
+- {ref}`how_to_add_haproxy_features_to_ingress_requirer`
+- {ref}`how_to_haproxy_loadbalancing_grpc`
+
+## Gateway API
+
+- {ref}`how_to_add_gateway_api_features_to_ingress_requirer`
+- {ref}`how_to_gateway_api_route_multiple_workloads`
+
 ```{toctree}
-:maxdepth: 1
-Add Kubernetes Gateway API features to an ingress requirer <gateway-api-add-features-to-ingress-requirer.md>
-Route traffic for multiple workloads through a single Gateway <gateway-api-route-multiple-workloads.md>
-Route HTTP traffic to a non-charmed workload with HAProxy <haproxy-integrate-non-charm-workload.md>
-Route TCP traffic to a non-charmed workload with HAProxy <haproxy-integrate-tcp-non-charm-workload.md>
-Add HAProxy features to an ingress requirer <add-haproxy-features-to-ingress-requirer.md>
-Load balance a gRPC server with HAProxy <haproxy-loadbalancing-grpc.md>
+:hidden:
+:maxdepth: 2
 Upgrade <upgrade.md>
+HAProxy <haproxy/index.md>
+Gateway API <gateway-api/index.md>
 ```

@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from lightkube import ApiError
+from lightkube.resources.core_v1 import Service
 
 from http_route import (
     MANAGED_BY_LABEL,
@@ -14,6 +15,7 @@ from http_route import (
     HTTPRouteManager,
     create_http_routes,
     delete_backend_services_owned_by,
+    ensure_pod_backend_service,
     ensure_workload_backend_service,
 )
 from kubernetes import InvalidKubernetesPermissionError
@@ -622,3 +624,25 @@ def test_build_spec_redirect_rule_ignores_strip_prefix():
     rule = spec["rules"][0]  # type: ignore[index]
     assert [f["type"] for f in rule["filters"]] == ["RequestRedirect"]
     assert "backendRefs" not in rule
+
+
+def test_ensure_pod_backend_service_uses_pod_name_selector():
+    client = MagicMock()
+    ensure_pod_backend_service(
+        client=client,
+        namespace="testing",
+        name="ingress-configurator-requirer-0",
+        pod_name="requirer-0",
+        port=8080,
+        owner_app_name="ingress-configurator",
+    )
+
+    client.apply.assert_called_once()
+    applied = client.apply.call_args.args[0]
+    assert isinstance(applied, Service)
+    assert applied.metadata.name == "ingress-configurator-requirer-0"
+    assert applied.metadata.namespace == "testing"
+    assert applied.metadata.labels == {MANAGED_BY_LABEL: "ingress-configurator"}
+    assert applied.spec.selector == {"statefulset.kubernetes.io/pod-name": "requirer-0"}
+    assert applied.spec.ports[0].port == 8080
+    assert applied.spec.ports[0].targetPort == 8080

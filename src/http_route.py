@@ -111,6 +111,53 @@ def ensure_workload_backend_service(
         raise
 
 
+def ensure_pod_backend_service(
+    client: Client,
+    namespace: str,
+    name: str,
+    pod_name: str,
+    port: int,
+    owner_app_name: str,
+) -> None:
+    """Create or update a Service routing to a single unit's StatefulSet pod.
+
+    Juju Kubernetes charms run as a StatefulSet, so each unit's pod carries the
+    ``statefulset.kubernetes.io/pod-name`` label with value ``<app>-<unit_number>``.
+    Selecting on it targets exactly one requirer unit.
+
+    Args:
+        client: The lightkube Client instance.
+        namespace: The Kubernetes namespace to create the Service in.
+        name: Name for the Service.
+        pod_name: The requirer unit's pod name (``<app>-<unit_number>``).
+        port: The port to expose and target.
+        owner_app_name: Owning charm name, used as the value of the
+            :data:`MANAGED_BY_LABEL` label.
+
+    Raises:
+        InvalidKubernetesPermissionError: When the charm lacks RBAC permissions.
+    """
+    service = Service(
+        metadata=ObjectMeta(
+            name=name,
+            namespace=namespace,
+            labels={MANAGED_BY_LABEL: owner_app_name},
+        ),
+        spec=ServiceSpec(
+            selector={"statefulset.kubernetes.io/pod-name": pod_name},
+            ports=[ServicePort(port=port, targetPort=port)],
+        ),
+    )
+    try:
+        client.apply(service, field_manager=owner_app_name, force=True)
+    except ApiError as e:
+        if e.status.code == 403:
+            raise InvalidKubernetesPermissionError(
+                "This charm needs --trust to run on k8s substrates"
+            ) from e
+        raise
+
+
 def delete_backend_services_owned_by(
     client: Client,
     namespace: str,

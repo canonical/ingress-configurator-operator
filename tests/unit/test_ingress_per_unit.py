@@ -246,3 +246,28 @@ def test_ipu_waiting_when_no_provider_data(
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
     assert isinstance(out.unit_status, ops.testing.WaitingStatus)
+
+
+@pytest.mark.usefixtures("mock_lightkube")
+def test_ipu_relation_broken_cleans_up(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    mock_lightkube,
+):
+    """
+    arrange: only gateway-route related (ingress-per-unit already gone).
+    act: config-changed.
+    assert: BlockedStatus asking for an ingress relation; stale-cleanup attempted.
+    """
+    state = ops.testing.State(
+        leader=True,
+        relations=[
+            ops.testing.Relation(
+                endpoint="gateway-route", remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA
+            )
+        ],
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+
+    assert isinstance(out.unit_status, ops.testing.BlockedStatus)
+    assert mock_lightkube.list.called

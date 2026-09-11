@@ -111,6 +111,53 @@ def ensure_workload_backend_service(
         raise
 
 
+def ensure_pod_backend_service(
+    client: Client,
+    namespace: str,
+    name: str,
+    pod_name: str,
+    port: int,
+    owner_app_name: str,
+) -> None:
+    """Create or update a Service routing to a single unit's StatefulSet pod.
+
+    Juju Kubernetes charms run as a StatefulSet, so each unit's pod carries the
+    ``statefulset.kubernetes.io/pod-name`` label with value ``<app>-<unit_number>``.
+    Selecting on it targets exactly one requirer unit.
+
+    Args:
+        client: The lightkube Client instance.
+        namespace: The Kubernetes namespace to create the Service in.
+        name: Name for the Service.
+        pod_name: The requirer unit's pod name (``<app>-<unit_number>``).
+        port: The port to expose and target.
+        owner_app_name: Owning charm name, used as the value of the
+            :data:`MANAGED_BY_LABEL` label.
+
+    Raises:
+        InvalidKubernetesPermissionError: When the charm lacks RBAC permissions.
+    """
+    service = Service(
+        metadata=ObjectMeta(
+            name=name,
+            namespace=namespace,
+            labels={MANAGED_BY_LABEL: owner_app_name},
+        ),
+        spec=ServiceSpec(
+            selector={"statefulset.kubernetes.io/pod-name": pod_name},
+            ports=[ServicePort(port=port, targetPort=port)],
+        ),
+    )
+    try:
+        client.apply(service, field_manager=owner_app_name, force=True)
+    except ApiError as e:
+        if e.status.code == 403:
+            raise InvalidKubernetesPermissionError(
+                "This charm needs --trust to run on k8s substrates"
+            ) from e
+        raise
+
+
 def delete_backend_services_owned_by(
     client: Client,
     namespace: str,
@@ -188,6 +235,23 @@ class HTTPRouteConfig:
     backend_service_port: int
     redirect_https: bool = False
     hsts_max_age: int | None = None
+    strip_prefix: bool = False
+
+
+@dataclasses.dataclass
+class PerUnitBackend:
+    """A single requirer unit's routing target for ingress-per-unit mode.
+
+    Attributes:
+        path: The per-unit path prefix (``/<model>-<unit_name>``).
+        backend_service_name: The per-unit K8s Service name.
+        backend_service_port: The port the requirer unit listens on.
+        strip_prefix: Whether to rewrite the matched prefix to ``/``.
+    """
+
+    path: str
+    backend_service_name: str
+    backend_service_port: int
     strip_prefix: bool = False
 
 
@@ -438,5 +502,80 @@ def create_http_routes(
                 strip_prefix=strip_prefix,
             )
             managed_names.append(http_route_manager.apply(https_config))
+
+    http_route_manager.delete_stale(exclude=managed_names)
+
+
+def create_per_unit_http_routes(
+    http_route_manager: HTTPRouteManager,
+    app_name: str,
+    gateway_name: str,
+    gateway_model: str,
+    https_mode: str,
+    hostnames: list[str],
+    backends: list[PerUnitBackend],
+    hsts_max_age: int | None = None,
+) -> None:
+    """Create per-unit HTTPRoute resources, pruning stale ones once.
+
+    Unlike :func:`create_http_routes`, this applies routes for every backend and
+    only prunes stale HTTPRoutes a single time with the union of managed names,
+    so units do not delete each other's routes.
+
+    Args:
+        http_route_manager: The HTTPRouteManager to apply and clean up resources.
+        app_name: Charm application name used in managed HTTPRoute resource names.
+        gateway_name: Name of the Gateway K8s resource.
+        gateway_model: Name of the model running the Gateway.
+        https_mode: One of "disabled", "enabled", "enforced".
+        hostnames: List of hostnames for the HTTPRoutes.
+        backends: The per-unit backends to route to.
+        hsts_max_age: ``max-age`` for the HSTS header on HTTPS routes; only used
+            when HTTPS is enforced.
+
+    Raises:
+        InvalidKubernetesPermissionError: When the charm lacks RBAC permissions.
+    """
+    if hostnames:
+        http_listener_names = [
+            http_listener_name(gateway_name, hostname) for hostname in hostnames
+        ]
+    else:
+        http_listener_names = [f"{gateway_name}-http"]
+
+    managed_names: list[str] = []
+    for backend in backends:
+        http_config = HTTPRouteConfig(
+            app_name=app_name,
+            scheme="http",
+            gateway_name=gateway_name,
+            gateway_namespace=gateway_model,
+            listener_names=http_listener_names,
+            hostnames=hostnames,
+            paths=[backend.path],
+            backend_service_name=backend.backend_service_name,
+            backend_service_port=backend.backend_service_port,
+            redirect_https=https_mode == "enforced",
+            strip_prefix=backend.strip_prefix,
+        )
+        managed_names.append(http_route_manager.apply(http_config))
+
+        if https_mode in ("enabled", "enforced"):
+            for hostname in hostnames:
+                https_config = HTTPRouteConfig(
+                    app_name=app_name,
+                    scheme="https",
+                    gateway_name=gateway_name,
+                    gateway_namespace=gateway_model,
+                    listener_names=[https_listener_name(gateway_name, hostname)],
+                    hostnames=[hostname],
+                    paths=[backend.path],
+                    backend_service_name=backend.backend_service_name,
+                    backend_service_port=backend.backend_service_port,
+                    redirect_https=False,
+                    hsts_max_age=hsts_max_age if https_mode == "enforced" else None,
+                    strip_prefix=backend.strip_prefix,
+                )
+                managed_names.append(http_route_manager.apply(https_config))
 
     http_route_manager.delete_stale(exclude=managed_names)

@@ -232,3 +232,119 @@ class GatewayRouteState:
             backend_port=backend_port,
             integrator_state=integrator_state,
         )
+
+
+@dataclass(frozen=True)
+class GatewayRoutePerUnitBackend:
+    """A single requirer unit's routing target for ingress-per-unit mode.
+
+    Attributes:
+        unit_name: The requirer unit name (e.g. ``requirer/0``).
+        pod_name: The requirer unit's StatefulSet pod name (``<app>-<n>``).
+        path: The per-unit path prefix (``/<model>-<unit_name>``).
+        port: The port the requirer unit listens on.
+        strip_prefix: Whether to rewrite the matched prefix to ``/``.
+    """
+
+    unit_name: str
+    pod_name: str
+    path: str
+    port: Annotated[int, Field(gt=0, le=65535)]
+    strip_prefix: bool = False
+
+
+@dataclass(frozen=True)
+class GatewayRoutePerUnitState:
+    """State for the ingress-per-unit gateway-route reconcile path.
+
+    Attributes:
+        backends: One entry per ready requirer unit.
+        hostname: Optional shared hostname for all per-unit routes.
+        additional_hostnames: Additional shared hostnames.
+    """
+
+    backends: list[GatewayRoutePerUnitBackend]
+    hostname: Annotated[str, BeforeValidator(valid_fqdn)] | None
+    additional_hostnames: list[Annotated[str, BeforeValidator(valid_fqdn)]] = Field(
+        default_factory=lambda: []
+    )
+
+    @property
+    def hostnames(self) -> list[str]:
+        """All hostnames: primary + additional.
+
+        Returns:
+            List of all hostnames, including the primary and additional hostnames.
+        """
+        return [self.hostname, *self.additional_hostnames] if self.hostname else []
+
+    @classmethod
+    def build_from_provider(
+        cls,
+        charm: ops.CharmBase,
+        ingress_per_unit_provider: object,
+        relation: ops.Relation,
+    ) -> Self:
+        """Build per-unit state from the ingress-per-unit provider.
+
+        Args:
+            charm: The ingress-configurator charm.
+            ingress_per_unit_provider: The IngressPerUnitProvider instance.
+            relation: The ingress-per-unit relation.
+
+        Raises:
+            InvalidGatewayRouteStateError: When a unit reports a different model
+                than the charm's, or when config/unit data is invalid.
+
+        Returns:
+            GatewayRoutePerUnitState instance.
+        """
+        backends: list[GatewayRoutePerUnitBackend] = []
+        for unit in relation.units:
+            if not ingress_per_unit_provider.is_unit_ready(relation, unit):  # type: ignore[attr-defined]
+                continue
+            data = ingress_per_unit_provider.get_data(relation, unit)  # type: ignore[attr-defined]
+            unit_name = cast(str, data["name"])
+            unit_model = cast(str, data["model"])
+            if unit_model != charm.model.name:
+                raise InvalidGatewayRouteStateError(
+                    "ingress-per-unit requires the requirer to be deployed in the "
+                    f"same model as ingress-configurator (got '{unit_model}', "
+                    f"expected '{charm.model.name}')."
+                )
+            try:
+                backends.append(
+                    GatewayRoutePerUnitBackend(
+                        unit_name=unit_name,
+                        pod_name=unit_name.replace("/", "-"),
+                        path=f"/{unit_model}-{unit_name}",
+                        port=cast(int, data["port"]),
+                        strip_prefix=bool(data.get("strip-prefix")),
+                    )
+                )
+            except ValidationError as exc:
+                logger.error("Invalid ingress-per-unit data for %s: %s", unit_name, exc)
+                raise InvalidGatewayRouteStateError(
+                    "Invalid ingress-per-unit relation data."
+                ) from exc
+
+        hostname = cast(str | None, charm.config.get("hostname"))
+        additional_hostnames = (
+            cast(str, charm.config.get("additional-hostnames")).split(CHARM_CONFIG_DELIMITER)
+            if charm.config.get("additional-hostnames")
+            else []
+        )
+        try:
+            return cls(
+                backends=backends,
+                hostname=hostname,
+                additional_hostnames=additional_hostnames,
+            )
+        except ValidationError as exc:
+            logger.error(
+                "Invalid ingress-per-unit hostname config: %s",
+                get_invalid_config_fields(exc),
+            )
+            raise InvalidGatewayRouteStateError(
+                "Invalid ingress-per-unit hostname configuration."
+            ) from exc

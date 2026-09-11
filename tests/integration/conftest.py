@@ -66,6 +66,14 @@ INGRESS_BACKEND_PORT = 8000
 GATEWAY_BACKEND_OPEN_PATH = "/api/v1"
 GATEWAY_BACKEND_OPEN_BODY = "ok from open-ports backend"
 
+# ingress-per-unit (Kubernetes gateway-route) test configuration.
+INGRESS_PER_UNIT_REQUIRER_SRC = pathlib.Path("tests/integration/any_charm_ipu.py")
+INGRESS_PER_UNIT_LIB_SRC = pathlib.Path("lib/charms/traefik_k8s/v1/ingress_per_unit.py")
+IPU_REQUIRER_APP_NAME = "ipu-requirer"
+IPU_CONFIGURATOR_APP_NAME = "configurator-ipu"
+IPU_HOSTNAME = "ipu.gateway.internal"
+IPU_BACKEND_PORT = 8080
+
 
 @pytest.fixture(scope="session", name="charm")
 def charm_fixture(charm_paths) -> str:
@@ -624,3 +632,40 @@ def backend_open_fixture(juju_k8s: jubilant.Juju) -> str:
         },
     )
     return GATEWAY_BACKEND_OPEN_PORTS
+
+
+@pytest.fixture(scope="module", name="ingress_per_unit_requirer")
+def ingress_per_unit_requirer_fixture(juju_k8s: jubilant.Juju) -> str:
+    """Deploy a 2-unit any-charm-k8s ingress-per-unit requirer.
+
+    Each unit runs apache serving its own unit name at the document root and requests
+    per-unit ingress on the ``require-ingress-per-unit`` endpoint. Because Juju runs the
+    charm as a StatefulSet, each unit's pod (``ipu-requirer-<n>``) is selectable by the
+    ``statefulset.kubernetes.io/pod-name`` label the configurator's per-unit Service uses.
+    This fixture does not wait for the application to settle.
+
+    Args:
+        juju_k8s: Jubilant Juju instance for the Kubernetes model.
+
+    Returns:
+        The deployed application name.
+    """
+    if IPU_REQUIRER_APP_NAME in juju_k8s.status().apps:
+        return IPU_REQUIRER_APP_NAME
+    juju_k8s.deploy(
+        charm="any-charm-k8s",
+        channel="beta",
+        app=IPU_REQUIRER_APP_NAME,
+        config={
+            "src-overwrite": json.dumps(
+                {
+                    "any_charm.py": INGRESS_PER_UNIT_REQUIRER_SRC.read_text(encoding="utf-8"),
+                    "ingress_per_unit.py": INGRESS_PER_UNIT_LIB_SRC.read_text(encoding="utf-8"),
+                    "config.json": json.dumps({"port": IPU_BACKEND_PORT}),
+                }
+            ),
+            "python-packages": "\n".join(["pydantic", "jsonschema", "charmlibs-apt"]),
+        },
+        num_units=2,
+    )
+    return IPU_REQUIRER_APP_NAME

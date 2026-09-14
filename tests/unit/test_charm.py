@@ -120,6 +120,34 @@ def test_config_changed_no_valid_mode(
     )
 
 
+def test_config_changed_cache_config_without_backend_config(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: cache-config relation exists but neither an ingress relation nor
+        backend-addresses/backend-ports config are present (machine substrate).
+    act: trigger config-changed.
+    assert: status is Blocked with a message specific to the cache-config case, clarifying
+        that backend-addresses/backend-ports are the real origin content-cache will fetch
+        from (not a safe placeholder), rather than the generic ingress-or-backend message.
+    """
+    state = ops.testing.State(
+        config={},
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation("cache-config"),
+        ],
+        leader=True,
+    )
+
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.BlockedStatus(
+        "backend-addresses and backend-ports required: this is the origin "
+        "content-cache will fetch from."
+    )
+
+
 @pytest.mark.usefixtures("mock_lightkube")
 def test_config_changed_kubernetes_without_ingress_relation(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"],

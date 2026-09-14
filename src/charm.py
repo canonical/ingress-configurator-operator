@@ -177,7 +177,11 @@ class IngressConfiguratorCharm(ops.CharmBase):
         - Kubernetes adapter: ingress data available on Kubernetes substrate.
         - Adapter: ingress data available on a machine substrate.
         - Integrator: no ingress relation; backend-addresses and backend-ports set in config.
-        - Blocked: neither ingress relation nor backend config is present.
+        - Blocked: no ingress relation, no backend config, but cache-config relation is
+          present → backend-addresses/backend-ports still required (they are used as the
+          real origin backend address for content-cache, not merely a placeholder).
+        - Blocked: neither ingress relation nor backend config nor cache-config relation
+          is present.
         """
         ingress_relation = self.model.get_relation(self._ingress.relation_name)
 
@@ -212,6 +216,14 @@ class IngressConfiguratorCharm(ops.CharmBase):
             self._reconcile_haproxy_route_integrator()
         elif self.is_kubernetes():
             self.unit.status = ops.BlockedStatus("Ingress relation required.")
+        elif self._cache_config.relation is not None:
+            # backend-addresses/backend-ports are not a placeholder here: when cache-config
+            # is related, these values are published to content-cache as its real origin
+            # backend address (see _provide_cache_config_requirements).
+            self.unit.status = ops.BlockedStatus(
+                "backend-addresses and backend-ports required: this is the origin "
+                "content-cache will fetch from."
+            )
         else:
             self.unit.status = ops.BlockedStatus("Ingress relation or backend config required.")
 

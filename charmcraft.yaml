@@ -53,14 +53,24 @@ config:
       description: |
         (integrator mode) Comma-separated list of IP addresses of the backend services.
         For gateway-route, all IP addresses must be in the same address family (IPv4 or IPv6).
+        When the cache-config relation is present, this is not merely a placeholder: it is
+        published to content-cache as the real origin backend address content-cache will
+        fetch from, so it must point at an actual reachable backend (see backend-ports and
+        backend-protocol below).
     backend-ports:
       type: string
       description: |
         (integrator mode) Comma-separated list of ports of the backend services.
         For gateway-route, exactly one port must be provided.
+        When the cache-config relation is present, this is not merely a placeholder: it is
+        published to content-cache as the real origin backend port(s), together with
+        backend-addresses.
     backend-protocol:
       type: string
-      description: The protocol that the backend service speaks. "http" (default) or "https".
+      description: |
+        The protocol that the backend service speaks. "http" (default) or "https".
+        When the cache-config relation is present, this also determines the scheme
+        content-cache uses to fetch from the backend-addresses/backend-ports origin.
     cache-proxy-cache-valid:
       type: string
       description: |

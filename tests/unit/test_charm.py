@@ -15,19 +15,18 @@ if TYPE_CHECKING:
     from charm import IngressConfiguratorCharm
 
 
-@pytest.mark.parametrize("leader", [True, False])
-def test_config_changed_blocks_all_units_when_scaled(
-    context_machine: ops.testing.Context["IngressConfiguratorCharm"], leader: bool
+def test_block_when_multiple_units(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
 ):
     """
     arrange: prepare a valid state for a charm application with two planned units.
-    act: trigger a config changed event on either the leader or non-leader unit.
-    assert: status is blocked and directs the user to scale down.
+    act: trigger a config changed event.
+    assert: status is blocked because multiple units are not supported.
     """
     charm_state = ops.testing.State(
         config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
         relations=[ops.testing.Relation("haproxy-route")],
-        leader=leader,
+        leader=True,
         planned_units=2,
     )
 

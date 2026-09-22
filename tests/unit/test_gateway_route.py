@@ -10,6 +10,7 @@ from unittest.mock import ANY, MagicMock
 import ops.testing
 import pytest
 from lightkube.resources.core_v1 import Service
+from lightkube.resources.discovery_v1 import EndpointSlice
 
 from http_route import MANAGED_BY_LABEL
 
@@ -560,6 +561,67 @@ def test_gateway_route_adapter_port_closed_creates_selector_service(
         backend_ref = resource.spec["rules"][0].get("backendRefs")
         if backend_ref is not None:
             assert backend_ref[0]["name"] == "ingress-configurator-testing-app"
+
+
+def test_gateway_route_adapter_second_reconcile_preserves_endpoint_slice(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    mock_lightkube: "LightkubeClient",
+) -> None:
+    """
+    arrange: a closed-port ingress backend and a Kubernetes-managed EndpointSlice
+        carrying the Service's propagated managed-by label.
+    act: reconcile once with config-changed and again with update-status.
+    assert: both reconciliations are Active, the selector Service is reapplied,
+        and the charm never lists or deletes the EndpointSlice.
+    """
+    endpoint_slice = MagicMock()
+    endpoint_slice.metadata.name = "ingress-configurator-testing-app-randomhash"
+    endpoint_slice.metadata.labels = {
+        MANAGED_BY_LABEL: "ingress-configurator",
+        "kubernetes.io/service-name": "ingress-configurator-testing-app",
+        "endpointslice.kubernetes.io/managed-by": "endpointslice-controller.k8s.io",
+    }
+
+    def list_side_effect(resource_type: type, **_: object) -> list:
+        if resource_type is EndpointSlice:
+            return [endpoint_slice]
+        return []
+
+    mock_lightkube.list.side_effect = list_side_effect  # type: ignore[attr-defined]
+
+    state = ops.testing.State(
+        config={"hostname": "example.com"},
+        relations=[
+            ops.testing.Relation(
+                endpoint="ingress",
+                remote_app_data=INGRESS_PORT_CLOSED_APP_DATA,
+                remote_units_data=INGRESS_PORT_CLOSED_UNITS_DATA,
+            ),
+            ops.testing.Relation(
+                endpoint="gateway-route",
+                remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
+            ),
+        ],
+        leader=True,
+    )
+
+    first_out = context_k8s.run(context_k8s.on.config_changed(), state)
+    second_out = context_k8s.run(context_k8s.on.update_status(), first_out)
+
+    assert first_out.unit_status == ops.testing.ActiveStatus("Ready")
+    assert second_out.unit_status == ops.testing.ActiveStatus("Ready")
+    selector_service_calls = [
+        call
+        for call in mock_lightkube.apply.call_args_list  # type: ignore[attr-defined]
+        if isinstance(call.args[0], Service)
+    ]
+    assert len(selector_service_calls) == 2
+    assert all(
+        call.args[0].metadata.name == "ingress-configurator-testing-app"
+        for call in selector_service_calls
+    )
+    assert all(call.args[0] is not EndpointSlice for call in mock_lightkube.list.call_args_list)  # type: ignore[attr-defined]
+    assert all(call.args[0] is not EndpointSlice for call in mock_lightkube.delete.call_args_list)  # type: ignore[attr-defined]
 
 
 def test_gateway_route_port_open_cleans_up_stale_headless_resources(

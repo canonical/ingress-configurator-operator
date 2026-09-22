@@ -14,6 +14,11 @@ Each revision is versioned by the date of the revision.
 
 - Explicitly block all units when more than one unit is requested.
 
+### Fixed
+
+- Removed EndpointSlice cleanup logic for `gateway-route` (remnant from Integrator mode) which
+broke the backend services.
+
 ## 2026-09-2
 
 ### Added

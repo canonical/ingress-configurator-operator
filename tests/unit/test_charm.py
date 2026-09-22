@@ -34,7 +34,7 @@ def test_config_changed_blocks_all_units_when_scaled(
     out = context_machine.run(context_machine.on.config_changed(), charm_state)
 
     assert out.unit_status == ops.testing.BlockedStatus(
-        "Deploying more than one unit is not supported. Scale down using the `juju scale` command."
+        "Deploying more than one unit is not supported."
     )
 
 

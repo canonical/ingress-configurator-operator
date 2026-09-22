@@ -140,8 +140,11 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
     def _reconcile(self, _: ops.EventBase) -> None:
         """Dispatch to the appropriate reconcile method based on active relations."""
-        if not self.unit.is_leader():
-            self.unit.status = ops.BlockedStatus("Deploying more than one unit is not supported.")
+        if self.app.planned_units() != 1:
+            self.unit.status = ops.BlockedStatus(
+                "Deploying more than one unit is not supported. "
+                "Scale down using the `juju scale` command."
+            )
             return
 
         haproxy_route_related = self._haproxy_route.relation is not None

@@ -172,6 +172,33 @@ def test_gateway_route_multiple_relations(
         gateway_address, ADDITIONAL_HOSTNAME_BACKEND_CLOSED_PORTS, "/", expected_status=404
     )
 
+    # Trigger a deterministic second reconciliation. Kubernetes propagates the
+    # configurator's managed-by Service label to its controller-owned EndpointSlice;
+    # that slice must remain usable after config-changed cleanup runs again.
+    reconciled_additional_hostname = "reconciled-closed.gateway.internal"
+    juju_k8s.config(
+        multi_relation_gateway_stack.configurator_closed,
+        {"additional-hostnames": reconciled_additional_hostname},
+    )
+    juju_k8s.wait(
+        lambda status: jubilant.all_active(
+            status,
+            multi_relation_gateway_stack.gateway_api_integrator,
+            multi_relation_gateway_stack.configurator_closed,
+            multi_relation_gateway_stack.backend_closed,
+        ),
+        error=jubilant.any_error,
+    )
+    assert_gateway_response(
+        gateway_address, HOSTNAME_BACKEND_CLOSED_PORTS, BACKEND_PATH, expected_status=200
+    )
+    assert_gateway_response(
+        gateway_address,
+        reconciled_additional_hostname,
+        BACKEND_PATH,
+        expected_status=200,
+    )
+
     # --- Open-ports adapter (any-charm-k8s, is_port_open=True) ---
     # The configurator routes directly to the pod IP; assert BACKEND_BODY to prove traffic
     # reaches this specific backend rather than any other 200 source.

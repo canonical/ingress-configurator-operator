@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Each revision is versioned by the date of the revision.
 
+## 2026-0-22
+
+### Fixed
+
+- Removed EndpointSlice cleanup logic for `gateway-route` (remnant from Integrator mode) which
+broke the backend services.
+
 ## 2026-09-2
 
 ### Added

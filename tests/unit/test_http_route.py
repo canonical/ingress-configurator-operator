@@ -31,39 +31,43 @@ def _make_service(name: str) -> MagicMock:
     return svc
 
 
-def _make_endpoint_slice(name: str) -> MagicMock:
-    """Create a mock EndpointSlice with the given name."""
-    es = MagicMock()
-    es.metadata.name = name
-    return es
-
-
-def test_delete_backend_services_owned_by_deletes_matching_resources():
+def test_delete_backend_services_owned_by_does_not_manage_endpoint_slices():
     """
-    arrange: mock a client listing one matching EndpointSlice and one matching Service
-    act: call delete_backend_services_owned_by
-    assert: both the EndpointSlice and the Service are deleted
+    arrange: mock a client with no managed Services.
+    act: call delete_backend_services_owned_by.
+    assert: only Services are listed; EndpointSlices are left to Kubernetes.
     """
     from lightkube.resources.core_v1 import Service
-    from lightkube.resources.discovery_v1 import EndpointSlice
 
     client = MagicMock()
-    matching_es = _make_endpoint_slice("my-app-headless")
-    matching_svc = _make_service("my-app-headless")
-
-    def list_side_effect(resource_type: type, **_: object) -> list:
-        if resource_type is EndpointSlice:
-            return [matching_es]
-        if resource_type is Service:
-            return [matching_svc]
-        return []
-
-    client.list.side_effect = list_side_effect
+    client.list.return_value = []
 
     delete_backend_services_owned_by(client, "testing-model", "my-charm")
 
-    client.delete.assert_any_call(EndpointSlice, name="my-app-headless", namespace="testing-model")
-    client.delete.assert_any_call(Service, name="my-app-headless", namespace="testing-model")
+    client.list.assert_called_once_with(
+        Service,
+        namespace="testing-model",
+        labels={MANAGED_BY_LABEL: "my-charm"},
+    )
+
+
+def test_delete_backend_services_owned_by_deletes_matching_services():
+    """
+    arrange: mock a client listing one matching Service
+    act: call delete_backend_services_owned_by
+    assert: the Service is deleted
+    """
+    from lightkube.resources.core_v1 import Service
+
+    client = MagicMock()
+    matching_svc = _make_service("my-app-headless")
+    client.list.return_value = [matching_svc]
+
+    delete_backend_services_owned_by(client, "testing-model", "my-charm")
+
+    client.delete.assert_called_once_with(
+        Service, name="my-app-headless", namespace="testing-model"
+    )
 
 
 def test_delete_backend_services_owned_by_skips_other_charms():
@@ -125,35 +129,20 @@ def test_delete_backend_services_owned_by_reraises_other_api_errors():
 
 def test_delete_backend_services_owned_by_skips_excluded_names():
     """
-    arrange: mock a client listing one EndpointSlice and two Services, one of
-        which is in the exclude set.
+    arrange: mock a client listing two Services, one of which is in the exclude set.
     act: call delete_backend_services_owned_by with exclude={"keep-svc"}
-    assert: only the non-excluded Service is deleted; the EndpointSlice is deleted
-        (no name match in exclude); the excluded Service is never deleted.
+    assert: only the non-excluded Service is deleted.
     """
     from lightkube.resources.core_v1 import Service
-    from lightkube.resources.discovery_v1 import EndpointSlice
 
     client = MagicMock()
-    es = _make_endpoint_slice("my-app-headless")
     keep_svc = _make_service("keep-svc")
     delete_svc = _make_service("old-svc")
-
-    def list_side_effect(resource_type: type, **_: object) -> list:
-        if resource_type is EndpointSlice:
-            return [es]
-        if resource_type is Service:
-            return [keep_svc, delete_svc]
-        return []
-
-    client.list.side_effect = list_side_effect
+    client.list.return_value = [keep_svc, delete_svc]
 
     delete_backend_services_owned_by(client, "testing-model", "my-charm", exclude={"keep-svc"})
 
-    client.delete.assert_any_call(EndpointSlice, name="my-app-headless", namespace="testing-model")
-    client.delete.assert_any_call(Service, name="old-svc", namespace="testing-model")
-    for call in client.delete.call_args_list:
-        assert call.kwargs.get("name") != "keep-svc"
+    client.delete.assert_called_once_with(Service, name="old-svc", namespace="testing-model")
 
 
 # ---------------------------------------------------------------------------

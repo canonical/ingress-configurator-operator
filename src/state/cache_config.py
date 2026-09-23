@@ -52,6 +52,8 @@ class CacheConfigState:
         healthcheck_ssl_verify: Whether to verify backend TLS certificates when checking.
         proxy_cache_valid: nginx cache validity rules. Empty means no rules are emitted,
             so caching defers to the backend's own Cache-Control and Expires headers.
+        cache_inactive: Time after which an unaccessed cached item is evicted from disk.
+        cache_max_size: Maximum total disk space used by the cache. Empty means no limit.
     """
 
     fail_timeout: str
@@ -60,16 +62,18 @@ class CacheConfigState:
     healthcheck_valid_status: list[int]
     healthcheck_ssl_verify: bool
     proxy_cache_valid: list[str]
+    cache_inactive: str
+    cache_max_size: str
 
     @classmethod
     def from_charm(cls, charm: ops.CharmBase) -> Self:
         """Build CacheConfigState from charm config.
 
         Defaults for the cache-specific options (``cache-fail-timeout``,
-        ``cache-healthcheck-ssl-verify``) come from charmcraft.yaml, so they are always
-        present. The shared ``health-check-interval`` and ``health-check-path`` options
-        have no charmcraft default because haproxy-route also uses them, so they are
-        defaulted here.
+        ``cache-healthcheck-ssl-verify``, ``cache-inactive``, ``cache-max-size``) come
+        from charmcraft.yaml, so they are always present. The shared
+        ``health-check-interval`` and ``health-check-path`` options have no charmcraft
+        default because haproxy-route also uses them, so they are defaulted here.
 
         Args:
             charm: The ingress-configurator charm instance.
@@ -90,4 +94,6 @@ class CacheConfigState:
             healthcheck_valid_status=list(DEFAULT_HEALTHCHECK_VALID_STATUS),
             healthcheck_ssl_verify=cast(bool, charm.config["cache-healthcheck-ssl-verify"]),
             proxy_cache_valid=[proxy_cache_valid] if proxy_cache_valid else [],
+            cache_inactive=cast(str, charm.config["cache-inactive"]),
+            cache_max_size=cast(str, charm.config["cache-max-size"]),
         )

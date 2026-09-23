@@ -96,6 +96,23 @@ config:
         it's being fronted by a cache (e.g. its own hostname allowlist/CORS config
         must accept this value).
         Only used when the cache-config relation is present.
+    cache-inactive:
+      type: string
+      default: "10m"
+      description: |
+        Time after which a cached item is evicted from disk if not accessed.
+        Uses nginx time format: positive integer followed by s (seconds),
+        m (minutes), h (hours), or d (days). For example: 10m, 1h, 7d.
+        Only used when the cache-config relation is present.
+    cache-max-size:
+      type: string
+      default: ""
+      description: |
+        Maximum total disk space used by the cache. Uses nginx size format:
+        positive integer followed by k, m, g, or t (case-insensitive).
+        For example: 512m, 2g. When set, content-cache evicts least-recently-used
+        entries when the limit is reached. Empty string means no limit.
+        Only used when the cache-config relation is present.
     external-grpc-port:
       type: int
       description: |

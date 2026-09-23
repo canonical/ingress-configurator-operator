@@ -45,6 +45,7 @@ _MIN_STATUS_CODE = 100
 _MAX_STATUS_CODE = 999
 
 _NGINX_TIME_PATTERN = re.compile(r"\d+[dhms]")
+_NGINX_SIZE_PATTERN = re.compile(r"\d+[kmgtKMGT]")
 # Copied verbatim from content-cache's path validation, flags included, so that this
 # library rejects exactly what the provider rejects. It is deliberately not an RFC 3986
 # path grammar: percent-encoding is not accepted, and Python's \w is Unicode-aware.
@@ -118,6 +119,31 @@ def _validate_nginx_time(value: str) -> str:
     if not _NGINX_TIME_PATTERN.fullmatch(value) or int(value[:-1]) < 1:
         raise ValueError(
             f"Time must be a positive integer followed by d, h, m or s, got: {value!r}"
+        )
+    return value
+
+
+def _validate_nginx_size(value: str) -> str:
+    """Validate an nginx size string, for example "512m".
+
+    The empty string means "no limit" and is accepted unchanged, mirroring content-cache's
+    handling of an unset ``cache_max_size``.
+
+    Args:
+        value: The value to validate.
+
+    Raises:
+        ValueError: When the value is non-empty and not a positive integer followed by
+            k, m, g or t (case-insensitive).
+
+    Returns:
+        The validated value.
+    """
+    if not value:
+        return value
+    if not _NGINX_SIZE_PATTERN.fullmatch(value) or int(value[:-1]) < 1:
+        raise ValueError(
+            f"Size must be a positive integer followed by k, m, g or t, got: {value!r}"
         )
     return value
 
@@ -241,6 +267,8 @@ class CacheConfigRequirerAppData:
         healthcheck_ssl_verify: Whether to verify backend TLS certificates when checking.
         proxy_cache_valid: nginx cache validity rules. Empty means no rules are emitted.
         backend_hostname: SNI hostname for backend TLS. Required for https backends.
+        cache_inactive: Time after which an unaccessed cached item is evicted from disk.
+        cache_max_size: Maximum total disk space used by the cache. Empty means no limit.
     """
 
     backends: typing.Annotated[list[_Backend], Field(min_length=1)]
@@ -251,6 +279,8 @@ class CacheConfigRequirerAppData:
     healthcheck_ssl_verify: bool
     proxy_cache_valid: list[_ProxyCacheValid]
     backend_hostname: typing.Annotated[str, AfterValidator(_validate_hostname)] | None = None
+    cache_inactive: typing.Annotated[str, AfterValidator(_validate_nginx_time)] = "10m"
+    cache_max_size: typing.Annotated[str, AfterValidator(_validate_nginx_size)] = ""
 
     @model_validator(mode="after")
     def _validate_backends_and_hostname(self) -> "CacheConfigRequirerAppData":
@@ -370,6 +400,8 @@ class CacheConfigRequirer(Object):
         healthcheck_ssl_verify: bool,
         proxy_cache_valid: list[str],
         backend_hostname: str | None = None,
+        cache_inactive: str = "10m",
+        cache_max_size: str = "",
     ) -> None:
         """Publish the cache configuration to the provider.
 
@@ -385,6 +417,8 @@ class CacheConfigRequirer(Object):
             healthcheck_ssl_verify: Whether to verify backend TLS certificates.
             proxy_cache_valid: nginx cache validity rules.
             backend_hostname: SNI hostname for backend TLS verification.
+            cache_inactive: Time after which an unaccessed cached item is evicted.
+            cache_max_size: Maximum total disk space used by the cache.
 
         Raises:
             CacheConfigInvalidRelationDataError: When the data fails validation or
@@ -403,6 +437,8 @@ class CacheConfigRequirer(Object):
                 healthcheck_ssl_verify=healthcheck_ssl_verify,
                 proxy_cache_valid=proxy_cache_valid,
                 backend_hostname=backend_hostname,
+                cache_inactive=cache_inactive,
+                cache_max_size=cache_max_size,
             )
             relation.save(app_data, self.charm.app, encoder=_encode)
         except (ValidationError, RelationDataTypeError) as exc:

@@ -532,6 +532,31 @@ def test_cache_config_invalid_fail_timeout_is_blocked(
     assert out.unit_status == ops.testing.BlockedStatus("Invalid cache-config configuration")
 
 
+def test_cache_config_terabyte_max_size_is_blocked(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: cache-config relation present with a cache-max-size using the unsupported
+        terabyte unit (nginx's proxy_cache_path max_size only supports k, m or g).
+    act: trigger config-changed.
+    assert: BlockedStatus — invalid cache-config configuration.
+    """
+    state = ops.testing.State(
+        config={
+            "backend-addresses": "10.0.0.1",
+            "backend-ports": "8080",
+            "cache-max-size": "1t",
+        },
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation("cache-config"),
+        ],
+        leader=True,
+    )
+    out = context_machine.run(context_machine.on.config_changed(), state)
+    assert out.unit_status == ops.testing.BlockedStatus("Invalid cache-config configuration")
+
+
 @pytest.mark.parametrize(
     ("cache_backend", "expected_port", "expected_protocol", "config"),
     [

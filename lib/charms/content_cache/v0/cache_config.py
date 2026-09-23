@@ -45,7 +45,7 @@ _MIN_STATUS_CODE = 100
 _MAX_STATUS_CODE = 999
 
 _NGINX_TIME_PATTERN = re.compile(r"\d+[dhms]")
-_NGINX_SIZE_PATTERN = re.compile(r"\d+[kmgtKMGT]")
+_NGINX_SIZE_PATTERN = re.compile(r"\d+[kmgKMG]")
 # Copied verbatim from content-cache's path validation, flags included, so that this
 # library rejects exactly what the provider rejects. It is deliberately not an RFC 3986
 # path grammar: percent-encoding is not accepted, and Python's \w is Unicode-aware.
@@ -134,7 +134,7 @@ def _validate_nginx_size(value: str) -> str:
 
     Raises:
         ValueError: When the value is non-empty and not a positive integer followed by
-            k, m, g or t (case-insensitive).
+            k, m or g (case-insensitive).
 
     Returns:
         The validated value.
@@ -142,9 +142,7 @@ def _validate_nginx_size(value: str) -> str:
     if not value:
         return value
     if not _NGINX_SIZE_PATTERN.fullmatch(value) or int(value[:-1]) < 1:
-        raise ValueError(
-            f"Size must be a positive integer followed by k, m, g or t, got: {value!r}"
-        )
+        raise ValueError(f"Size must be a positive integer followed by k, m or g, got: {value!r}")
     return value
 
 

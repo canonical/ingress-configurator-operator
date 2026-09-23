@@ -12,7 +12,13 @@ from state.cache_config import CacheConfigState
 
 def _make_charm(config: dict) -> MagicMock:
     # Mirror the charmcraft.yaml defaults that Juju always applies for cache-specific options.
-    merged = {"cache-fail-timeout": "30s", "cache-healthcheck-ssl-verify": True, **config}
+    merged = {
+        "cache-fail-timeout": "30s",
+        "cache-healthcheck-ssl-verify": True,
+        "cache-inactive": "10m",
+        "cache-max-size": "",
+        **config,
+    }
     charm = MagicMock(spec=ops.CharmBase)
     charm.config = merged
     return charm
@@ -31,6 +37,8 @@ def test_build_applies_defaults():
     assert state.healthcheck_valid_status == [200]
     assert state.healthcheck_ssl_verify is True
     assert state.proxy_cache_valid == []
+    assert state.cache_inactive == "10m"
+    assert state.cache_max_size == ""
 
 
 def test_build_with_all_config():
@@ -46,6 +54,8 @@ def test_build_with_all_config():
             "health-check-path": "/health",
             "cache-fail-timeout": "1m",
             "cache-healthcheck-ssl-verify": False,
+            "cache-inactive": "1h",
+            "cache-max-size": "2g",
         }
     )
     state = CacheConfigState.from_charm(charm)
@@ -54,6 +64,8 @@ def test_build_with_all_config():
     assert state.healthcheck_path == "/health"
     assert state.healthcheck_ssl_verify is False
     assert state.proxy_cache_valid == ["200 1h"]
+    assert state.cache_inactive == "1h"
+    assert state.cache_max_size == "2g"
 
 
 def test_build_keeps_invalid_fail_timeout_for_the_library_to_reject():
@@ -64,3 +76,23 @@ def test_build_keeps_invalid_fail_timeout_for_the_library_to_reject():
     """
     state = CacheConfigState.from_charm(_make_charm({"cache-fail-timeout": "not-a-time"}))
     assert state.fail_timeout == "not-a-time"
+
+
+def test_build_keeps_invalid_cache_inactive_for_the_library_to_reject():
+    """
+    arrange: charm config with a malformed cache-inactive.
+    act: build CacheConfigState.
+    assert: the value passes through unchanged; format validation belongs to the library.
+    """
+    state = CacheConfigState.from_charm(_make_charm({"cache-inactive": "not-a-time"}))
+    assert state.cache_inactive == "not-a-time"
+
+
+def test_build_keeps_invalid_cache_max_size_for_the_library_to_reject():
+    """
+    arrange: charm config with a malformed cache-max-size.
+    act: build CacheConfigState.
+    assert: the value passes through unchanged; format validation belongs to the library.
+    """
+    state = CacheConfigState.from_charm(_make_charm({"cache-max-size": "not-a-size"}))
+    assert state.cache_max_size == "not-a-size"

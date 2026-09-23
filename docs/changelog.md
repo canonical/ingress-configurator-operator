@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Each revision is versioned by the date of the revision.
 
+## 2026-09-23
+
+### Added
+
+- Added `cache-inactive` and `cache-max-size` config options, published to content-cache
+  over the `cache-config` relation to control cache eviction and total disk usage.
+
 ## 2026-09-22
 
 ### Added

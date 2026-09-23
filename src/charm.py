@@ -140,7 +140,7 @@ class IngressConfiguratorCharm(ops.CharmBase):
 
     def _reconcile(self, _: ops.EventBase) -> None:
         """Dispatch to the appropriate reconcile method based on active relations."""
-        if self.app.planned_units() != 1:
+        if self.app.planned_units() > 1:
             self.unit.status = ops.BlockedStatus("Deploying more than one unit is not supported.")
             return
 

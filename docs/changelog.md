@@ -15,7 +15,11 @@ Each revision is versioned by the date of the revision.
 - Added `cache-inactive` and `cache-max-size` config options, published to content-cache
   over the `cache-config` relation to control cache eviction and total disk usage.
 
-## 2026-0-22
+## 2026-09-22
+
+### Added
+
+- Explicitly block all units when more than one unit is requested.
 
 ### Fixed
 

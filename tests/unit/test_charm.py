@@ -15,6 +15,28 @@ if TYPE_CHECKING:
     from charm import IngressConfiguratorCharm
 
 
+def test_block_when_multiple_units(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: prepare a valid state for a charm application with two planned units.
+    act: trigger a config changed event.
+    assert: status is blocked because multiple units are not supported.
+    """
+    charm_state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
+        relations=[ops.testing.Relation("haproxy-route")],
+        leader=True,
+        planned_units=2,
+    )
+
+    out = context_machine.run(context_machine.on.config_changed(), charm_state)
+
+    assert out.unit_status == ops.testing.BlockedStatus(
+        "Deploying more than one unit is not supported."
+    )
+
+
 def test_config_changed_invalid_state(
     context_machine: ops.testing.Context["IngressConfiguratorCharm"],
 ):

@@ -8,6 +8,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Each revision is versioned by the date of the revision.
 
+## 2026-09-23
+
+### Added
+
+- Added `cache-inactive` and `cache-max-size` config options, published to content-cache
+  over the `cache-config` relation to control cache eviction and total disk usage.
+
+## 2026-09-22
+
+### Added
+
+- Explicitly block all units when more than one unit is requested.
+
+### Fixed
+
+- Removed EndpointSlice cleanup logic for `gateway-route` (remnant from Integrator mode) which
+broke the backend services.
+
 ## 2026-09-2
 
 ### Added

@@ -15,6 +15,28 @@ if TYPE_CHECKING:
     from charm import IngressConfiguratorCharm
 
 
+def test_block_when_multiple_units(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: prepare a valid state for a charm application with two planned units.
+    act: trigger a config changed event.
+    assert: status is blocked because multiple units are not supported.
+    """
+    charm_state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": "8080"},
+        relations=[ops.testing.Relation("haproxy-route")],
+        leader=True,
+        planned_units=2,
+    )
+
+    out = context_machine.run(context_machine.on.config_changed(), charm_state)
+
+    assert out.unit_status == ops.testing.BlockedStatus(
+        "Deploying more than one unit is not supported."
+    )
+
+
 def test_config_changed_invalid_state(
     context_machine: ops.testing.Context["IngressConfiguratorCharm"],
 ):
@@ -532,6 +554,31 @@ def test_cache_config_invalid_fail_timeout_is_blocked(
     assert out.unit_status == ops.testing.BlockedStatus("Invalid cache-config configuration")
 
 
+def test_cache_config_terabyte_max_size_is_blocked(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: cache-config relation present with a cache-max-size using the unsupported
+        terabyte unit (nginx's proxy_cache_path max_size only supports k, m or g).
+    act: trigger config-changed.
+    assert: BlockedStatus — invalid cache-config configuration.
+    """
+    state = ops.testing.State(
+        config={
+            "backend-addresses": "10.0.0.1",
+            "backend-ports": "8080",
+            "cache-max-size": "1t",
+        },
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation("cache-config"),
+        ],
+        leader=True,
+    )
+    out = context_machine.run(context_machine.on.config_changed(), state)
+    assert out.unit_status == ops.testing.BlockedStatus("Invalid cache-config configuration")
+
+
 @pytest.mark.parametrize(
     ("cache_backend", "expected_port", "expected_protocol", "config"),
     [
@@ -622,6 +669,40 @@ def test_cache_config_sends_relation_data_to_content_cache(
     assert "backend_hostname" not in local_app_data
     assert local_app_data["healthcheck_ssl_verify"] == "true"
     assert json.loads(local_app_data["proxy_cache_valid"]) == ["200 1h"]
+    assert local_app_data["cache_inactive"] == "10m"
+    assert "cache_max_size" not in local_app_data
+
+
+def test_cache_config_sends_cache_inactive_and_max_size_to_content_cache(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: cache-config relation present with cache-inactive/cache-max-size configured.
+    act: trigger config-changed.
+    assert: ingress-configurator wrote both values to the cache-config app databag.
+    """
+    state = ops.testing.State(
+        config={
+            "backend-addresses": "10.0.0.1",
+            "backend-ports": "8080",
+            "cache-inactive": "1h",
+            "cache-max-size": "2g",
+        },
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation(
+                "cache-config",
+                remote_units_data={0: {"cache-backend": "http://10.1.0.5:9000"}},
+            ),
+        ],
+        leader=True,
+    )
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    cache_config_rel = out.get_relations("cache-config")[0]
+    local_app_data: dict = dict(cache_config_rel.local_app_data)
+    assert local_app_data["cache_inactive"] == "1h"
+    assert local_app_data["cache_max_size"] == "2g"
 
 
 def test_cache_config_backend_hostname_config_overrides_frontend_hostname(

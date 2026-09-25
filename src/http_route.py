@@ -11,7 +11,6 @@ from lightkube.generic_resource import create_namespaced_resource
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Service
-from lightkube.resources.discovery_v1 import EndpointSlice
 
 from helpers import truncate_k8s_resource_name
 from kubernetes import InvalidKubernetesPermissionError
@@ -117,9 +116,9 @@ def delete_backend_services_owned_by(
     app_name: str,
     exclude: set[str] | None = None,
 ) -> None:
-    """Delete all backend EndpointSlices and Services owned by ``app_name``.
+    """Delete all backend Services owned by ``app_name``.
 
-    Resources are identified by a :data:`MANAGED_BY_LABEL` label matching ``app_name``.
+    Services are identified by a :data:`MANAGED_BY_LABEL` label matching ``app_name``.
 
     Args:
         client: The lightkube Client instance.
@@ -132,11 +131,6 @@ def delete_backend_services_owned_by(
     """
     exclude_set = exclude or set()
     try:
-        for es in client.list(
-            EndpointSlice, namespace=namespace, labels={MANAGED_BY_LABEL: app_name}
-        ):
-            if es.metadata and es.metadata.name and es.metadata.name not in exclude_set:
-                client.delete(EndpointSlice, name=es.metadata.name, namespace=namespace)
         for service in client.list(
             Service, namespace=namespace, labels={MANAGED_BY_LABEL: app_name}
         ):

@@ -18,8 +18,6 @@ The documentation is grouped by the route-provider charm your deployment uses. C
 
 ### HAProxy operator
 
-For deployments where the [HAProxy operator](https://charmhub.io/haproxy) provides ingress through the `haproxy-route` or `haproxy-route-tcp` interfaces.
-
 ```{list-table}
    :header-rows: 1
    :widths: 15 30
@@ -33,8 +31,6 @@ For deployments where the [HAProxy operator](https://charmhub.io/haproxy) provid
 ```
 
 ### Gateway API integrator
-
-For deployments where the [`gateway-api-integrator`](https://charmhub.io/gateway-api-integrator) charm provides ingress through the `gateway-route` interface.
 
 ```{list-table}
    :header-rows: 1

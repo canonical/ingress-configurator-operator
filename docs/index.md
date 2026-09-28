@@ -18,7 +18,7 @@ The following route-provider interfaces are supported:
    :header-rows: 1
    :widths: 15 28 28 28
 
-* - **Documentation type**
+* - **Type**
   - **General charm documentation**
   - **HAProxy**
   - **Gateway API integrator**

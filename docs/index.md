@@ -20,7 +20,7 @@ The following route-provider interfaces are supported:
 
 * - **Documentation type**
   - **General charm documentation**
-  - **HAProxy operator**
+  - **HAProxy**
   - **Gateway API integrator**
 * - **Get started**
   -

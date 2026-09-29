@@ -22,7 +22,7 @@ or does not implement the `ingress` interface.
 
 In TCP mode, `ingress-configurator` acts as a configuration translation layer for
 Layer 4 traffic. The operator supplies backend IP addresses, port mappings, health
-checks, and TLS parameters via charm config. `ingress-configurator` validates
+checks, and TLS parameters via charm configuration. `ingress-configurator` validates
 this state and forwards the configuration over the `haproxy-route-tcp` relation.
 HAProxy then opens the requested frontend listener ports and proxies raw TCP connections
 to the backends.

@@ -84,15 +84,15 @@ flowchart LR
     ic -- haproxy-route-tcp --> haproxy
 ```
 
-Because haproxy-route-tcp operates exclusively in integrator mode and cannot be used
-alongside an ingress relation, proxied endpoints assigned by HAProxy are not
+Because `haproxy-route-tcp` operates exclusively in integrator mode and cannot be used
+alongside an `ingress` relation, proxied endpoints assigned by HAProxy are not
 propagated back to a backend application.
 
 This mode is suited to backends that are not managed by a Juju charm, or to cases
-where the backend charm does not implement the ingress interface, that require
+where the backend charm does not implement the `ingress` interface that require
 layer 4 TCP load balancing or protocol-agnostic pass-through. See
 {ref}`how_to_haproxy_integrate_tcp_non_charm_workload` for instructions on using
-ingress-configurator in HAProxy integrator TCP mode.
+`ingress-configurator` in HAProxy integrator TCP mode.
 
 ## Gateway-route adapter mode
 

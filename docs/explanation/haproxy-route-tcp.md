@@ -8,7 +8,7 @@ myst:
 
 # How haproxy-route-tcp works
 
-The `haproxy-route-tcp` interface enables the Ingress Configurator charm to manage
+The `haproxy-route-tcp` interface enables the `ingress-configurator` charm to manage
 Layer 4 (TCP) load balancing and routing through the
 [`haproxy`](https://charmhub.io/haproxy) charm. Unlike HTTP modes,
 `haproxy-route-tcp` operates exclusively in **integrator TCP mode**, where

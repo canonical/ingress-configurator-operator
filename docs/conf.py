@@ -173,8 +173,7 @@ rediraffe_dir_only = True
 # <first sentence of home page>".
 llms_txt_description = textwrap.dedent(
     """\
-    This is the documentation for the Sphinx Stack, a template repository that helps you
-    set up, build, and publish Sphinx documentation.
+    This is the documentation for the Ingress Configurator charm, a Juju charm that acts as a bridge between ingress-provider charms and ingress-requiring workloads.
     """
 )
 

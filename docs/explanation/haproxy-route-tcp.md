@@ -72,4 +72,4 @@ The `tcp-port-mapping` option uses `frontend:backend` syntax:
   The charm blocks if an `ingress` relation and `haproxy-route-tcp` are present simultaneously.
 - **One route relation at a time**: The charm permits only one active route relation (`haproxy-route`, `haproxy-route-tcp`, or `gateway-route`).
 - **No `cache-config` support**: The content-cache integration operates at Layer 7 and cannot be used alongside `haproxy-route-tcp`.
-- **Substrate support**: `haproxy-route-tcp` is supported on both Machine and Kubernetes substrates.
+- **Substrate support**: `haproxy-route-tcp` is only supported on Machine substrates.

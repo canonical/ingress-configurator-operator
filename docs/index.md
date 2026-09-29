@@ -32,7 +32,7 @@ The following route-provider interfaces are supported:
   - {ref}`Add Kubernetes Gateway API features to an ingress requirer <how_to_add_gateway_api_features_to_ingress_requirer>` | {ref}`Route traffic for multiple workloads through a single Gateway <how_to_gateway_api_route_multiple_workloads>`
 * - **Design**
   - {ref}`Modes of operation <explanation_modes_of_operation>`
-  - {ref}`The cache-config relation <reference_cache_config>`
+  - {ref}`How haproxy-route-tcp works <explanation_haproxy_route_tcp>` | {ref}`The cache-config relation <reference_cache_config>`
   - {ref}`How gateway-route works <explanation_gateway_route>` | {ref}`The gateway-route relation <reference_gateway_route>`
 ```
 

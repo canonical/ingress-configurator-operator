@@ -12,4 +12,5 @@ myst:
 :maxdepth: 1
 Modes of operation <modes-of-operation.md>
 gateway-route.md
+haproxy-route-tcp.md
 ```

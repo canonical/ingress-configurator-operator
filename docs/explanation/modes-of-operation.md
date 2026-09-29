@@ -1,7 +1,7 @@
 ---
 myst:
   html_meta:
-    "description lang=en": "An explanation of the three modes of operation of the ingress-configurator charm: HAProxy integrator, HAProxy adapter, and gateway-route adapter."
+    "description lang=en": "An explanation of the four modes of operation of the ingress-configurator charm: HAProxy integrator, HAProxy adapter, and gateway-route adapter."
 ---
 
 (explanation_modes_of_operation)=
@@ -19,9 +19,10 @@ There are three modes, organized by the underlying route-provider interface and
 the substrate (machine or Kubernetes):
 
 | Mode | Substrate | Route-provider interface | Backend discovery |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | HAProxy integrator | Machine | `haproxy-route` | Charm configuration |
 | HAProxy adapter | Machine | `haproxy-route` | `ingress` relation |
+| HAProxy TCP integrator | Machine | `haproxy-route-tcp` | Charm configuration |
 | Gateway-route adapter | Kubernetes | `gateway-route` | `ingress` relation |
 
 ## HAProxy integrator mode
@@ -69,6 +70,29 @@ but need access to HAProxy-specific features (such as TCP routing, custom
 headers, or gRPC load balancing) that are not available through the standard
 `ingress` interface alone. See {ref}`how_to_add_haproxy_features_to_ingress_requirer`
 for instructions on using `ingress-configurator` in HAProxy adapter mode.
+
+## HAProxy integrator TCP mode
+
+In integrator TCP mode, `ingress-configurator` is deployed without a direct
+relation to the backend application. Instead, the operator provides the configuration
+through charm configuration options `tcp-backend-addresses` and `tcp-port-mapping`.
+
+```{mermaid}
+flowchart LR
+    ic["ingress-configurator
+    (config: tcp-backend-addresses, tcp-port-mapping)"]
+    ic -- haproxy-route-tcp --> haproxy
+```
+
+Because `haproxy-route-tcp` operates exclusively in integrator mode and cannot be used
+alongside an `ingress` relation, proxied endpoints assigned by HAProxy are not
+propagated back to a backend application.
+
+This mode is suited to backends that are not managed by a Juju charm, or to cases
+where the backend charm does not implement the `ingress` interface that require
+layer 4 TCP load balancing or protocol-agnostic pass-through. See
+{ref}`how_to_haproxy_integrate_tcp_non_charm_workload` for instructions on using
+`ingress-configurator` in HAProxy integrator TCP mode.
 
 ## Gateway-route adapter mode
 

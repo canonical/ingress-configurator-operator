@@ -1,7 +1,7 @@
 ---
 myst:
   html_meta:
-    "description lang=en": "An explanation of the three modes of operation of the ingress-configurator charm: HAProxy integrator, HAProxy adapter, and gateway-route adapter."
+    "description lang=en": "An explanation of the four modes of operation of the ingress-configurator charm: HAProxy integrator, HAProxy adapter, and gateway-route adapter."
 ---
 
 (explanation_modes_of_operation)=

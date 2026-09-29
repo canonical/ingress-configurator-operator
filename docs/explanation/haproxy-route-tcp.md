@@ -31,8 +31,8 @@ to the backends.
 flowchart LR
     Client(["External Client"]) --> HAProxy
 
-    subgraph IC["ingress-configurator"]
-        CONF["Charm Config"]
+    subgraph IC["ingress-configurator charm"]
+        CONF["TCP Configs"]
     end
 
     subgraph HAProxy["haproxy charm"]

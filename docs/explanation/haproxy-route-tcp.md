@@ -55,8 +55,10 @@ flowchart LR
 
 ## Traffic routing and port range mapping
 
-`ingress-configurator` maps a contiguous range of frontend ports to backend ports.
-HAProxy allocates frontend listener ports across the range and derives target backend ports using a calculated offset.
+The `tcp-port-mapping` option uses `frontend:backend` syntax:
+
+- **Single port** (`<port>:<port>`): e.g. `"4000:20000"`
+- **Port range** (`<start>-<end>:<start>-<end>`): e.g. `"4000-4005:20000-20005"`
 
 ## TLS and health checks
 

@@ -60,6 +60,11 @@ The `tcp-port-mapping` option uses `frontend:backend` syntax:
 - **Single port** (`<port>:<port>`): e.g. `"4000:20000"`
 - **Port range** (`<start>-<end>:<start>-<end>`): e.g. `"4000-4005:20000-20005"`
 
+```{note}
+Single port mapping can also be configured using `tcp-backend-port` and `tcp-frontend-port`,
+but these options are deprecated in favor of `tcp-port-mapping`.
+```
+
 ## TLS and health checks
 
 - **TLS termination and SNI**: Traffic can be decrypted at HAProxy before being sent to backends, or passed through. When TLS enforcement is active, SNI hostnames allow HAProxy to route encrypted TCP streams to the correct backend.

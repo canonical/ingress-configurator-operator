@@ -11,23 +11,28 @@ import pytest
 from .conftest import CERTIFICATES_APP_NAME, get_unit_addresses
 
 
-def _get_haproxy_route_requirer_application_data(
-    juju: jubilant.Juju, haproxy: str, relation_index: int = 0
-) -> dict:
-    """Return the haproxy-route requirer application data as seen on the haproxy unit.
+def _get_haproxy_route_application_data(juju: jubilant.Juju, units: list[str]) -> dict:
+    """Return the haproxy-route application data published on the relation.
+
+    The `show-unit` output has differed across Juju versions with respect to which side of
+    the relation `application-data` corresponds to, so the data of every given unit is
+    merged. This includes the requirer data required by this test regardless of the version.
 
     Args:
         juju: Jubilant juju fixture.
-        haproxy: Name of the haproxy application.
-        relation_index: Index of the haproxy-route relation to inspect.
+        units: Names of the units involved in the haproxy-route relation.
 
     Returns:
-        The requirer application data published on the haproxy-route relation.
+        The merged haproxy-route application data.
     """
-    unit_name = f"{haproxy}/0"
-    unit_info = json.loads(juju.cli("show-unit", unit_name, "--format", "json"))[unit_name]
-    relations = [rel for rel in unit_info["relation-info"] if rel["endpoint"] == "haproxy-route"]
-    return relations[relation_index]["application-data"]
+    application_data: dict = {}
+    for unit in units:
+        unit_name = f"{unit}/0"
+        unit_info = json.loads(juju.cli("show-unit", unit_name, "--format", "json"))[unit_name]
+        for relation in unit_info["relation-info"]:
+            if relation["endpoint"] == "haproxy-route":
+                application_data.update(relation.get("application-data", {}))
+    return application_data
 
 
 @pytest.mark.abort_on_fail
@@ -74,5 +79,5 @@ def test_default_backend_config_option(
         ),
         error=jubilant.any_error,
     )
-    application_data = _get_haproxy_route_requirer_application_data(juju, haproxy)
+    application_data = _get_haproxy_route_application_data(juju, [haproxy, application])
     assert application_data.get("default_backend") == "true"

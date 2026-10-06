@@ -307,6 +307,14 @@ config:
       description: |
         If set to true, allows HTTP traffic in addition to HTTPS. Defaults to False.
         Warning: enabling HTTP is a security risk, make sure you apply the necessary precautions.
+    default-backend:
+      type: boolean
+      default: false
+      description: |
+        If set to true, this backend is used as the default landing page for requests
+        that do not match any configured hostname or backend. The default backend does
+        not render any hostname ACL, and only one backend across all configured
+        applications may set this option. Defaults to False.
 
 charm-libs:
   - lib: haproxy.haproxy_route

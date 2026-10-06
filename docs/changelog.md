@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Each revision is versioned by the date of the revision.
 
+## 2026-10-06
+
+### Added
+
+- Added the `terraform_modules_compliance` and `generate_terraform_docs` CI workflows
+  to complete the CC008 (Charm Terraform Standards) compliance of the `terraform/`
+  module, and pinned the remaining Terraform workflows to a commit SHA.
+
 ## 2026-09-29
 
 ### Added

@@ -49,8 +49,6 @@ GATEWAY_API_INTEGRATOR_REVISIONS = ArchitectureRevisions(amd64=185, arm64=186)
 # GatewayClass provided by the Canonical Kubernetes used in CI.
 GATEWAY_CLASS = "ck-gateway"
 EXTERNAL_HOSTNAME = "gateway.internal"
-CERTIFICATES_CHANNEL = "1/stable"
-CERTIFICATES_REVISIONS = ArchitectureRevisions(amd64=586, arm64=585)
 # max-age (seconds) for the Strict-Transport-Security header the provider publishes when
 # HTTPS is enforced; a non-default value so the enforced-HTTPS test verifies it flows through.
 GATEWAY_HSTS_MAX_AGE = 15552000
@@ -605,20 +603,3 @@ def _deploy_gateway_backend(juju: jubilant.Juju, app: str, *, open_port: bool) -
             "python-packages": "\n".join(["pydantic", "charmlibs-apt"]),
         },
     )
-
-
-def deploy_self_signed_certificates(juju: jubilant.Juju) -> str:
-    """Deploy the architecture-specific stable certificate provider.
-
-    Args:
-        juju: Jubilant Juju instance for the Kubernetes model.
-
-    Returns:
-        The certificate provider application name.
-    """
-    juju.deploy(
-        charm=CERTIFICATES_APP_NAME,
-        channel=CERTIFICATES_CHANNEL,
-        revision=architecture_revision(CERTIFICATES_REVISIONS),
-    )
-    return CERTIFICATES_APP_NAME

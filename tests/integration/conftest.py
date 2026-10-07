@@ -17,7 +17,7 @@ import yaml
 from opcli.core.env import current_arch
 from requests import Session
 
-from .helper import ArchitectureRevisions, DNSResolverAdapter, architecture_revision
+from .helper import DNSResolverAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,6 @@ APP_NAME = "ingress-configurator"
 # Gateway-route (Kubernetes Gateway API) test configuration.
 GATEWAY_API_INTEGRATOR_APP_NAME = "gateway-api-integrator"
 GATEWAY_API_INTEGRATOR_CHANNEL = "1/edge"
-GATEWAY_API_INTEGRATOR_REVISIONS = ArchitectureRevisions(amd64=185, arm64=186)
 # GatewayClass provided by the Canonical Kubernetes used in CI.
 GATEWAY_CLASS = "ck-gateway"
 EXTERNAL_HOSTNAME = "gateway.internal"
@@ -499,7 +498,6 @@ def gateway_api_integrator_fixture(juju_k8s: jubilant.Juju) -> str:
     juju_k8s.deploy(
         charm=GATEWAY_API_INTEGRATOR_APP_NAME,
         channel=GATEWAY_API_INTEGRATOR_CHANNEL,
-        revision=architecture_revision(GATEWAY_API_INTEGRATOR_REVISIONS),
         base="ubuntu@24.04",
         constraints={"arch": current_arch()},
         trust=True,

@@ -11,7 +11,7 @@ import time
 import jubilant
 import pytest
 
-from .conftest import get_unit_addresses
+from ..conftest import get_unit_addresses
 
 logger = logging.getLogger(__name__)
 

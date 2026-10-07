@@ -27,10 +27,9 @@ import requests
 from lightkube import Client
 from lightkube.resources.core_v1 import Node
 
-from .conftest import (
+from ..conftest import (
     CERTIFICATES_APP_NAME,
     HAPROXY_APP_NAME,
-    JUJU_WAIT_TIMEOUT,
     MOCK_HAPROXY_HOSTNAME,
     get_unit_addresses,
 )
@@ -40,8 +39,8 @@ from .conftest import (
 def test_kubernetes_ingress_routes_through_haproxy(
     haproxy: str,
     k8s_ingress_requirer: str,
-    lxd_controller: str,
-    lxd_model: str,
+    juju_lxd: jubilant.Juju,
+    juju_k8s: jubilant.Juju,
 ) -> None:
     """Deploy ingress-configurator and AnyCharm on K8s, integrate with machine haproxy.
 
@@ -56,17 +55,15 @@ def test_kubernetes_ingress_routes_through_haproxy(
         Kubernetes node IPs; haproxy routes HTTPS requests to the backend through the
         NodePort.
     """
-    juju = jubilant.Juju(model=f"{lxd_controller}:{lxd_model}")
-    juju.wait_timeout = JUJU_WAIT_TIMEOUT
-    juju.wait(
+    juju_lxd.wait(
         lambda status: jubilant.all_active(status, haproxy, CERTIFICATES_APP_NAME),
         error=jubilant.any_error,
     )
     haproxy_config = _get_haproxy_config(
-        machine_model=juju,
+        machine_model=juju_lxd,
         service_name=f"{k8s_ingress_requirer}-service",
     )
-    haproxy_address = str(get_unit_addresses(juju, haproxy)[0])
+    haproxy_address = str(get_unit_addresses(juju_lxd, haproxy)[0])
 
     node_ips = _get_k8s_node_internal_ips()
     for node_ip in node_ips:

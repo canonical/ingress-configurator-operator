@@ -7,7 +7,7 @@ import json
 
 import jubilant
 
-from .conftest import CERTIFICATES_APP_NAME, MOCK_HAPROXY_HOSTNAME
+from ..conftest import CERTIFICATES_APP_NAME, MOCK_HAPROXY_HOSTNAME
 
 
 def test_action_get_proxied_endpoints_nominal(

@@ -35,7 +35,7 @@ import jubilant
 import pytest
 from requests import Session
 
-from .conftest import (
+from ..conftest import (
     CERTIFICATES_APP_NAME,
     HTTPS_BACKEND_APP_NAME,
     MOCK_HAPROXY_HOSTNAME,

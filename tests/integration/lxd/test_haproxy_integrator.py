@@ -9,7 +9,7 @@ import jubilant
 import pytest
 from requests import Session
 
-from .conftest import CERTIFICATES_APP_NAME, MOCK_HAPROXY_HOSTNAME, get_unit_addresses
+from ..conftest import CERTIFICATES_APP_NAME, MOCK_HAPROXY_HOSTNAME, get_unit_addresses
 
 
 @pytest.mark.abort_on_fail

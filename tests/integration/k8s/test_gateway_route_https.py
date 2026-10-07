@@ -28,7 +28,7 @@ from typing import NamedTuple
 import jubilant
 import pytest
 
-from .conftest import (
+from ..conftest import (
     CERTIFICATES_APP_NAME,
     GATEWAY_CERTIFICATES_CHANNEL,
     GATEWAY_CONFIGURATOR_CLOSED_PORTS,
@@ -38,7 +38,7 @@ from .conftest import (
     HOSTNAME_BACKEND_OPEN_PORTS,
     deploy_ingress_configurator_for_gateway_route,
 )
-from .helper import assert_gateway_response, get_gateway_address
+from ..helper import assert_gateway_response, get_gateway_address
 
 logger = logging.getLogger(__name__)
 

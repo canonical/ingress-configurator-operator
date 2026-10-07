@@ -137,9 +137,7 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
 
 
 @pytest.fixture(scope="module", name="any_charm_backend")
-def any_charm_backend_fixture(
-    pytestconfig: pytest.Config, juju: jubilant.Juju
-):
+def any_charm_backend_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     """Deploy any-charm and configure it to serve as a requirer for the http interface."""
     if ANY_CHARM_APP_NAME in juju.status().apps:
         yield ANY_CHARM_APP_NAME
@@ -263,9 +261,7 @@ def _generate_backend_tls(hostname: str) -> tuple[str, str, str]:
 
 
 @pytest.fixture(scope="module", name="any_charm_backend_https")
-def any_charm_backend_https_fixture(
-    pytestconfig: pytest.Config, juju: jubilant.Juju
-):
+def any_charm_backend_https_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
     """Deploy a 2-unit any-charm serving HTTPS on port 443 with a shared CA-signed cert.
 
     Every unit serves the identical, hostname-scoped certificate (no IP SAN) and publishes

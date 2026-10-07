@@ -7,8 +7,8 @@ Topology:
 
     self-signed-certificates ──certificates──▶ gateway-api-integrator (enforce-https=True)
                                                           ▲
-    any-charm-k8s (closed-ports)   ──ingress──▶ configurator-closed ─┤ gateway-route
-    any-charm-k8s (open-ports)    ──ingress──▶ configurator-open  ─┘
+    any-charm (closed-ports)   ──ingress──▶ configurator-closed ─┤ gateway-route
+    any-charm (open-ports)    ──ingress──▶ configurator-open  ─┘
 
 The provider creates one per-hostname HTTPS Gateway listener per relation (one for
 ``HOSTNAME_CLOSED_PORTS``, one for ``HOSTNAME_OPEN_PORTS``). Each listener has its own ``hostname``
@@ -70,8 +70,8 @@ def multi_relation_https_stack_fixture(
     Args:
         juju_k8s: Jubilant Juju instance for the Kubernetes model.
         gateway_api_integrator: Shared gateway-route provider app name.
-        backend_closed: any-charm-k8s backend (is_port_open=False).
-        backend_open: any-charm-k8s backend (is_port_open=True).
+        backend_closed: any-charm backend (is_port_open=False).
+        backend_open: any-charm backend (is_port_open=True).
         charm: Path to the packed ingress-configurator charm.
 
     Returns:

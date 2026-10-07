@@ -53,14 +53,14 @@ EXTERNAL_HOSTNAME = "gateway.internal"
 # HTTPS is enforced; a non-default value so the enforced-HTTPS test verifies it flows through.
 GATEWAY_HSTS_MAX_AGE = 15552000
 
-# Closed-ports backend (any-charm-k8s, is_port_open=False).
+# Closed-ports backend (any-charm, is_port_open=False).
 # Also reused by the enforced-HTTPS test, which runs in a separate model.
 GATEWAY_CONFIGURATOR_CLOSED_PORTS = "configurator-closed"
 GATEWAY_BACKEND_CLOSED_PORTS = "backend-closed"
 HOSTNAME_BACKEND_CLOSED_PORTS = "closed.gateway.internal"
 ADDITIONAL_HOSTNAME_BACKEND_CLOSED_PORTS = "alt-closed.gateway.internal"
 
-# Open-ports backend (any-charm-k8s, is_port_open=True).
+# Open-ports backend (any-charm, is_port_open=True).
 GATEWAY_CONFIGURATOR_OPEN_PORTS = "configurator-open"
 GATEWAY_BACKEND_OPEN_PORTS = "backend-open"
 HOSTNAME_BACKEND_OPEN_PORTS = "open.gateway.internal"
@@ -68,7 +68,6 @@ ADDITIONAL_HOSTNAME_BACKEND_OPEN_PORTS = "alt-open.gateway.internal"
 INGRESS_BACKEND_PORT = 8000
 GATEWAY_BACKEND_OPEN_PATH = "/api/v1"
 GATEWAY_BACKEND_OPEN_BODY = "ok from open-ports backend"
-GATEWAY_BACKEND_REVISIONS = ArchitectureRevisions(amd64=129, arm64=133)
 
 
 @pytest.fixture(scope="module", name="juju_lxd")
@@ -536,7 +535,7 @@ def deploy_ingress_configurator_for_gateway_route(
 
 @pytest.fixture(scope="module", name="backend_closed")
 def backend_closed_fixture(juju_k8s: jubilant.Juju) -> str:
-    """Deploy an any-charm-k8s workload with ``is_port_open=False``.
+    """Deploy an any-charm workload with ``is_port_open=False``.
 
     The backend serves HTTP but does not advertise its port through Juju, driving the
     closed-ports branch of the adapter decision tree. This fixture does not wait for the
@@ -554,7 +553,7 @@ def backend_closed_fixture(juju_k8s: jubilant.Juju) -> str:
 
 @pytest.fixture(scope="module", name="backend_open")
 def backend_open_fixture(juju_k8s: jubilant.Juju) -> str:
-    """Deploy an any-charm-k8s workload that opens its port (``is_port_open=True``).
+    """Deploy an any-charm workload that opens its port (``is_port_open=True``).
 
     The backend declares ingress on a fixed port, opens that port (so the ingress databag
     reports ``is_port_open=True``) and serves a catch-all HTTP response from its workload
@@ -572,7 +571,7 @@ def backend_open_fixture(juju_k8s: jubilant.Juju) -> str:
 
 
 def _deploy_gateway_backend(juju: jubilant.Juju, app: str, *, open_port: bool) -> None:
-    """Deploy a pinned any-charm-k8s HTTP backend.
+    """Deploy an any-charm HTTP backend.
 
     Args:
         juju: Jubilant Juju instance for the Kubernetes model.
@@ -580,9 +579,8 @@ def _deploy_gateway_backend(juju: jubilant.Juju, app: str, *, open_port: bool) -
         open_port: Whether the backend advertises its HTTP port through Juju.
     """
     juju.deploy(
-        charm="any-charm-k8s",
+        charm="any-charm",
         channel="latest/beta",
-        revision=architecture_revision(GATEWAY_BACKEND_REVISIONS),
         app=app,
         config={
             "src-overwrite": json.dumps(

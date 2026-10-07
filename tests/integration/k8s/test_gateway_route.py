@@ -7,8 +7,8 @@ A headline goal of the gateway-api redesign is supporting multiple ``gateway-rou
 a single gateway-api-integrator, with one ingress-configurator per relation. This test proves
 that by deploying two ingress-configurator instances against the same gateway at once:
 
-    any-charm-k8s (backend closed-ports) ──ingress──▶ configurator-closed ─┐ gateway-route
-    any-charm-k8s (backend-open-ports) ──ingress──▶  configurator-open    ─┘──────────────▶ gateway-api-integrator
+    any-charm (backend closed-ports) ──ingress──▶ configurator-closed ─┐ gateway-route
+    any-charm (backend-open-ports) ──ingress──▶  configurator-open    ─┘──────────────▶ gateway-api-integrator
                                                                                        │
                                                                                Gateway + HTTPRoutes
                                                                                (one LoadBalancer address)
@@ -79,8 +79,8 @@ def multi_relation_gateway_stack_fixture(
     Args:
         juju_k8s: Jubilant Juju instance for the Kubernetes model.
         gateway_api_integrator: gateway-api-integrator (gateway-route provider) app name.
-        backend_closed: any-charm-k8s backend with its port closed.
-        backend_open: any-charm-k8s backend that opens its port (adapter, open-ports branch).
+        backend_closed: any-charm backend with its port closed.
+        backend_open: any-charm backend that opens its port (adapter, open-ports branch).
         charm: Path to the packed ingress-configurator charm.
 
     Returns:
@@ -148,7 +148,7 @@ def test_gateway_route_multiple_relations(
         juju_k8s, multi_relation_gateway_stack.gateway_api_integrator
     )
 
-    # --- Closed-ports adapter (any-charm-k8s, is_port_open=False) ---
+    # --- Closed-ports adapter (any-charm, is_port_open=False) ---
     # The configurator creates a selector Service targeting the backend pod; no body assertion
     # since this branch only needs to prove selector-Service routing.
     logger.info(
@@ -199,7 +199,7 @@ def test_gateway_route_multiple_relations(
         expected_status=200,
     )
 
-    # --- Open-ports adapter (any-charm-k8s, is_port_open=True) ---
+    # --- Open-ports adapter (any-charm, is_port_open=True) ---
     # The configurator routes directly to the pod IP; assert BACKEND_BODY to prove traffic
     # reaches this specific backend rather than any other 200 source.
     logger.info(

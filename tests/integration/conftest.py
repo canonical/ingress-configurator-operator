@@ -31,7 +31,7 @@ HAPROXY_APP_NAME = "haproxy"
 HAPROXY_CHANNEL = "2.8/edge"
 HAPROXY_REVISION = 473
 HAPROXY_BASE = "ubuntu@24.04"
-SELF_SIGNED_CERTIFICATES_APP_NAME = "self-signed-certificates"
+CERTIFICATES_APP_NAME = "self-signed-certificates"
 CERTIFICATES_CHANNEL = "1/stable"
 CERTIFICATES_REVISION = 588
 ANY_CHARM_APP_NAME = "any-charm-backend"
@@ -154,17 +154,17 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju_lxd: jubilant.Juju):
     )
     juju_lxd.deploy(
         charm="self-signed-certificates",
-        app=SELF_SIGNED_CERTIFICATES_APP_NAME,
+        app=CERTIFICATES_APP_NAME,
         channel=CERTIFICATES_CHANNEL,
         revision=CERTIFICATES_REVISION,
     )
     juju_lxd.integrate(
-        f"{SELF_SIGNED_CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates"
+        f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates"
     )
     # Allow haproxy to verify content-cache's TLS certificate when protocol=https is used
     # in the haproxy-route relation (full HTTPS chain: haproxy → content-cache → backend).
     juju_lxd.integrate(
-        f"{SELF_SIGNED_CERTIFICATES_APP_NAME}:send-ca-cert", f"{HAPROXY_APP_NAME}:receive-ca-certs"
+        f"{CERTIFICATES_APP_NAME}:send-ca-cert", f"{HAPROXY_APP_NAME}:receive-ca-certs"
     )
     juju_lxd.offer(HAPROXY_APP_NAME, endpoint="haproxy-route")
     yield HAPROXY_APP_NAME
@@ -617,8 +617,8 @@ def deploy_self_signed_certificates(juju: jubilant.Juju) -> str:
         The certificate provider application name.
     """
     juju.deploy(
-        charm=SELF_SIGNED_CERTIFICATES_APP_NAME,
+        charm=CERTIFICATES_APP_NAME,
         channel=SELF_SIGNED_CERTIFICATES_CHANNEL,
         revision=architecture_revision(SELF_SIGNED_CERTIFICATES_REVISIONS),
     )
-    return SELF_SIGNED_CERTIFICATES_APP_NAME
+    return CERTIFICATES_APP_NAME

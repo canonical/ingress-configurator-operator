@@ -29,12 +29,12 @@ import jubilant
 import pytest
 
 from ..conftest import (
+    CERTIFICATES_APP_NAME,
     GATEWAY_CONFIGURATOR_CLOSED_PORTS,
     GATEWAY_CONFIGURATOR_OPEN_PORTS,
     GATEWAY_HSTS_MAX_AGE,
     HOSTNAME_BACKEND_CLOSED_PORTS,
     HOSTNAME_BACKEND_OPEN_PORTS,
-    SELF_SIGNED_CERTIFICATES_APP_NAME,
     deploy_ingress_configurator_for_gateway_route,
     deploy_self_signed_certificates,
 )
@@ -83,7 +83,7 @@ def multi_relation_https_stack_fixture(
     )
     deploy_self_signed_certificates(juju_k8s)
     juju_k8s.integrate(
-        f"{SELF_SIGNED_CERTIFICATES_APP_NAME}:certificates",
+        f"{CERTIFICATES_APP_NAME}:certificates",
         f"{gateway_api_integrator}:certificates",
     )
     deploy_ingress_configurator_for_gateway_route(
@@ -105,7 +105,7 @@ def multi_relation_https_stack_fixture(
 
     all_apps = (
         gateway_api_integrator,
-        SELF_SIGNED_CERTIFICATES_APP_NAME,
+        CERTIFICATES_APP_NAME,
         GATEWAY_CONFIGURATOR_CLOSED_PORTS,
         GATEWAY_CONFIGURATOR_OPEN_PORTS,
         backend_closed,

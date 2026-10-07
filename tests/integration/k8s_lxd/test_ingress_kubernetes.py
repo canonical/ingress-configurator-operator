@@ -28,9 +28,9 @@ from lightkube import Client
 from lightkube.resources.core_v1 import Node
 
 from ..conftest import (
+    CERTIFICATES_APP_NAME,
     HAPROXY_APP_NAME,
     MOCK_HAPROXY_HOSTNAME,
-    SELF_SIGNED_CERTIFICATES_APP_NAME,
     get_unit_addresses,
 )
 
@@ -56,7 +56,7 @@ def test_kubernetes_ingress_routes_through_haproxy(
         NodePort.
     """
     juju_lxd.wait(
-        lambda status: jubilant.all_active(status, haproxy, SELF_SIGNED_CERTIFICATES_APP_NAME),
+        lambda status: jubilant.all_active(status, haproxy, CERTIFICATES_APP_NAME),
         error=jubilant.any_error,
     )
     haproxy_config = _get_haproxy_config(

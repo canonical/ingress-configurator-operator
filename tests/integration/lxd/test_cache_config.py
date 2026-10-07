@@ -36,9 +36,9 @@ import pytest
 from requests import Session
 
 from ..conftest import (
+    CERTIFICATES_APP_NAME,
     HTTPS_BACKEND_APP_NAME,
     MOCK_HAPROXY_HOSTNAME,
-    SELF_SIGNED_CERTIFICATES_APP_NAME,
     get_unit_addresses,
 )
 
@@ -100,7 +100,7 @@ def test_cache_config_backend_substitution(
                 application,
                 any_charm_backend,
                 content_cache,
-                SELF_SIGNED_CERTIFICATES_APP_NAME,
+                CERTIFICATES_APP_NAME,
             )
             and jubilant.all_agents_idle(
                 status,
@@ -108,7 +108,7 @@ def test_cache_config_backend_substitution(
                 application,
                 any_charm_backend,
                 content_cache,
-                SELF_SIGNED_CERTIFICATES_APP_NAME,
+                CERTIFICATES_APP_NAME,
             )
         ),
         error=jubilant.any_error,
@@ -212,7 +212,7 @@ def test_cache_config_https_backend(
     # publishes https:// cache-backend URLs. haproxy already trusts this CA via receive-ca-certs
     # (wired in the haproxy fixture).
     juju_lxd.integrate(
-        f"{SELF_SIGNED_CERTIFICATES_APP_NAME}:certificates",
+        f"{CERTIFICATES_APP_NAME}:certificates",
         f"{content_cache}:certificates",
     )
 
@@ -226,7 +226,7 @@ def test_cache_config_https_backend(
                 application,
                 any_charm_backend_https,
                 content_cache,
-                SELF_SIGNED_CERTIFICATES_APP_NAME,
+                CERTIFICATES_APP_NAME,
             )
             and jubilant.all_agents_idle(
                 status,
@@ -234,7 +234,7 @@ def test_cache_config_https_backend(
                 application,
                 any_charm_backend_https,
                 content_cache,
-                SELF_SIGNED_CERTIFICATES_APP_NAME,
+                CERTIFICATES_APP_NAME,
             )
         ),
         error=jubilant.any_error,

@@ -35,7 +35,7 @@ import jubilant
 import pytest
 from requests import Session
 
-from .conftest import (
+from ..conftest import (
     CERTIFICATES_APP_NAME,
     HTTPS_BACKEND_APP_NAME,
     MOCK_HAPROXY_HOSTNAME,
@@ -45,7 +45,7 @@ from .conftest import (
 
 @pytest.mark.abort_on_fail
 def test_cache_config_backend_substitution(
-    juju: jubilant.Juju,
+    juju_lxd: jubilant.Juju,
     application: str,
     haproxy: str,
     any_charm_backend: str,
@@ -61,7 +61,7 @@ def test_cache_config_backend_substitution(
     - HTTP requests through haproxy are served via the content-cache → backend chain.
 
     Args:
-        juju: Jubilant juju fixture.
+        juju_lxd: Jubilant Juju instance for the LXD model.
         application: Name of the ingress-configurator application.
         haproxy: Name of the haproxy application.
         any_charm_backend: Name of the any-charm application acting as an HTTP backend.
@@ -69,14 +69,16 @@ def test_cache_config_backend_substitution(
         http_session: Modified requests session fixture for making HTTP requests.
     """
     # Wait for backend to be idle so its address is stable before reading it.
-    juju.wait(
+    juju_lxd.wait(
         lambda status: jubilant.all_agents_idle(status, any_charm_backend),
         error=jubilant.any_error,
     )
 
     # Configure ingress-configurator in integrator mode pointing at the backend.
-    backend_addresses = ",".join(str(addr) for addr in get_unit_addresses(juju, any_charm_backend))
-    juju.config(
+    backend_addresses = ",".join(
+        str(addr) for addr in get_unit_addresses(juju_lxd, any_charm_backend)
+    )
+    juju_lxd.config(
         app=application,
         values={
             "backend-addresses": backend_addresses,
@@ -86,11 +88,11 @@ def test_cache_config_backend_substitution(
     )
 
     # Wire up haproxy-route and cache-config relations.
-    juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
-    juju.integrate(f"{application}:cache-config", f"{content_cache}:cache-config")
+    juju_lxd.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
+    juju_lxd.integrate(f"{application}:cache-config", f"{content_cache}:cache-config")
 
     # All four charms (plus the certificates sidecar for haproxy) should settle active.
-    juju.wait(
+    juju_lxd.wait(
         lambda status: (
             jubilant.all_active(
                 status,
@@ -119,7 +121,7 @@ def test_cache_config_backend_substitution(
     # route to point at content-cache rather than the original backend.
 
     # Make an HTTP request through haproxy and verify the backend page is served.
-    haproxy_address = str(get_unit_addresses(juju, haproxy)[0])
+    haproxy_address = str(get_unit_addresses(juju_lxd, haproxy)[0])
     session = http_session(dns_entries=[(MOCK_HAPROXY_HOSTNAME, haproxy_address)])
 
     for path_component in ["v1", "v2"]:
@@ -134,7 +136,7 @@ def test_cache_config_backend_substitution(
 
 @pytest.mark.abort_on_fail
 def test_cache_config_https_backend(
-    juju: jubilant.Juju,
+    juju_lxd: jubilant.Juju,
     application: str,
     haproxy: str,
     any_charm_backend_https: str,
@@ -159,7 +161,7 @@ def test_cache_config_https_backend(
     Full chain: client ──HTTPS──▶ haproxy ──HTTPS──▶ content-cache ──HTTPS──▶ backend
 
     Args:
-        juju: Jubilant juju fixture.
+        juju_lxd: Jubilant Juju instance for the LXD model.
         application: Name of the ingress-configurator application.
         haproxy: Name of the haproxy application.
         any_charm_backend_https: Name of the any-charm application serving HTTPS.
@@ -167,15 +169,15 @@ def test_cache_config_https_backend(
         http_session: Modified requests session fixture for making HTTP requests.
     """
     # Wait for backend units to be idle so their addresses are stable before reading them.
-    juju.wait(
+    juju_lxd.wait(
         lambda status: jubilant.all_agents_idle(status, any_charm_backend_https),
         error=jubilant.any_error,
     )
 
     backend_addresses = ",".join(
-        str(addr) for addr in get_unit_addresses(juju, any_charm_backend_https)
+        str(addr) for addr in get_unit_addresses(juju_lxd, any_charm_backend_https)
     )
-    juju.config(
+    juju_lxd.config(
         app=application,
         values={
             "backend-addresses": backend_addresses,
@@ -201,7 +203,7 @@ def test_cache_config_https_backend(
 
     # backend-lego leg: provide the backend's CA cert to content-cache so nginx can verify
     # the HTTPS backend. The backend publishes its CA cert via provide-certificate-transfer.
-    juju.integrate(
+    juju_lxd.integrate(
         f"{HTTPS_BACKEND_APP_NAME}:provide-certificate-transfer",
         f"{content_cache}:receive-ca-cert",
     )
@@ -209,14 +211,14 @@ def test_cache_config_https_backend(
     # cache-lego leg: give content-cache a TLS certificate for its own nginx frontend so it
     # publishes https:// cache-backend URLs. haproxy already trusts this CA via receive-ca-certs
     # (wired in the haproxy fixture).
-    juju.integrate(
+    juju_lxd.integrate(
         f"{CERTIFICATES_APP_NAME}:certificates",
         f"{content_cache}:certificates",
     )
 
     # Relations already exist from test_cache_config_backend_substitution
     # (module-scoped model is shared); just wait for everything to settle.
-    juju.wait(
+    juju_lxd.wait(
         lambda status: (
             jubilant.all_active(
                 status,
@@ -239,7 +241,7 @@ def test_cache_config_https_backend(
         timeout=10 * 60,
     )
 
-    haproxy_address = str(get_unit_addresses(juju, haproxy)[0])
+    haproxy_address = str(get_unit_addresses(juju_lxd, haproxy)[0])
     session = http_session(dns_entries=[(MOCK_HAPROXY_HOSTNAME, haproxy_address)])
 
     for path_component in ["v1", "v2"]:

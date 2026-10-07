@@ -26,7 +26,7 @@ from typing import NamedTuple
 import jubilant
 import pytest
 
-from .conftest import (
+from ..conftest import (
     ADDITIONAL_HOSTNAME_BACKEND_CLOSED_PORTS,
     ADDITIONAL_HOSTNAME_BACKEND_OPEN_PORTS,
     GATEWAY_BACKEND_OPEN_BODY,
@@ -38,7 +38,7 @@ from .conftest import (
     INGRESS_BACKEND_PORT,
     deploy_ingress_configurator_for_gateway_route,
 )
-from .helper import (
+from ..helper import (
     assert_gateway_response,
     get_gateway_address,
 )

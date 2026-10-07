@@ -4,6 +4,7 @@
 """Integration tests configuration."""
 
 import json
+import logging
 import pathlib
 import subprocess  # nosec: B404
 import tempfile
@@ -16,6 +17,8 @@ import yaml
 from requests import Session
 
 from .helper import DNSResolverAdapter
+
+logger = logging.getLogger(__name__)
 
 MOCK_HAPROXY_HOSTNAME = "haproxy.internal"
 INGRESS_REQUIRER_SRC = pathlib.Path("tests/integration/any_charm_apache.py")
@@ -67,97 +70,46 @@ GATEWAY_BACKEND_OPEN_PATH = "/api/v1"
 GATEWAY_BACKEND_OPEN_BODY = "ok from open-ports backend"
 
 
+@pytest.fixture(scope="module", name="juju_lxd")
+def juju_lxd_fixture(request: pytest.FixtureRequest):
+    """Create a temporary model on the Concierge LXD controller."""
+    keep_models = bool(request.config.getoption("--keep-models"))
+    with jubilant.temp_model(keep=keep_models, controller="concierge-lxd") as juju:
+        juju.wait_timeout = JUJU_WAIT_TIMEOUT
+        yield juju
+
+        if request.session.testsfailed:
+            logger.error(juju.debug_log(limit=1000))
+
+
+@pytest.fixture(scope="module", name="juju_k8s")
+def juju_k8s_fixture(request: pytest.FixtureRequest):
+    """Create a temporary model on the Concierge Kubernetes controller."""
+    keep_models = bool(request.config.getoption("--keep-models"))
+    with jubilant.temp_model(keep=keep_models, controller="concierge-k8s") as juju:
+        juju.wait_timeout = JUJU_WAIT_TIMEOUT
+        yield juju
+
+        if request.session.testsfailed:
+            logger.error(juju.debug_log(limit=1000))
+
+
 @pytest.fixture(scope="session", name="charm")
 def charm_fixture(charm_paths) -> str:
     """Get the built ingress-configurator charm path."""
     return charm_paths["ingress-configurator"].path
 
 
-@pytest.fixture(scope="session", name="lxd_controller")
-def lxd_controller_fixture() -> str:
-    """Return the name of the machine controller.
-
-    Returns:
-        The machine controller name.
-    """
-    return "concierge-lxd"
-
-
-@pytest.fixture(scope="session", name="lxd_model")
-def lxd_model_fixture() -> str:
-    """Return the name of the machine model.
-
-    Returns:
-        The machine model name.
-    """
-    return "testing"
-
-
-@pytest.fixture(scope="session", name="k8s_controller")
-def k8s_controller_fixture() -> str:
-    """Return the name of the Kubernetes controller.
-
-    Returns:
-        The Kubernetes controller name.
-    """
-    return "concierge-k8s"
-
-
-@pytest.fixture(scope="session", name="k8s_model")
-def k8s_model_fixture() -> str:
-    """Return the name of the machine model.
-
-    Returns:
-        The machine model name.
-    """
-    return "k8s"
-
-
-@pytest.fixture(scope="module", name="juju")
-def juju_fixture(lxd_controller: str, lxd_model: str):
-    """Pytest fixture that wraps :meth:`jubilant.with_model`."""
-    juju = jubilant.Juju(model=f"{lxd_controller}:{lxd_model}")
-    juju.wait_timeout = JUJU_WAIT_TIMEOUT
-    yield juju
-
-
-@pytest.fixture(scope="module", name="juju_k8s")
-def juju_k8s_fixture(juju: jubilant.Juju, k8s_controller: str, k8s_model: str):
-    """Pytest fixture that wraps :meth:`jubilant.with_model`."""
-    try:
-        juju.cli("show-cloud", "--controller", k8s_controller, "k8s", include_model=False)
-    except jubilant.CLIError:
-        # Cloud not yet registered on this controller; add it now.
-        juju.cli("add-cloud", "--controller", k8s_controller, "k8s", include_model=False)
-    try:
-        juju.show_model(f"{k8s_controller}:{k8s_model}")
-    except jubilant.CLIError:
-        # Model not yet created on this controller; create it now.
-        # Use cli() directly to avoid add_model() mutating juju.model on this instance.
-        juju.cli(
-            "add-model",
-            "--no-switch",
-            "--controller",
-            k8s_controller,
-            k8s_model,
-            "k8s",
-            include_model=False,
-        )
-    new_juju = jubilant.Juju(model=f"{k8s_controller}:{k8s_model}")
-    new_juju.wait_timeout = JUJU_WAIT_TIMEOUT
-    yield new_juju
-
-
 @pytest.fixture(scope="module", name="application")
 def application_fixture(
     pytestconfig: pytest.Config,
-    juju: jubilant.Juju,
+    juju_lxd: jubilant.Juju,
     charm: str,
 ):
     """Deploy the ingress-configurator application.
 
     Args:
-        juju: Jubilant juju fixture.
+        juju_lxd: Jubilant Juju instance for the LXD model.
         charm_file: Path to the packed charm file.
 
     Yields:
@@ -165,10 +117,10 @@ def application_fixture(
     """
     metadata = yaml.safe_load(pathlib.Path("./charmcraft.yaml").read_text(encoding="UTF-8"))
     app_name = metadata["name"]
-    if app_name in juju.status().apps:
+    if app_name in juju_lxd.status().apps:
         yield app_name
         return
-    juju.deploy(
+    juju_lxd.deploy(
         charm=charm,
         app=app_name,
         base="ubuntu@24.04",
@@ -177,19 +129,19 @@ def application_fixture(
 
 
 @pytest.fixture(scope="module", name="haproxy")
-def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
+def haproxy_fixture(pytestconfig: pytest.Config, juju_lxd: jubilant.Juju):
     """_summary_
 
     Args:
-        juju: Jubilant juju fixture.
+        juju_lxd: Jubilant Juju instance for the LXD model.
 
     Yields:
         The haproxy app name.
     """
-    if HAPROXY_APP_NAME in juju.status().apps:
+    if HAPROXY_APP_NAME in juju_lxd.status().apps:
         yield HAPROXY_APP_NAME
         return
-    juju.deploy(
+    juju_lxd.deploy(
         charm="haproxy",
         app=HAPROXY_APP_NAME,
         channel=HAPROXY_CHANNEL,
@@ -197,29 +149,29 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
         config={"external-hostname": MOCK_HAPROXY_HOSTNAME},
         base=HAPROXY_BASE,
     )
-    juju.deploy(
+    juju_lxd.deploy(
         charm="self-signed-certificates",
         app=CERTIFICATES_APP_NAME,
         channel=CERTIFICATES_CHANNEL,
         revision=CERTIFICATES_REVISION,
     )
-    juju.integrate(f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates")
+    juju_lxd.integrate(f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates")
     # Allow haproxy to verify content-cache's TLS certificate when protocol=https is used
     # in the haproxy-route relation (full HTTPS chain: haproxy → content-cache → backend).
-    juju.integrate(f"{CERTIFICATES_APP_NAME}:send-ca-cert", f"{HAPROXY_APP_NAME}:receive-ca-certs")
-    juju.offer(HAPROXY_APP_NAME, endpoint="haproxy-route")
+    juju_lxd.integrate(
+        f"{CERTIFICATES_APP_NAME}:send-ca-cert", f"{HAPROXY_APP_NAME}:receive-ca-certs"
+    )
+    juju_lxd.offer(HAPROXY_APP_NAME, endpoint="haproxy-route")
     yield HAPROXY_APP_NAME
 
 
 @pytest.fixture(scope="module", name="any_charm_backend")
-def any_charm_backend_fixture(
-    pytestconfig: pytest.Config, juju: jubilant.Juju, lxd_controller: str, lxd_model: str
-):
+def any_charm_backend_fixture(pytestconfig: pytest.Config, juju_lxd: jubilant.Juju):
     """Deploy any-charm and configure it to serve as a requirer for the http interface."""
-    if ANY_CHARM_APP_NAME in juju.status().apps:
+    if ANY_CHARM_APP_NAME in juju_lxd.status().apps:
         yield ANY_CHARM_APP_NAME
         return
-    juju.deploy(
+    juju_lxd.deploy(
         charm="any-charm",
         channel="beta",
         app=ANY_CHARM_APP_NAME,
@@ -338,19 +290,17 @@ def _generate_backend_tls(hostname: str) -> tuple[str, str, str]:
 
 
 @pytest.fixture(scope="module", name="any_charm_backend_https")
-def any_charm_backend_https_fixture(
-    pytestconfig: pytest.Config, juju: jubilant.Juju, lxd_controller: str, lxd_model: str
-):
+def any_charm_backend_https_fixture(pytestconfig: pytest.Config, juju_lxd: jubilant.Juju):
     """Deploy a 2-unit any-charm serving HTTPS on port 443 with a shared CA-signed cert.
 
     Every unit serves the identical, hostname-scoped certificate (no IP SAN) and publishes
     the same CA, so content-cache trusts all backend units and can load-balance across them.
     """
-    if HTTPS_BACKEND_APP_NAME in juju.status().apps:
+    if HTTPS_BACKEND_APP_NAME in juju_lxd.status().apps:
         yield HTTPS_BACKEND_APP_NAME
         return
     ca_cert, server_cert, server_key = _generate_backend_tls(MOCK_HAPROXY_HOSTNAME)
-    juju.deploy(
+    juju_lxd.deploy(
         charm="any-charm",
         channel="beta",
         app=HTTPS_BACKEND_APP_NAME,
@@ -382,19 +332,19 @@ def any_charm_backend_https_fixture(
 
 
 @pytest.fixture(scope="module", name="content_cache")
-def content_cache_fixture(juju: jubilant.Juju):
+def content_cache_fixture(juju_lxd: jubilant.Juju):
     """Deploy content-cache from the 1/edge channel.
 
     Args:
-        juju: Jubilant juju fixture.
+        juju_lxd: Jubilant Juju instance for the LXD model.
 
     Yields:
         The content-cache application name.
     """
-    if CONTENT_CACHE_APP_NAME in juju.status().apps:
+    if CONTENT_CACHE_APP_NAME in juju_lxd.status().apps:
         yield CONTENT_CACHE_APP_NAME
         return
-    juju.deploy(
+    juju_lxd.deploy(
         charm="content-cache",
         app=CONTENT_CACHE_APP_NAME,
         channel=CONTENT_CACHE_CHANNEL,
@@ -426,12 +376,14 @@ def http_session() -> Callable[[list[tuple[str, IPv4Address | IPv6Address]]], Se
 
 
 @pytest.fixture(scope="module", name="ingress_requirer")
-def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, application: str):
+def ingress_requirer_fixture(
+    pytestconfig: pytest.Config, juju_lxd: jubilant.Juju, application: str
+):
     """Deploy and configure any-charm to serve as an ingress requirer for the ingress interface."""
-    if INGRESS_REQUIRER_APP_NAME in juju.status().apps:
+    if INGRESS_REQUIRER_APP_NAME in juju_lxd.status().apps:
         yield INGRESS_REQUIRER_APP_NAME
         return
-    juju.deploy(
+    juju_lxd.deploy(
         charm="any-charm",
         channel="beta",
         app=INGRESS_REQUIRER_APP_NAME,
@@ -445,7 +397,7 @@ def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, a
             "python-packages": "\n".join(["pydantic", "charmlibs-apt"]),
         },
     )
-    juju.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{application}:ingress")
+    juju_lxd.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{application}:ingress")
     yield INGRESS_REQUIRER_APP_NAME
 
 
@@ -467,22 +419,22 @@ def get_unit_addresses(juju: jubilant.Juju, application: str) -> list[IPv4Addres
 
 
 @pytest.fixture(scope="module", name="application_with_tcp_server")
-def application_with_tcp_server_fixture(application: str, juju: jubilant.Juju):
+def application_with_tcp_server_fixture(application: str, juju_lxd: jubilant.Juju):
     """Deploy the ingress-configurator application.
 
     Args:
         application: The ingress-configurator application name.
-        juju: Jubilant juju fixture.
+        juju_lxd: Jubilant Juju instance for the LXD model.
 
     Yields:
         The ingress-configurator app name.
     """
-    juju.wait(
+    juju_lxd.wait(
         lambda status: jubilant.all_agents_idle(status, application),
         error=jubilant.any_error,
     )
-    juju.exec("sudo snap install ping-pong-tcp", unit=f"{application}/leader")
-    juju.exec("sudo snap set ping-pong-tcp host=0.0.0.0", unit=f"{application}/leader")
+    juju_lxd.exec("sudo snap install ping-pong-tcp", unit=f"{application}/leader")
+    juju_lxd.exec("sudo snap set ping-pong-tcp host=0.0.0.0", unit=f"{application}/leader")
     yield application
 
 
@@ -490,17 +442,17 @@ def application_with_tcp_server_fixture(application: str, juju: jubilant.Juju):
 def k8s_ingress_requirer_fixture(
     pytestconfig: pytest.Config,
     charm: str,
+    haproxy: str,
     juju_k8s: jubilant.Juju,
-    lxd_controller: str,
-    lxd_model: str,
+    juju_lxd: jubilant.Juju,
 ) -> Generator[str, None, None]:
     """Deploy any-charm as an ingress requirer on the K8s model.
 
     Args:
         charm: Path to the packed charm file.
+        haproxy: Name of the HAProxy application offered from the LXD model.
         juju_k8s: jubilant.Juju instance for the K8s model.
-        lxd_controller: the LXD controller name.
-        lxd_model: the LXD model name.
+        juju_lxd: jubilant.Juju instance for the LXD model.
 
     Yields:
         The ingress requirer application name.
@@ -514,9 +466,14 @@ def k8s_ingress_requirer_fixture(
         channel="latest/edge",
         app=INGRESS_REQUIRER_APP_NAME,
     )
-    juju_k8s.integrate(
-        f"{APP_NAME}:haproxy-route", f"{lxd_controller}:admin/{lxd_model}.{HAPROXY_APP_NAME}"
+    lxd_model = juju_lxd.show_model()
+    juju_k8s.consume(
+        f"{lxd_model.short_name}.{haproxy}",
+        alias=haproxy,
+        controller=lxd_model.controller_name,
+        owner="admin",
     )
+    juju_k8s.integrate(f"{APP_NAME}:haproxy-route", f"{haproxy}:haproxy-route")
     juju_k8s.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{APP_NAME}:ingress")
     juju_k8s.wait(
         lambda status: jubilant.all_agents_idle(status, APP_NAME, INGRESS_REQUIRER_APP_NAME),

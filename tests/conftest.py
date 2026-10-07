@@ -4,6 +4,11 @@
 """Fixtures for charm tests."""
 
 
+def pytest_addoption(parser):
+    """Add integration test command-line options."""
+    parser.addoption("--keep-models", action="store_true", default=False)
+
+
 def pytest_configure(config):
     """Adds config options.
 

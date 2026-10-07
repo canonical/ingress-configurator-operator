@@ -8,7 +8,7 @@ from typing import Callable
 import jubilant
 from requests import Session
 
-from ..conftest import CERTIFICATES_APP_NAME, MOCK_HAPROXY_HOSTNAME, get_unit_addresses
+from ..conftest import MOCK_HAPROXY_HOSTNAME, SELF_SIGNED_CERTIFICATES_APP_NAME, get_unit_addresses
 
 
 def test_adapter_end_to_end_routing(
@@ -30,7 +30,7 @@ def test_adapter_end_to_end_routing(
     juju_lxd.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
     juju_lxd.wait(
         lambda status: jubilant.all_active(
-            status, haproxy, application, ingress_requirer, CERTIFICATES_APP_NAME
+            status, haproxy, application, ingress_requirer, SELF_SIGNED_CERTIFICATES_APP_NAME
         ),
         error=jubilant.any_error,
     )

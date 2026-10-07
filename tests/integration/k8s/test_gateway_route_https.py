@@ -7,7 +7,7 @@ Topology:
 
     self-signed-certificates ──certificates──▶ gateway-api-integrator (enforce-https=True)
                                                           ▲
-    flask-k8s (closed-ports)       ──ingress──▶ configurator-closed ─┤ gateway-route
+    any-charm-k8s (closed-ports)   ──ingress──▶ configurator-closed ─┤ gateway-route
     any-charm-k8s (open-ports)    ──ingress──▶ configurator-open  ─┘
 
 The provider creates one per-hostname HTTPS Gateway listener per relation (one for
@@ -29,14 +29,14 @@ import jubilant
 import pytest
 
 from ..conftest import (
-    CERTIFICATES_APP_NAME,
-    GATEWAY_CERTIFICATES_CHANNEL,
     GATEWAY_CONFIGURATOR_CLOSED_PORTS,
     GATEWAY_CONFIGURATOR_OPEN_PORTS,
     GATEWAY_HSTS_MAX_AGE,
     HOSTNAME_BACKEND_CLOSED_PORTS,
     HOSTNAME_BACKEND_OPEN_PORTS,
+    SELF_SIGNED_CERTIFICATES_APP_NAME,
     deploy_ingress_configurator_for_gateway_route,
+    deploy_self_signed_certificates,
 )
 from ..helper import assert_gateway_response, get_gateway_address
 
@@ -70,7 +70,7 @@ def multi_relation_https_stack_fixture(
     Args:
         juju_k8s: Jubilant Juju instance for the Kubernetes model.
         gateway_api_integrator: Shared gateway-route provider app name.
-        backend_closed: flask-k8s backend (is_port_open=False).
+        backend_closed: any-charm-k8s backend (is_port_open=False).
         backend_open: any-charm-k8s backend (is_port_open=True).
         charm: Path to the packed ingress-configurator charm.
 
@@ -81,9 +81,10 @@ def multi_relation_https_stack_fixture(
         gateway_api_integrator,
         {"enforce-https": True, "hsts-max-age": GATEWAY_HSTS_MAX_AGE},
     )
-    juju_k8s.deploy(charm=CERTIFICATES_APP_NAME, channel=GATEWAY_CERTIFICATES_CHANNEL)
+    deploy_self_signed_certificates(juju_k8s)
     juju_k8s.integrate(
-        f"{CERTIFICATES_APP_NAME}:certificates", f"{gateway_api_integrator}:certificates"
+        f"{SELF_SIGNED_CERTIFICATES_APP_NAME}:certificates",
+        f"{gateway_api_integrator}:certificates",
     )
     deploy_ingress_configurator_for_gateway_route(
         juju_k8s,
@@ -104,7 +105,7 @@ def multi_relation_https_stack_fixture(
 
     all_apps = (
         gateway_api_integrator,
-        CERTIFICATES_APP_NAME,
+        SELF_SIGNED_CERTIFICATES_APP_NAME,
         GATEWAY_CONFIGURATOR_CLOSED_PORTS,
         GATEWAY_CONFIGURATOR_OPEN_PORTS,
         backend_closed,

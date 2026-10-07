@@ -9,7 +9,7 @@ import jubilant
 import pytest
 from requests import Session
 
-from ..conftest import CERTIFICATES_APP_NAME, MOCK_HAPROXY_HOSTNAME, get_unit_addresses
+from ..conftest import MOCK_HAPROXY_HOSTNAME, SELF_SIGNED_CERTIFICATES_APP_NAME, get_unit_addresses
 
 
 @pytest.mark.abort_on_fail
@@ -32,7 +32,7 @@ def test_config_hostnames_and_paths(
     juju_lxd.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
     juju_lxd.wait(
         lambda status: jubilant.all_agents_idle(
-            status, haproxy, application, any_charm_backend, CERTIFICATES_APP_NAME
+            status, haproxy, application, any_charm_backend, SELF_SIGNED_CERTIFICATES_APP_NAME
         ),
         error=jubilant.any_error,
     )
@@ -50,10 +50,10 @@ def test_config_hostnames_and_paths(
     juju_lxd.wait(
         lambda status: (
             jubilant.all_active(
-                status, haproxy, application, any_charm_backend, CERTIFICATES_APP_NAME
+                status, haproxy, application, any_charm_backend, SELF_SIGNED_CERTIFICATES_APP_NAME
             )
             and jubilant.all_agents_idle(
-                status, haproxy, application, any_charm_backend, CERTIFICATES_APP_NAME
+                status, haproxy, application, any_charm_backend, SELF_SIGNED_CERTIFICATES_APP_NAME
             )
         ),
         error=jubilant.any_error,

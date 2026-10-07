@@ -14,9 +14,10 @@ from typing import Callable, Generator
 import jubilant
 import pytest
 import yaml
+from opcli.core.env import current_arch
 from requests import Session
 
-from .helper import DNSResolverAdapter
+from .helper import ArchitectureRevisions, DNSResolverAdapter, architecture_revision
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ HAPROXY_APP_NAME = "haproxy"
 HAPROXY_CHANNEL = "2.8/edge"
 HAPROXY_REVISION = 473
 HAPROXY_BASE = "ubuntu@24.04"
-CERTIFICATES_APP_NAME = "self-signed-certificates"
+SELF_SIGNED_CERTIFICATES_APP_NAME = "self-signed-certificates"
 CERTIFICATES_CHANNEL = "1/stable"
 CERTIFICATES_REVISION = 588
 ANY_CHARM_APP_NAME = "any-charm-backend"
@@ -44,16 +45,17 @@ APP_NAME = "ingress-configurator"
 # Gateway-route (Kubernetes Gateway API) test configuration.
 GATEWAY_API_INTEGRATOR_APP_NAME = "gateway-api-integrator"
 GATEWAY_API_INTEGRATOR_CHANNEL = "1/edge"
-GATEWAY_API_INTEGRATOR_REVISION = 172
+GATEWAY_API_INTEGRATOR_REVISIONS = ArchitectureRevisions(amd64=185, arm64=186)
 # GatewayClass provided by the Canonical Kubernetes used in CI.
 GATEWAY_CLASS = "ck-gateway"
 EXTERNAL_HOSTNAME = "gateway.internal"
-GATEWAY_CERTIFICATES_CHANNEL = "1/edge"
+SELF_SIGNED_CERTIFICATES_CHANNEL = "1/stable"
+SELF_SIGNED_CERTIFICATES_REVISIONS = ArchitectureRevisions(amd64=586, arm64=585)
 # max-age (seconds) for the Strict-Transport-Security header the provider publishes when
 # HTTPS is enforced; a non-default value so the enforced-HTTPS test verifies it flows through.
 GATEWAY_HSTS_MAX_AGE = 15552000
 
-# Closed-ports backend (flask-k8s, is_port_open=False).
+# Closed-ports backend (any-charm-k8s, is_port_open=False).
 # Also reused by the enforced-HTTPS test, which runs in a separate model.
 GATEWAY_CONFIGURATOR_CLOSED_PORTS = "configurator-closed"
 GATEWAY_BACKEND_CLOSED_PORTS = "backend-closed"
@@ -68,6 +70,7 @@ ADDITIONAL_HOSTNAME_BACKEND_OPEN_PORTS = "alt-open.gateway.internal"
 INGRESS_BACKEND_PORT = 8000
 GATEWAY_BACKEND_OPEN_PATH = "/api/v1"
 GATEWAY_BACKEND_OPEN_BODY = "ok from open-ports backend"
+GATEWAY_BACKEND_REVISIONS = ArchitectureRevisions(amd64=129, arm64=133)
 
 
 @pytest.fixture(scope="module", name="juju_lxd")
@@ -151,15 +154,17 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju_lxd: jubilant.Juju):
     )
     juju_lxd.deploy(
         charm="self-signed-certificates",
-        app=CERTIFICATES_APP_NAME,
+        app=SELF_SIGNED_CERTIFICATES_APP_NAME,
         channel=CERTIFICATES_CHANNEL,
         revision=CERTIFICATES_REVISION,
     )
-    juju_lxd.integrate(f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates")
+    juju_lxd.integrate(
+        f"{SELF_SIGNED_CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates"
+    )
     # Allow haproxy to verify content-cache's TLS certificate when protocol=https is used
     # in the haproxy-route relation (full HTTPS chain: haproxy → content-cache → backend).
     juju_lxd.integrate(
-        f"{CERTIFICATES_APP_NAME}:send-ca-cert", f"{HAPROXY_APP_NAME}:receive-ca-certs"
+        f"{SELF_SIGNED_CERTIFICATES_APP_NAME}:send-ca-cert", f"{HAPROXY_APP_NAME}:receive-ca-certs"
     )
     juju_lxd.offer(HAPROXY_APP_NAME, endpoint="haproxy-route")
     yield HAPROXY_APP_NAME
@@ -499,7 +504,7 @@ def gateway_api_integrator_fixture(juju_k8s: jubilant.Juju) -> str:
     juju_k8s.deploy(
         charm=GATEWAY_API_INTEGRATOR_APP_NAME,
         channel=GATEWAY_API_INTEGRATOR_CHANNEL,
-        revision=GATEWAY_API_INTEGRATOR_REVISION,
+        revision=architecture_revision(GATEWAY_API_INTEGRATOR_REVISIONS),
         base="ubuntu@24.04",
         trust=True,
         config={"gateway-class": GATEWAY_CLASS, "enforce-https": False},
@@ -522,18 +527,24 @@ def deploy_ingress_configurator_for_gateway_route(
     Returns:
         The deployed application name.
     """
-    juju.deploy(charm=charm, app=app, trust=True, config=config or {})
+    juju.deploy(
+        charm=charm,
+        app=app,
+        constraints={"arch": current_arch()},
+        trust=True,
+        config=config or {},
+    )
     juju.integrate(f"{app}:gateway-route", f"{gateway}:gateway-route")
     return app
 
 
 @pytest.fixture(scope="module", name="backend_closed")
 def backend_closed_fixture(juju_k8s: jubilant.Juju) -> str:
-    """Deploy a flask-k8s workload that keeps its port closed (``is_port_open=False``).
+    """Deploy an any-charm-k8s workload with ``is_port_open=False``.
 
-    flask-k8s does not open its workload port, so a consumer relating over ``ingress`` sees
-    ``is_port_open=False``, driving the closed-ports branch of the adapter decision tree. This
-    fixture does not wait for the application to settle.
+    The backend serves HTTP but does not advertise its port through Juju, driving the
+    closed-ports branch of the adapter decision tree. This fixture does not wait for the
+    application to settle.
 
     Args:
         juju_k8s: Jubilant Juju instance for the Kubernetes model.
@@ -541,7 +552,7 @@ def backend_closed_fixture(juju_k8s: jubilant.Juju) -> str:
     Returns:
         The deployed application name.
     """
-    juju_k8s.deploy(charm="flask-k8s", app=GATEWAY_BACKEND_CLOSED_PORTS, channel="latest/edge")
+    _deploy_gateway_backend(juju_k8s, GATEWAY_BACKEND_CLOSED_PORTS, open_port=False)
     return GATEWAY_BACKEND_CLOSED_PORTS
 
 
@@ -560,10 +571,23 @@ def backend_open_fixture(juju_k8s: jubilant.Juju) -> str:
     Returns:
         The deployed application name.
     """
-    juju_k8s.deploy(
+    _deploy_gateway_backend(juju_k8s, GATEWAY_BACKEND_OPEN_PORTS, open_port=True)
+    return GATEWAY_BACKEND_OPEN_PORTS
+
+
+def _deploy_gateway_backend(juju: jubilant.Juju, app: str, *, open_port: bool) -> None:
+    """Deploy a pinned any-charm-k8s HTTP backend.
+
+    Args:
+        juju: Jubilant Juju instance for the Kubernetes model.
+        app: Application name for the backend.
+        open_port: Whether the backend advertises its HTTP port through Juju.
+    """
+    juju.deploy(
         charm="any-charm-k8s",
-        channel="beta",
-        app=GATEWAY_BACKEND_OPEN_PORTS,
+        channel="latest/beta",
+        revision=architecture_revision(GATEWAY_BACKEND_REVISIONS),
+        app=app,
         config={
             "src-overwrite": json.dumps(
                 {
@@ -573,6 +597,7 @@ def backend_open_fixture(juju_k8s: jubilant.Juju) -> str:
                         {
                             "port": INGRESS_BACKEND_PORT,
                             "pages": {GATEWAY_BACKEND_OPEN_PATH: GATEWAY_BACKEND_OPEN_BODY},
+                            "open_port": open_port,
                         }
                     ),
                 }
@@ -580,4 +605,20 @@ def backend_open_fixture(juju_k8s: jubilant.Juju) -> str:
             "python-packages": "\n".join(["pydantic", "charmlibs-apt"]),
         },
     )
-    return GATEWAY_BACKEND_OPEN_PORTS
+
+
+def deploy_self_signed_certificates(juju: jubilant.Juju) -> str:
+    """Deploy the architecture-specific stable certificate provider.
+
+    Args:
+        juju: Jubilant Juju instance for the Kubernetes model.
+
+    Returns:
+        The certificate provider application name.
+    """
+    juju.deploy(
+        charm=SELF_SIGNED_CERTIFICATES_APP_NAME,
+        channel=SELF_SIGNED_CERTIFICATES_CHANNEL,
+        revision=architecture_revision(SELF_SIGNED_CERTIFICATES_REVISIONS),
+    )
+    return SELF_SIGNED_CERTIFICATES_APP_NAME

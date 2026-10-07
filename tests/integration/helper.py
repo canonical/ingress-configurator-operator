@@ -4,6 +4,7 @@
 """Helper methods for integration tests."""
 
 import re
+from typing import NamedTuple
 from urllib.parse import urlparse
 
 import jubilant
@@ -15,6 +16,40 @@ from tenacity import retry, retry_if_exception_type, stop_after_delay, wait_fixe
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 _IPV4_RE = re.compile(r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})")
+
+
+class ArchitectureRevisions(NamedTuple):
+    """Charm revisions published for the supported architectures."""
+
+    amd64: int
+    arm64: int
+
+
+def architecture_revision(
+    revisions: ArchitectureRevisions, architecture: str | None = None
+) -> int:
+    """Return the revision published for the requested architecture.
+
+    Args:
+        revisions: Revisions published for amd64 and arm64.
+        architecture: Architecture to select, or the current architecture when omitted.
+
+    Returns:
+        The revision published for the selected architecture.
+
+    Raises:
+        ValueError: If the selected architecture is unsupported.
+    """
+    if architecture is None:
+        from opcli.core.env import current_arch
+
+        architecture = current_arch()
+
+    if architecture == "amd64":
+        return revisions.amd64
+    if architecture == "arm64":
+        return revisions.arm64
+    raise ValueError(f"unsupported architecture: {architecture}")
 
 
 def get_gateway_address(juju: jubilant.Juju, gateway_api_integrator: str) -> str:

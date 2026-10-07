@@ -18,26 +18,23 @@ exclude:
 - .venv
 - .*_cache
 integration-suites:
-  tests/integration-lxd-juju4/:
+  tests/integration/lxd/:
     summary: ingress-configurator LXD integration tests (Juju 4)
     working-dir: ./
-    discover-path: tests/integration/lxd/
     backends:
     - integration-test
     environment:
       CONCIERGE: concierge-lxd-juju4.yaml
-  tests/integration-k8s-juju4/:
+  tests/integration/k8s/:
     summary: ingress-configurator Kubernetes integration tests (Juju 4)
     working-dir: ./
-    discover-path: tests/integration/k8s/
     backends:
     - integration-test
     environment:
       CONCIERGE: concierge-k8s-juju4.yaml
-  tests/integration-k8s-lxd-juju4/:
+  tests/integration/k8s_lxd/:
     summary: ingress-configurator cross-model integration tests (Juju 4)
     working-dir: ./
-    discover-path: tests/integration/k8s_lxd/
     backends:
     - integration-test
     environment:

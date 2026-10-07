@@ -32,22 +32,14 @@ def test_spread_suites_match_test_substrates() -> None:
     """Spread discovers each test group with the corresponding Concierge config."""
     spread = _load_yaml("spread.yaml")
     expected_suites = {
-        "tests/integration-lxd-juju4/": (
-            "tests/integration/lxd/",
-            "concierge-lxd-juju4.yaml",
-        ),
-        "tests/integration-k8s-juju4/": (
-            "tests/integration/k8s/",
-            "concierge-k8s-juju4.yaml",
-        ),
-        "tests/integration-k8s-lxd-juju4/": (
-            "tests/integration/k8s_lxd/",
-            "concierge-k8s-lxd-juju4.yaml",
-        ),
+        "tests/integration/lxd/": "concierge-lxd-juju4.yaml",
+        "tests/integration/k8s/": "concierge-k8s-juju4.yaml",
+        "tests/integration/k8s_lxd/": "concierge-k8s-lxd-juju4.yaml",
     }
 
     assert set(spread["integration-suites"]) == set(expected_suites)
-    for suite_name, (discover_path, concierge) in expected_suites.items():
+    for suite_name, concierge in expected_suites.items():
         suite = spread["integration-suites"][suite_name]
-        assert suite["discover-path"] == discover_path
+        assert "discover-path" not in suite
+        assert "auto-discover" not in suite
         assert suite["environment"]["CONCIERGE"] == concierge

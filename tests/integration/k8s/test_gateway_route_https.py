@@ -6,9 +6,9 @@
 Topology:
 
     self-signed-certificates ──certificates──▶ gateway-api-integrator (enforce-https=True)
-                                                          ▲
-    flask-k8s (closed-ports)       ──ingress──▶ configurator-closed ─┤ gateway-route
-    any-charm-k8s (open-ports)    ──ingress──▶ configurator-open  ─┘
+                                                                 ▲
+    any-charm (closed-ports)   ──ingress──▶ configurator-closed ─┤ gateway-route
+    any-charm (open-ports)    ──ingress──▶ configurator-open    ─┘
 
 The provider creates one per-hostname HTTPS Gateway listener per relation (one for
 ``HOSTNAME_CLOSED_PORTS``, one for ``HOSTNAME_OPEN_PORTS``). Each listener has its own ``hostname``
@@ -27,10 +27,11 @@ from typing import NamedTuple
 
 import jubilant
 import pytest
+from opcli.core.env import current_arch
 
 from ..conftest import (
     CERTIFICATES_APP_NAME,
-    GATEWAY_CERTIFICATES_CHANNEL,
+    CERTIFICATES_CHANNEL,
     GATEWAY_CONFIGURATOR_CLOSED_PORTS,
     GATEWAY_CONFIGURATOR_OPEN_PORTS,
     GATEWAY_HSTS_MAX_AGE,
@@ -70,8 +71,8 @@ def multi_relation_https_stack_fixture(
     Args:
         juju_k8s: Jubilant Juju instance for the Kubernetes model.
         gateway_api_integrator: Shared gateway-route provider app name.
-        backend_closed: flask-k8s backend (is_port_open=False).
-        backend_open: any-charm-k8s backend (is_port_open=True).
+        backend_closed: any-charm backend (is_port_open=False).
+        backend_open: any-charm backend (is_port_open=True).
         charm: Path to the packed ingress-configurator charm.
 
     Returns:
@@ -81,9 +82,14 @@ def multi_relation_https_stack_fixture(
         gateway_api_integrator,
         {"enforce-https": True, "hsts-max-age": GATEWAY_HSTS_MAX_AGE},
     )
-    juju_k8s.deploy(charm=CERTIFICATES_APP_NAME, channel=GATEWAY_CERTIFICATES_CHANNEL)
+    juju_k8s.deploy(
+        charm=CERTIFICATES_APP_NAME,
+        channel=CERTIFICATES_CHANNEL,
+        constraints={"arch": current_arch()},
+    )
     juju_k8s.integrate(
-        f"{CERTIFICATES_APP_NAME}:certificates", f"{gateway_api_integrator}:certificates"
+        f"{CERTIFICATES_APP_NAME}:certificates",
+        f"{gateway_api_integrator}:certificates",
     )
     deploy_ingress_configurator_for_gateway_route(
         juju_k8s,

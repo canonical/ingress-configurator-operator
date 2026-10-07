@@ -14,6 +14,7 @@ from typing import Callable, Generator
 import jubilant
 import pytest
 import yaml
+from opcli.core.env import current_arch
 from requests import Session
 
 from .helper import DNSResolverAdapter
@@ -44,23 +45,21 @@ APP_NAME = "ingress-configurator"
 # Gateway-route (Kubernetes Gateway API) test configuration.
 GATEWAY_API_INTEGRATOR_APP_NAME = "gateway-api-integrator"
 GATEWAY_API_INTEGRATOR_CHANNEL = "1/edge"
-GATEWAY_API_INTEGRATOR_REVISION = 172
 # GatewayClass provided by the Canonical Kubernetes used in CI.
 GATEWAY_CLASS = "ck-gateway"
 EXTERNAL_HOSTNAME = "gateway.internal"
-GATEWAY_CERTIFICATES_CHANNEL = "1/edge"
 # max-age (seconds) for the Strict-Transport-Security header the provider publishes when
 # HTTPS is enforced; a non-default value so the enforced-HTTPS test verifies it flows through.
 GATEWAY_HSTS_MAX_AGE = 15552000
 
-# Closed-ports backend (flask-k8s, is_port_open=False).
+# Closed-ports backend (any-charm, is_port_open=False).
 # Also reused by the enforced-HTTPS test, which runs in a separate model.
 GATEWAY_CONFIGURATOR_CLOSED_PORTS = "configurator-closed"
 GATEWAY_BACKEND_CLOSED_PORTS = "backend-closed"
 HOSTNAME_BACKEND_CLOSED_PORTS = "closed.gateway.internal"
 ADDITIONAL_HOSTNAME_BACKEND_CLOSED_PORTS = "alt-closed.gateway.internal"
 
-# Open-ports backend (any-charm-k8s, is_port_open=True).
+# Open-ports backend (any-charm, is_port_open=True).
 GATEWAY_CONFIGURATOR_OPEN_PORTS = "configurator-open"
 GATEWAY_BACKEND_OPEN_PORTS = "backend-open"
 HOSTNAME_BACKEND_OPEN_PORTS = "open.gateway.internal"
@@ -499,8 +498,8 @@ def gateway_api_integrator_fixture(juju_k8s: jubilant.Juju) -> str:
     juju_k8s.deploy(
         charm=GATEWAY_API_INTEGRATOR_APP_NAME,
         channel=GATEWAY_API_INTEGRATOR_CHANNEL,
-        revision=GATEWAY_API_INTEGRATOR_REVISION,
         base="ubuntu@24.04",
+        constraints={"arch": current_arch()},
         trust=True,
         config={"gateway-class": GATEWAY_CLASS, "enforce-https": False},
     )
@@ -522,18 +521,24 @@ def deploy_ingress_configurator_for_gateway_route(
     Returns:
         The deployed application name.
     """
-    juju.deploy(charm=charm, app=app, trust=True, config=config or {})
+    juju.deploy(
+        charm=charm,
+        app=app,
+        constraints={"arch": current_arch()},
+        trust=True,
+        config=config or {},
+    )
     juju.integrate(f"{app}:gateway-route", f"{gateway}:gateway-route")
     return app
 
 
 @pytest.fixture(scope="module", name="backend_closed")
 def backend_closed_fixture(juju_k8s: jubilant.Juju) -> str:
-    """Deploy a flask-k8s workload that keeps its port closed (``is_port_open=False``).
+    """Deploy an any-charm workload with ``is_port_open=False``.
 
-    flask-k8s does not open its workload port, so a consumer relating over ``ingress`` sees
-    ``is_port_open=False``, driving the closed-ports branch of the adapter decision tree. This
-    fixture does not wait for the application to settle.
+    The backend serves HTTP but does not advertise its port through Juju, driving the
+    closed-ports branch of the adapter decision tree. This fixture does not wait for the
+    application to settle.
 
     Args:
         juju_k8s: Jubilant Juju instance for the Kubernetes model.
@@ -541,13 +546,13 @@ def backend_closed_fixture(juju_k8s: jubilant.Juju) -> str:
     Returns:
         The deployed application name.
     """
-    juju_k8s.deploy(charm="flask-k8s", app=GATEWAY_BACKEND_CLOSED_PORTS, channel="latest/edge")
+    _deploy_gateway_backend(juju_k8s, GATEWAY_BACKEND_CLOSED_PORTS, open_port=False)
     return GATEWAY_BACKEND_CLOSED_PORTS
 
 
 @pytest.fixture(scope="module", name="backend_open")
 def backend_open_fixture(juju_k8s: jubilant.Juju) -> str:
-    """Deploy an any-charm-k8s workload that opens its port (``is_port_open=True``).
+    """Deploy an any-charm workload that opens its port (``is_port_open=True``).
 
     The backend declares ingress on a fixed port, opens that port (so the ingress databag
     reports ``is_port_open=True``) and serves a catch-all HTTP response from its workload
@@ -560,10 +565,23 @@ def backend_open_fixture(juju_k8s: jubilant.Juju) -> str:
     Returns:
         The deployed application name.
     """
-    juju_k8s.deploy(
-        charm="any-charm-k8s",
-        channel="beta",
-        app=GATEWAY_BACKEND_OPEN_PORTS,
+    _deploy_gateway_backend(juju_k8s, GATEWAY_BACKEND_OPEN_PORTS, open_port=True)
+    return GATEWAY_BACKEND_OPEN_PORTS
+
+
+def _deploy_gateway_backend(juju: jubilant.Juju, app: str, *, open_port: bool) -> None:
+    """Deploy an any-charm HTTP backend.
+
+    Args:
+        juju: Jubilant Juju instance for the Kubernetes model.
+        app: Application name for the backend.
+        open_port: Whether the backend advertises its HTTP port through Juju.
+    """
+    juju.deploy(
+        charm="any-charm",
+        channel="latest/beta",
+        app=app,
+        constraints={"arch": current_arch()},
         config={
             "src-overwrite": json.dumps(
                 {
@@ -573,6 +591,7 @@ def backend_open_fixture(juju_k8s: jubilant.Juju) -> str:
                         {
                             "port": INGRESS_BACKEND_PORT,
                             "pages": {GATEWAY_BACKEND_OPEN_PATH: GATEWAY_BACKEND_OPEN_BODY},
+                            "open_port": open_port,
                         }
                     ),
                 }
@@ -580,4 +599,3 @@ def backend_open_fixture(juju_k8s: jubilant.Juju) -> str:
             "python-packages": "\n".join(["pydantic", "charmlibs-apt"]),
         },
     )
-    return GATEWAY_BACKEND_OPEN_PORTS

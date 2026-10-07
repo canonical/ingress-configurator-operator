@@ -4,6 +4,7 @@
 """Integration tests configuration."""
 
 import json
+import logging
 import pathlib
 import subprocess  # nosec: B404
 import tempfile
@@ -16,6 +17,8 @@ import yaml
 from requests import Session
 
 from .helper import DNSResolverAdapter
+
+logger = logging.getLogger(__name__)
 
 MOCK_HAPROXY_HOSTNAME = "haproxy.internal"
 INGRESS_REQUIRER_SRC = pathlib.Path("tests/integration/any_charm_apache.py")
@@ -65,6 +68,30 @@ ADDITIONAL_HOSTNAME_BACKEND_OPEN_PORTS = "alt-open.gateway.internal"
 INGRESS_BACKEND_PORT = 8000
 GATEWAY_BACKEND_OPEN_PATH = "/api/v1"
 GATEWAY_BACKEND_OPEN_BODY = "ok from open-ports backend"
+
+
+@pytest.fixture(scope="module", name="juju_lxd")
+def juju_lxd_fixture(request: pytest.FixtureRequest):
+    """Create a temporary model on the Concierge LXD controller."""
+    keep_models = bool(request.config.getoption("--keep-models"))
+    with jubilant.temp_model(keep=keep_models, controller="concierge-lxd") as juju:
+        juju.wait_timeout = JUJU_WAIT_TIMEOUT
+        yield juju
+
+        if request.session.testsfailed:
+            logger.error(juju.debug_log(limit=1000))
+
+
+@pytest.fixture(scope="module", name="juju_k8s")
+def juju_k8s_fixture(request: pytest.FixtureRequest):
+    """Create a temporary model on the Concierge Kubernetes controller."""
+    keep_models = bool(request.config.getoption("--keep-models"))
+    with jubilant.temp_model(keep=keep_models, controller="concierge-k8s") as juju:
+        juju.wait_timeout = JUJU_WAIT_TIMEOUT
+        yield juju
+
+        if request.session.testsfailed:
+            logger.error(juju.debug_log(limit=1000))
 
 
 @pytest.fixture(scope="session", name="charm")

@@ -10,19 +10,15 @@ INTEGRATION_DIR = Path(__file__).parent
 TESTS_CONFTEST = INTEGRATION_DIR.parent / "conftest.py"
 
 
-def test_shared_conftest_does_not_own_models() -> None:
-    """Shared fixtures must not select or create a Juju substrate."""
+def test_shared_conftest_owns_explicit_model_fixtures() -> None:
+    """Shared fixtures create lazy temporary models on explicit controllers."""
     source = (INTEGRATION_DIR / "conftest.py").read_text(encoding="utf-8")
 
-    for fixture_name in (
-        "lxd_controller",
-        "lxd_model",
-        "k8s_controller",
-        "k8s_model",
-        "juju",
-        "juju_k8s",
-    ):
-        assert f'name="{fixture_name}"' not in source
+    assert 'name="juju_lxd"' in source
+    assert 'name="juju_k8s"' in source
+    assert 'name="juju"' not in source
+    assert 'controller="concierge-lxd"' in source
+    assert 'controller="concierge-k8s"' in source
 
 
 def test_keep_models_option_is_registered() -> None:
@@ -32,35 +28,10 @@ def test_keep_models_option_is_registered() -> None:
     assert 'parser.addoption("--keep-models", action="store_true", default=False)' in source
 
 
-def test_lxd_suite_owns_only_lxd_model() -> None:
-    """The machine suite creates a temporary model on the LXD controller."""
-    source = (INTEGRATION_DIR / "lxd" / "conftest.py").read_text(encoding="utf-8")
-
-    assert 'name="juju_lxd"' in source
-    assert 'controller="concierge-lxd"' in source
-    assert 'name="juju"' not in source
-    assert 'name="juju_k8s"' not in source
-
-
-def test_k8s_suite_owns_only_k8s_model() -> None:
-    """The Gateway API suite creates a model on the active K8s controller."""
-    source = (INTEGRATION_DIR / "k8s" / "conftest.py").read_text(encoding="utf-8")
-
-    assert 'name="juju_k8s"' in source
-    assert "jubilant.temp_model(keep=keep_models)" in source
-    assert 'name="juju"' not in source
-    assert "concierge-lxd" not in source
-
-
-def test_cross_model_suite_owns_both_models() -> None:
-    """The NodePort suite creates temporary models on both controllers."""
-    source = (INTEGRATION_DIR / "k8s_lxd" / "conftest.py").read_text(encoding="utf-8")
-
-    assert 'name="juju_k8s"' in source
-    assert 'name="juju_lxd"' in source
-    assert 'name="juju"' not in source
-    assert 'controller="concierge-k8s"' in source
-    assert 'controller="concierge-lxd"' in source
+def test_suite_directories_do_not_define_model_fixtures() -> None:
+    """Suite directories inherit lazy model fixtures from the shared conftest."""
+    for suite in ("lxd", "k8s", "k8s_lxd"):
+        assert not (INTEGRATION_DIR / suite / "conftest.py").exists()
 
 
 def test_no_integration_fixture_or_test_requests_generic_juju() -> None:

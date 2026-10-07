@@ -27,6 +27,7 @@ from typing import NamedTuple
 
 import jubilant
 import pytest
+from opcli.core.env import current_arch
 
 from ..conftest import (
     CERTIFICATES_APP_NAME,
@@ -81,7 +82,11 @@ def multi_relation_https_stack_fixture(
         gateway_api_integrator,
         {"enforce-https": True, "hsts-max-age": GATEWAY_HSTS_MAX_AGE},
     )
-    juju_k8s.deploy(charm=CERTIFICATES_APP_NAME, channel=CERTIFICATES_CHANNEL)
+    juju_k8s.deploy(
+        charm=CERTIFICATES_APP_NAME,
+        channel=CERTIFICATES_CHANNEL,
+        constraints={"arch": current_arch()},
+    )
     juju_k8s.integrate(
         f"{CERTIFICATES_APP_NAME}:certificates",
         f"{gateway_api_integrator}:certificates",

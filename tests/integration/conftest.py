@@ -501,6 +501,7 @@ def gateway_api_integrator_fixture(juju_k8s: jubilant.Juju) -> str:
         channel=GATEWAY_API_INTEGRATOR_CHANNEL,
         revision=architecture_revision(GATEWAY_API_INTEGRATOR_REVISIONS),
         base="ubuntu@24.04",
+        constraints={"arch": current_arch()},
         trust=True,
         config={"gateway-class": GATEWAY_CLASS, "enforce-https": False},
     )
@@ -582,6 +583,7 @@ def _deploy_gateway_backend(juju: jubilant.Juju, app: str, *, open_port: bool) -
         charm="any-charm",
         channel="latest/beta",
         app=app,
+        constraints={"arch": current_arch()},
         config={
             "src-overwrite": json.dumps(
                 {

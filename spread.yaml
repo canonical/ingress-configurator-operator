@@ -9,7 +9,10 @@ backends:
   integration-test:
     type: integration-test
     systems:
-    - ubuntu-24.04
+      - ubuntu-24.04:
+      - ubuntu-24.04-arm64:
+          runner: [ubuntu-24.04-arm]
+          arch: arm64
 environment:
   OPCLI_GIT_REF: '$(HOST: echo "${OPCLI_GIT_REF:-main}")'
 exclude:
@@ -23,6 +26,8 @@ integration-suites:
     working-dir: ./
     backends:
     - integration-test
+    systems:
+    - ubuntu-24.04
     environment:
       CONCIERGE: concierge-lxd-juju4.yaml
   tests/integration/k8s/:
@@ -30,6 +35,8 @@ integration-suites:
     working-dir: ./
     backends:
     - integration-test
+    systems:
+    - ubuntu-24.04
     environment:
       CONCIERGE: concierge-k8s-juju4.yaml
   tests/integration/k8s_lxd/:
@@ -37,5 +44,19 @@ integration-suites:
     working-dir: ./
     backends:
     - integration-test
+    systems:
+    - ubuntu-24.04
     environment:
       CONCIERGE: concierge-k8s-lxd-juju4.yaml
+  tests/integration-arm64/:
+    summary: ingress-configurator gateway-route arm64 integration tests (Juju 4)
+    working-dir: ./
+    backends:
+    - integration-test
+    systems:
+    - ubuntu-24.04-arm64
+    auto-discover: false
+    environment:
+      CONCIERGE: concierge-k8s-juju4.yaml
+      MODULE/test_gateway_route: tests/integration/k8s/test_gateway_route.py
+      MODULE/test_gateway_route_https: tests/integration/k8s/test_gateway_route_https.py

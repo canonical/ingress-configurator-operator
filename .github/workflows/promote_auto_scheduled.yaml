@@ -14,6 +14,9 @@ jobs:
 
   promote-ingress-configurator-charm-candidate-to-stable:
     needs: [require-approval]
+    strategy:
+      matrix:
+        architecture: [amd64, arm64]
     uses: canonical/operator-workflows/.github/workflows/promote_charm.yaml@main
     secrets: inherit
     with:
@@ -22,11 +25,14 @@ jobs:
       working-directory: ./
       base-channel: 24.04
       base-name: ubuntu
-      base-architecture: amd64
+      base-architecture: ${{ matrix.architecture }}
       tag-prefix: ingress-configurator
 
   promote-ingress-configurator-charm-edge-to-candidate:
     needs: [promote-ingress-configurator-charm-candidate-to-stable]
+    strategy:
+      matrix:
+        architecture: [amd64, arm64]
     uses: canonical/operator-workflows/.github/workflows/promote_charm.yaml@main
     secrets: inherit
     with:
@@ -35,5 +41,5 @@ jobs:
       working-directory: ./
       base-channel: 24.04
       base-name: ubuntu
-      base-architecture: amd64
+      base-architecture: ${{ matrix.architecture }}
       tag-prefix: ingress-configurator

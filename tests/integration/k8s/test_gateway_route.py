@@ -9,9 +9,6 @@ that by deploying two ingress-configurator instances against the same gateway at
 
     any-charm (backend closed-ports) ──ingress──▶ configurator-closed ─┐ gateway-route
     any-charm (backend-open-ports) ──ingress──▶  configurator-open    ─┘──────────────▶ gateway-api-integrator
-                                                                                       │
-                                                                               Gateway + HTTPRoutes
-                                                                               (one LoadBalancer address)
 
 Each configurator is exposed on a distinct hostname. The test asserts that:
   * both modes (closed-ports adapter and open-ports adapter) route simultaneously through the

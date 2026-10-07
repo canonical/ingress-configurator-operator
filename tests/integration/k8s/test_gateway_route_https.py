@@ -6,9 +6,9 @@
 Topology:
 
     self-signed-certificates ──certificates──▶ gateway-api-integrator (enforce-https=True)
-                                                          ▲
+                                                                 ▲
     any-charm (closed-ports)   ──ingress──▶ configurator-closed ─┤ gateway-route
-    any-charm (open-ports)    ──ingress──▶ configurator-open  ─┘
+    any-charm (open-ports)    ──ingress──▶ configurator-open    ─┘
 
 The provider creates one per-hostname HTTPS Gateway listener per relation (one for
 ``HOSTNAME_CLOSED_PORTS``, one for ``HOSTNAME_OPEN_PORTS``). Each listener has its own ``hostname``

@@ -13,8 +13,8 @@ from ..conftest import JUJU_WAIT_TIMEOUT
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture(scope="module", name="juju")
-def juju_model_fixture(request: pytest.FixtureRequest):
+@pytest.fixture(scope="module", name="juju_lxd")
+def juju_lxd_fixture(request: pytest.FixtureRequest):
     """Create a temporary model on the Concierge LXD controller."""
     keep_models = bool(request.config.getoption("--keep-models"))
     with jubilant.temp_model(keep=keep_models, controller="concierge-lxd") as juju:

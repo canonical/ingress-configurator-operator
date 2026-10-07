@@ -3,6 +3,7 @@
 
 """Contract tests for substrate-specific integration model fixtures."""
 
+import ast
 from pathlib import Path
 
 INTEGRATION_DIR = Path(__file__).parent
@@ -35,8 +36,9 @@ def test_lxd_suite_owns_only_lxd_model() -> None:
     """The machine suite creates a temporary model on the LXD controller."""
     source = (INTEGRATION_DIR / "lxd" / "conftest.py").read_text(encoding="utf-8")
 
-    assert 'name="juju"' in source
+    assert 'name="juju_lxd"' in source
     assert 'controller="concierge-lxd"' in source
+    assert 'name="juju"' not in source
     assert 'name="juju_k8s"' not in source
 
 
@@ -44,9 +46,9 @@ def test_k8s_suite_owns_only_k8s_model() -> None:
     """The Gateway API suite creates a model on the active K8s controller."""
     source = (INTEGRATION_DIR / "k8s" / "conftest.py").read_text(encoding="utf-8")
 
-    assert 'name="juju"' in source
     assert 'name="juju_k8s"' in source
     assert "jubilant.temp_model(keep=keep_models)" in source
+    assert 'name="juju"' not in source
     assert "concierge-lxd" not in source
 
 
@@ -56,9 +58,33 @@ def test_cross_model_suite_owns_both_models() -> None:
 
     assert 'name="juju_k8s"' in source
     assert 'name="juju_lxd"' in source
-    assert 'name="juju"' in source
+    assert 'name="juju"' not in source
     assert 'controller="concierge-k8s"' in source
     assert 'controller="concierge-lxd"' in source
+
+
+def test_no_integration_fixture_or_test_requests_generic_juju() -> None:
+    """Model dependencies must identify their substrate in the fixture name."""
+    python_files = [INTEGRATION_DIR / "conftest.py"]
+    python_files.extend(INTEGRATION_DIR.glob("*/conftest.py"))
+    python_files.extend(INTEGRATION_DIR.glob("*/test_*.py"))
+
+    for path in python_files:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                is_fixture = any(
+                    isinstance(decorator, ast.Call)
+                    and isinstance(decorator.func, ast.Attribute)
+                    and decorator.func.attr == "fixture"
+                    for decorator in node.decorator_list
+                )
+                if not is_fixture and not node.name.startswith("test_"):
+                    continue
+                argument_names = {argument.arg for argument in node.args.args}
+                assert "juju" not in argument_names, (
+                    f"generic juju argument in {path}:{node.lineno}"
+                )
 
 
 def test_modules_are_grouped_by_required_substrate() -> None:

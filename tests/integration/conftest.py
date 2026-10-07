@@ -76,13 +76,13 @@ def charm_fixture(charm_paths) -> str:
 @pytest.fixture(scope="module", name="application")
 def application_fixture(
     pytestconfig: pytest.Config,
-    juju: jubilant.Juju,
+    juju_lxd: jubilant.Juju,
     charm: str,
 ):
     """Deploy the ingress-configurator application.
 
     Args:
-        juju: Jubilant juju fixture.
+        juju_lxd: Jubilant Juju instance for the LXD model.
         charm_file: Path to the packed charm file.
 
     Yields:
@@ -90,10 +90,10 @@ def application_fixture(
     """
     metadata = yaml.safe_load(pathlib.Path("./charmcraft.yaml").read_text(encoding="UTF-8"))
     app_name = metadata["name"]
-    if app_name in juju.status().apps:
+    if app_name in juju_lxd.status().apps:
         yield app_name
         return
-    juju.deploy(
+    juju_lxd.deploy(
         charm=charm,
         app=app_name,
         base="ubuntu@24.04",
@@ -102,19 +102,19 @@ def application_fixture(
 
 
 @pytest.fixture(scope="module", name="haproxy")
-def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
+def haproxy_fixture(pytestconfig: pytest.Config, juju_lxd: jubilant.Juju):
     """_summary_
 
     Args:
-        juju: Jubilant juju fixture.
+        juju_lxd: Jubilant Juju instance for the LXD model.
 
     Yields:
         The haproxy app name.
     """
-    if HAPROXY_APP_NAME in juju.status().apps:
+    if HAPROXY_APP_NAME in juju_lxd.status().apps:
         yield HAPROXY_APP_NAME
         return
-    juju.deploy(
+    juju_lxd.deploy(
         charm="haproxy",
         app=HAPROXY_APP_NAME,
         channel=HAPROXY_CHANNEL,
@@ -122,27 +122,29 @@ def haproxy_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
         config={"external-hostname": MOCK_HAPROXY_HOSTNAME},
         base=HAPROXY_BASE,
     )
-    juju.deploy(
+    juju_lxd.deploy(
         charm="self-signed-certificates",
         app=CERTIFICATES_APP_NAME,
         channel=CERTIFICATES_CHANNEL,
         revision=CERTIFICATES_REVISION,
     )
-    juju.integrate(f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates")
+    juju_lxd.integrate(f"{CERTIFICATES_APP_NAME}:certificates", f"{HAPROXY_APP_NAME}:certificates")
     # Allow haproxy to verify content-cache's TLS certificate when protocol=https is used
     # in the haproxy-route relation (full HTTPS chain: haproxy → content-cache → backend).
-    juju.integrate(f"{CERTIFICATES_APP_NAME}:send-ca-cert", f"{HAPROXY_APP_NAME}:receive-ca-certs")
-    juju.offer(HAPROXY_APP_NAME, endpoint="haproxy-route")
+    juju_lxd.integrate(
+        f"{CERTIFICATES_APP_NAME}:send-ca-cert", f"{HAPROXY_APP_NAME}:receive-ca-certs"
+    )
+    juju_lxd.offer(HAPROXY_APP_NAME, endpoint="haproxy-route")
     yield HAPROXY_APP_NAME
 
 
 @pytest.fixture(scope="module", name="any_charm_backend")
-def any_charm_backend_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
+def any_charm_backend_fixture(pytestconfig: pytest.Config, juju_lxd: jubilant.Juju):
     """Deploy any-charm and configure it to serve as a requirer for the http interface."""
-    if ANY_CHARM_APP_NAME in juju.status().apps:
+    if ANY_CHARM_APP_NAME in juju_lxd.status().apps:
         yield ANY_CHARM_APP_NAME
         return
-    juju.deploy(
+    juju_lxd.deploy(
         charm="any-charm",
         channel="beta",
         app=ANY_CHARM_APP_NAME,
@@ -261,17 +263,17 @@ def _generate_backend_tls(hostname: str) -> tuple[str, str, str]:
 
 
 @pytest.fixture(scope="module", name="any_charm_backend_https")
-def any_charm_backend_https_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju):
+def any_charm_backend_https_fixture(pytestconfig: pytest.Config, juju_lxd: jubilant.Juju):
     """Deploy a 2-unit any-charm serving HTTPS on port 443 with a shared CA-signed cert.
 
     Every unit serves the identical, hostname-scoped certificate (no IP SAN) and publishes
     the same CA, so content-cache trusts all backend units and can load-balance across them.
     """
-    if HTTPS_BACKEND_APP_NAME in juju.status().apps:
+    if HTTPS_BACKEND_APP_NAME in juju_lxd.status().apps:
         yield HTTPS_BACKEND_APP_NAME
         return
     ca_cert, server_cert, server_key = _generate_backend_tls(MOCK_HAPROXY_HOSTNAME)
-    juju.deploy(
+    juju_lxd.deploy(
         charm="any-charm",
         channel="beta",
         app=HTTPS_BACKEND_APP_NAME,
@@ -303,19 +305,19 @@ def any_charm_backend_https_fixture(pytestconfig: pytest.Config, juju: jubilant.
 
 
 @pytest.fixture(scope="module", name="content_cache")
-def content_cache_fixture(juju: jubilant.Juju):
+def content_cache_fixture(juju_lxd: jubilant.Juju):
     """Deploy content-cache from the 1/edge channel.
 
     Args:
-        juju: Jubilant juju fixture.
+        juju_lxd: Jubilant Juju instance for the LXD model.
 
     Yields:
         The content-cache application name.
     """
-    if CONTENT_CACHE_APP_NAME in juju.status().apps:
+    if CONTENT_CACHE_APP_NAME in juju_lxd.status().apps:
         yield CONTENT_CACHE_APP_NAME
         return
-    juju.deploy(
+    juju_lxd.deploy(
         charm="content-cache",
         app=CONTENT_CACHE_APP_NAME,
         channel=CONTENT_CACHE_CHANNEL,
@@ -347,12 +349,14 @@ def http_session() -> Callable[[list[tuple[str, IPv4Address | IPv6Address]]], Se
 
 
 @pytest.fixture(scope="module", name="ingress_requirer")
-def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, application: str):
+def ingress_requirer_fixture(
+    pytestconfig: pytest.Config, juju_lxd: jubilant.Juju, application: str
+):
     """Deploy and configure any-charm to serve as an ingress requirer for the ingress interface."""
-    if INGRESS_REQUIRER_APP_NAME in juju.status().apps:
+    if INGRESS_REQUIRER_APP_NAME in juju_lxd.status().apps:
         yield INGRESS_REQUIRER_APP_NAME
         return
-    juju.deploy(
+    juju_lxd.deploy(
         charm="any-charm",
         channel="beta",
         app=INGRESS_REQUIRER_APP_NAME,
@@ -366,7 +370,7 @@ def ingress_requirer_fixture(pytestconfig: pytest.Config, juju: jubilant.Juju, a
             "python-packages": "\n".join(["pydantic", "charmlibs-apt"]),
         },
     )
-    juju.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{application}:ingress")
+    juju_lxd.integrate(f"{INGRESS_REQUIRER_APP_NAME}:ingress", f"{application}:ingress")
     yield INGRESS_REQUIRER_APP_NAME
 
 
@@ -388,22 +392,22 @@ def get_unit_addresses(juju: jubilant.Juju, application: str) -> list[IPv4Addres
 
 
 @pytest.fixture(scope="module", name="application_with_tcp_server")
-def application_with_tcp_server_fixture(application: str, juju: jubilant.Juju):
+def application_with_tcp_server_fixture(application: str, juju_lxd: jubilant.Juju):
     """Deploy the ingress-configurator application.
 
     Args:
         application: The ingress-configurator application name.
-        juju: Jubilant juju fixture.
+        juju_lxd: Jubilant Juju instance for the LXD model.
 
     Yields:
         The ingress-configurator app name.
     """
-    juju.wait(
+    juju_lxd.wait(
         lambda status: jubilant.all_agents_idle(status, application),
         error=jubilant.any_error,
     )
-    juju.exec("sudo snap install ping-pong-tcp", unit=f"{application}/leader")
-    juju.exec("sudo snap set ping-pong-tcp host=0.0.0.0", unit=f"{application}/leader")
+    juju_lxd.exec("sudo snap install ping-pong-tcp", unit=f"{application}/leader")
+    juju_lxd.exec("sudo snap set ping-pong-tcp host=0.0.0.0", unit=f"{application}/leader")
     yield application
 
 

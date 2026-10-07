@@ -35,9 +35,3 @@ def juju_lxd_fixture(request: pytest.FixtureRequest):
 
         if request.session.testsfailed:
             logger.error(juju.debug_log(limit=1000))
-
-
-@pytest.fixture(scope="module", name="juju")
-def juju_fixture(juju_lxd: jubilant.Juju) -> jubilant.Juju:
-    """Expose the LXD model to shared machine-charm fixtures."""
-    return juju_lxd

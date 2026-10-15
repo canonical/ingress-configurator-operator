@@ -175,24 +175,22 @@ class IngressConfiguratorCharm(ops.CharmBase):
         """Reconcile haproxy-route (HTTP) requirer data.
 
         Mode selection:
-        - Guard: no ingress relation on Kubernetes → blocked (relation must be added).
+        - Cleanup: no ingress relation on Kubernetes → delete NodePort Services left over from
+          Kubernetes adapter mode.
         - Guard: ingress relation AND backend config both set → ambiguous, blocked.
         - Guard: ingress relation present but requirer not ready → wait for data.
         - Kubernetes adapter: ingress data available on Kubernetes substrate.
         - Adapter: ingress data available on a machine substrate.
         - Integrator: no ingress relation; backend-addresses and backend-ports set in config.
+          Available on both machine and Kubernetes substrates.
         - Blocked: neither ingress relation nor backend config is present.
         """
         ingress_relation = self.model.get_relation(self._ingress.relation_name)
+        has_integrator_config = HaproxyRouteState.has_integrator_config(self)
 
         if ingress_relation is None and self.is_kubernetes():
             delete_nodeport_services_owned_by(self.lightkube_client, self.app.name)
-            self.unit.status = ops.BlockedStatus(
-                "Ingress relation required on Kubernetes substrate."
-            )
-            return
 
-        has_integrator_config = HaproxyRouteState.has_integrator_config(self)
         if ingress_relation and has_integrator_config:
             self.unit.status = ops.BlockedStatus(
                 "Remove backend config or the ingress relation - only one can be used at a time."
@@ -214,8 +212,6 @@ class IngressConfiguratorCharm(ops.CharmBase):
             )
         elif has_integrator_config:
             self._reconcile_haproxy_route_integrator()
-        elif self.is_kubernetes():
-            self.unit.status = ops.BlockedStatus("Ingress relation required.")
         else:
             self.unit.status = ops.BlockedStatus("Ingress relation or backend config required.")
 

@@ -45,6 +45,7 @@ def test_integrator_state_from_charm():
     assert charm_state.retry.redispatch == charm.config.get("retry-redispatch")
     assert charm_state.http_server_close == charm.config.get("http-server-close")
     assert charm_state.allow_http is False
+    assert charm_state.default_backend is False
 
 
 def test_state_from_charm_no_backend():
@@ -677,5 +678,42 @@ def test_state_from_charm_invalid_external_grpc_port_invalid_and_allow_http():
     with pytest.raises(InvalidHaproxyRouteStateError) as exc_info:
         _make_integrator_state(charm)
     assert "external_grpc_port cannot be set when allow_http is True." in str(
+        exc_info.value.__cause__
+    )
+
+
+def test_state_from_charm_default_backend():
+    """
+    arrange: mock a charm with default-backend set to True
+    act: instantiate a State via build_for_integrator_mode
+    assert: the default_backend attribute is True
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1",
+        "backend-ports": "80",
+        "default-backend": True,
+    }
+    charm_state = _make_integrator_state(charm)
+    assert charm_state.default_backend is True
+
+
+def test_state_from_charm_invalid_default_backend_with_grpc():
+    """
+    arrange: mock a charm with default-backend and external-grpc-port both set
+    act: instantiate a State via build_for_integrator_mode
+    assert: a InvalidStateError is raised with ValueError as cause
+    """
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1",
+        "backend-ports": "8080",
+        "backend-protocol": "https",
+        "external-grpc-port": 50051,
+        "default-backend": True,
+    }
+    with pytest.raises(InvalidHaproxyRouteStateError) as exc_info:
+        _make_integrator_state(charm)
+    assert "default_backend cannot be set when external_grpc_port is set." in str(
         exc_info.value.__cause__
     )

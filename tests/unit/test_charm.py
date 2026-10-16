@@ -6,13 +6,24 @@
 import json
 from itertools import combinations
 from typing import TYPE_CHECKING
-from unittest.mock import ANY
+from unittest.mock import ANY, MagicMock
 
 import ops.testing
 import pytest
+from lightkube.models.meta_v1 import ObjectMeta
+from lightkube.resources.core_v1 import Service
 
 if TYPE_CHECKING:
     from charm import IngressConfiguratorCharm
+
+
+def _stale_nodeport_service() -> Service:
+    """Build a Service as left behind by the Kubernetes adapter mode of this charm."""
+    return Service(
+        metadata=ObjectMeta(
+            name="stale-service", annotations={"owning-charm": "ingress-configurator"}
+        )
+    )
 
 
 def test_block_when_multiple_units(
@@ -147,9 +158,10 @@ def test_config_changed_kubernetes_without_ingress_relation(
     context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
 ):
     """
-    arrange: prepare state with haproxy-route but no ingress relation on a Kubernetes substrate.
+    arrange: prepare state with haproxy-route but neither an ingress relation nor backend config
+        on a Kubernetes substrate.
     act: trigger a config-changed event.
-    assert: the unit is blocked because adapter mode requires an ingress relation on Kubernetes.
+    assert: the unit is blocked because no mode can be determined.
     """
     charm_state = ops.testing.State(
         relations=[ops.testing.Relation("haproxy-route")],
@@ -159,8 +171,87 @@ def test_config_changed_kubernetes_without_ingress_relation(
     out = context_k8s.run(context_k8s.on.config_changed(), charm_state)
 
     assert out.unit_status == ops.testing.BlockedStatus(
-        "Ingress relation required on Kubernetes substrate."
+        "Ingress relation or backend config required."
     )
+
+
+def test_config_changed_kubernetes_without_ingress_relation_removes_nodeports(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    mock_lightkube: MagicMock,
+):
+    """
+    arrange: prepare state with haproxy-route but no ingress relation and no backend config on a
+        Kubernetes substrate, with a NodePort Service left over from adapter mode.
+    act: trigger a config-changed event.
+    assert: the stale Service is deleted and the unit is blocked.
+    """
+    mock_lightkube.list.return_value = [_stale_nodeport_service()]
+    charm_state = ops.testing.State(
+        relations=[ops.testing.Relation("haproxy-route")],
+        leader=True,
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), charm_state)
+
+    mock_lightkube.delete.assert_called_once_with(Service, name="stale-service")
+    assert out.unit_status == ops.testing.BlockedStatus(
+        "Ingress relation or backend config required."
+    )
+
+
+@pytest.mark.usefixtures("mock_lightkube")
+def test_config_changed_kubernetes_integrator_with_cache_config(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """
+    arrange: Kubernetes substrate, backend config, haproxy-route and cache-config, no ingress.
+    act: trigger a config-changed event.
+    assert: the unit is active, the backend is sent to content-cache and the cache address
+        is published to haproxy-route.
+    """
+    state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": "443"},
+        relations=[
+            ops.testing.Relation("haproxy-route"),
+            ops.testing.Relation(
+                "cache-config",
+                remote_units_data={0: {"cache-backend": "http://10.1.0.5:9000"}},
+            ),
+        ],
+        leader=True,
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
+    haproxy_data: dict = dict(out.get_relations("haproxy-route")[0].local_app_data)
+    assert haproxy_data["hosts"] == '["10.1.0.5"]'
+    assert haproxy_data["ports"] == "[9000]"
+    cache_data: dict = dict(out.get_relations("cache-config")[0].local_app_data)
+    assert json.loads(cache_data["backends"]) == ["http://10.0.0.1:443"]
+
+
+def test_config_changed_kubernetes_integrator_removes_nodeports(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    mock_lightkube: MagicMock,
+):
+    """
+    arrange: Kubernetes substrate, backend config and haproxy-route, no ingress relation, with a
+        NodePort Service left over from adapter mode.
+    act: trigger a config-changed event.
+    assert: the stale Service is deleted and the unit is active in integrator mode.
+    """
+    mock_lightkube.list.return_value = [_stale_nodeport_service()]
+    state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": "443"},
+        relations=[ops.testing.Relation("haproxy-route")],
+        leader=True,
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+
+    mock_lightkube.delete.assert_called_once_with(Service, name="stale-service")
+    assert out.unit_status == ops.testing.ActiveStatus("Ready")
 
 
 def test_config_changed_integrator(

@@ -20,7 +20,7 @@ the substrate (machine or Kubernetes):
 
 | Mode | Substrate | Route-provider interface | Backend discovery |
 | --- | --- | --- | --- |
-| HAProxy integrator | Machine | `haproxy-route` | Charm configuration |
+| HAProxy integrator | Machine, Kubernetes | `haproxy-route` | Charm configuration |
 | HAProxy adapter | Machine | `haproxy-route` | `ingress` relation |
 | HAProxy TCP integrator | Machine | `haproxy-route-tcp` | Charm configuration |
 | Gateway-route adapter | Kubernetes | `gateway-route` | `ingress` relation |
@@ -46,6 +46,14 @@ This mode is suited to backends that are not managed by a Juju charm, or to
 cases where the backend charm does not implement the `ingress` interface.
 See {ref}`how_to_haproxy_integrate_non_charm_workload` for instructions on
 using `ingress-configurator` in HAProxy integrator mode.
+
+On Kubernetes, this mode is selected when the `haproxy-route` relation is
+present, no `ingress` relation exists, and `backend-addresses` and
+`backend-ports` are set. The charm does not create any Kubernetes resources for
+the backend, so the addresses must be reachable from wherever the traffic is
+sent. Because there is no `ingress` relation, the charm still removes any
+NodePort Services that it created earlier in adapter mode. This requires the
+charm to be deployed with `--trust`.
 
 ## HAProxy adapter mode
 

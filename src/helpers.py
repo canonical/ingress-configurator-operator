@@ -61,6 +61,7 @@ class InvalidRouteStateError(Exception):
     """Invalid route state with a concise status and complete diagnostic details.
 
     Attributes:
+        juju_status_msg: Concise message for the unit's Juju status.
         details: The full route state error explanation for logging.
     """
 
@@ -78,7 +79,7 @@ class InvalidRouteStateError(Exception):
             validation_error: The original validation or parsing error, if any.
         """
         if validation_error is None:
-            self.details = message
+            self._details = message
             self._status_message = message
         else:
             reason = (
@@ -86,7 +87,7 @@ class InvalidRouteStateError(Exception):
                 if isinstance(validation_error, ValidationError)
                 else str(validation_error)
             )
-            self.details = f"{message}: {reason}"
+            self._details = f"{message}: {reason}"
             self._status_message = f"{message}; see debug-log"
         self._error_count = (
             validation_error.error_count() if isinstance(validation_error, ValidationError) else 0
@@ -158,7 +159,13 @@ class InvalidRouteStateError(Exception):
             details.append(f"{detail} (possible sources: {source})" if source else detail)
         return f"{exc.title}: {'; '.join(details)}"
 
-    def __str__(self) -> str:
+    @property
+    def details(self) -> str:
+        """Return the full diagnostic message."""
+        return self._details
+
+    @property
+    def juju_status_msg(self) -> str:
         """Return the status summary, including the count for multiple errors.
 
         Counts come from the supplied Pydantic validation call, not from distinct

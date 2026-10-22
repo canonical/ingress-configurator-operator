@@ -119,7 +119,7 @@ def test_http_state_collects_nested_validation_errors():
     with pytest.raises(InvalidHaproxyRouteStateError) as exc_info:
         _make_integrator_state(charm)
 
-    assert str(exc_info.value) == "7 validation errors; see debug-log"
+    assert exc_info.value.juju_status_msg == "7 validation errors; see debug-log"
     cause = exc_info.value.__cause__
     assert isinstance(cause, ValidationError)
     assert [error["loc"] for error in cause.errors()] == [

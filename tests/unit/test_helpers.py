@@ -28,6 +28,7 @@ def test_config_error_preserves_explicit_message(error_type):
 
     assert isinstance(error, InvalidRouteStateError)
     assert str(error) == "A required option is missing."
+    assert error.juju_status_msg == "A required option is missing."
     assert error.details == "A required option is missing."
 
 
@@ -60,7 +61,8 @@ def test_config_error_separates_status_from_details(fields, expected_status):
         f"{field}: Input should be greater than 0" for field in fields
     )
     assert error.details == expected_details
-    assert str(error) == expected_status
+    assert error.juju_status_msg == expected_status
+    assert str(error) == expected_details
 
 
 def test_config_error_keeps_parser_details_out_of_status():
@@ -70,10 +72,11 @@ def test_config_error_keeps_parser_details_out_of_status():
         validation_error=ValueError("invalid literal for int() with base 10: 'invalid'"),
     )
 
-    assert str(error) == "Invalid backend-ports; see debug-log"
+    assert error.juju_status_msg == "Invalid backend-ports; see debug-log"
     assert error.details == (
         "Invalid backend-ports: invalid literal for int() with base 10: 'invalid'"
     )
+    assert str(error) == error.details
 
 
 @pytest.mark.parametrize(
@@ -141,7 +144,7 @@ def test_validation_diagnostics_identify_possible_sources(
     assert error.details == (
         f"Invalid configuration: {model.__name__}: {reason} (possible sources: {sources})"
     )
-    assert str(error) == f"Invalid {sources}; see debug-log"
+    assert error.juju_status_msg == f"Invalid {sources}; see debug-log"
 
 
 def test_format_validation_error_preserves_paths_and_reasons():

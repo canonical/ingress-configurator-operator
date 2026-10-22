@@ -4,6 +4,8 @@
 """Unit tests for the ingress configurator charm."""
 
 import json
+import logging
+from dataclasses import replace
 from itertools import combinations
 from typing import TYPE_CHECKING
 from unittest.mock import ANY
@@ -54,6 +56,226 @@ def test_config_changed_invalid_state(
     out = context_machine.run(context_machine.on.config_changed(), charm_state)
 
     assert isinstance(out.unit_status, ops.testing.BlockedStatus)
+
+
+@pytest.mark.parametrize(
+    "config, expected_status, expected_log_details",
+    [
+        (
+            {"backend-ports": ""},
+            "Invalid haproxy-route configuration; see debug-log",
+            "Invalid haproxy-route configuration: HaproxyRouteState: "
+            "backend_ports: List should have at least 1 item after validation, not 0",
+        ),
+        (
+            {"backend-addresses": "10.0.0.1,invalid"},
+            "Invalid haproxy-route configuration; see debug-log",
+            "Invalid haproxy-route configuration: HaproxyRouteState: "
+            "backend_addresses.1: value is not a valid IPv4 or IPv6 address",
+        ),
+        (
+            {"backend-ports": "invalid"},
+            "Invalid haproxy-route configuration: backend-ports; see debug-log",
+            "Invalid haproxy-route configuration: backend-ports: "
+            "invalid literal for int() with base 10: 'invalid'",
+        ),
+        (
+            {"timeout-connect": -1},
+            "Invalid haproxy-route configuration; see debug-log",
+            "Invalid haproxy-route configuration: TimeoutConfiguration: "
+            "connect: Input should be greater than 0",
+        ),
+        (
+            {"health-check-interval": 5},
+            "Invalid haproxy-route configuration; see debug-log",
+            "Invalid haproxy-route configuration: HealthCheck: Value error, "
+            "Health check configuration is incomplete: interval, rise, and fall "
+            "must all be set if any one of them is specified.",
+        ),
+        (
+            {"external-grpc-port": 8443},
+            "Invalid haproxy-route configuration; see debug-log",
+            "Invalid haproxy-route configuration: HaproxyRouteState: Value error, "
+            "external_grpc_port can only be set when backend_protocol is 'https'.",
+        ),
+        (
+            {"load-balancing-algorithm": "invalid"},
+            "Invalid haproxy-route configuration; see debug-log",
+            "Invalid haproxy-route configuration: 'invalid' is not a valid LoadBalancingAlgorithm",
+        ),
+    ],
+)
+def test_config_validation_has_concise_status_and_complete_logs(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+    caplog: pytest.LogCaptureFixture,
+    config: dict,
+    expected_status: str,
+    expected_log_details: str,
+):
+    """Keep implementation details in logs rather than the blocked status."""
+    state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": "8080", **config},
+        relations=[ops.testing.Relation("haproxy-route")],
+        leader=True,
+    )
+
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.BlockedStatus(expected_status)
+    assert f"Invalid haproxy-route config: {expected_log_details}" in caplog.messages
+    assert any(record.exc_info is not None for record in caplog.records)
+
+
+@pytest.mark.parametrize(
+    "relation, config, expected_log_details",
+    [
+        (
+            "haproxy-route",
+            {"backend-addresses": "invalid", "backend-ports": "99999"},
+            "Invalid haproxy-route configuration: HaproxyRouteState: "
+            "backend_addresses.0: value is not a valid IPv4 or IPv6 address; "
+            "backend_ports.0: Input should be less than or equal to 65535",
+        ),
+        (
+            "haproxy-route",
+            {"backend-ports": "99999,99998"},
+            "Invalid haproxy-route configuration: HaproxyRouteState: "
+            "backend_ports.0: Input should be less than or equal to 65535; "
+            "backend_ports.1: Input should be less than or equal to 65535",
+        ),
+        (
+            "haproxy-route",
+            {"timeout-connect": -1, "timeout-server": -2},
+            "Invalid haproxy-route configuration: TimeoutConfiguration: "
+            "server: Input should be greater than 0; connect: Input should be greater than 0",
+        ),
+        (
+            "haproxy-route-tcp",
+            {
+                "tcp-backend-addresses": "invalid",
+                "tcp-frontend-port": 8443,
+                "tcp-backend-port": 443,
+                "tcp-hostname": "invalid hostname!",
+            },
+            "Invalid haproxy-route-tcp configuration: HaproxyRouteTcpState: "
+            "backend_addresses.0: value is not a valid IPv4 or IPv6 address; "
+            "hostname: Value error, Invalid domain: invalid hostname!",
+        ),
+    ],
+)
+def test_multiple_validation_errors_have_concise_status_and_complete_logs(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+    caplog: pytest.LogCaptureFixture,
+    relation: str,
+    config: dict,
+    expected_log_details: str,
+):
+    """Summarize multiple errors in status without discarding their diagnostics."""
+    defaults = (
+        {"backend-addresses": "10.0.0.1", "backend-ports": "8080"}
+        if relation == "haproxy-route"
+        else {}
+    )
+    state = ops.testing.State(
+        config={**defaults, **config},
+        relations=[ops.testing.Relation(relation)],
+        leader=True,
+    )
+
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.BlockedStatus("2 validation errors; see debug-log")
+    assert f"Invalid {relation} config: {expected_log_details}" in caplog.messages
+    assert any(record.exc_info is not None for record in caplog.records)
+    assert [record.name for record in caplog.records if record.levelno >= logging.ERROR] == [
+        "charm"
+    ]
+
+
+def test_config_validation_recovers_after_correction(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+):
+    """Correcting missing configuration resumes publication and active status."""
+    state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1"},
+        relations=[ops.testing.Relation("haproxy-route")],
+        leader=True,
+    )
+    blocked = context_machine.run(context_machine.on.config_changed(), state)
+    assert blocked.unit_status == ops.testing.BlockedStatus(
+        "Invalid haproxy-route configuration; see debug-log"
+    )
+
+    corrected = context_machine.run(
+        context_machine.on.config_changed(),
+        replace(blocked, config={**blocked.config, "backend-ports": "8080"}),
+    )
+
+    assert corrected.unit_status == ops.testing.ActiveStatus("Ready")
+    assert corrected.get_relations("haproxy-route")[0].local_app_data
+
+
+@pytest.mark.parametrize(
+    "config, expected_status, expected_log_details",
+    [
+        (
+            {"tcp-backend-addresses": "invalid"},
+            "Invalid haproxy-route-tcp configuration; see debug-log",
+            "Invalid haproxy-route-tcp configuration: HaproxyRouteTcpState: "
+            "backend_addresses.0: value is not a valid IPv4 or IPv6 address",
+        ),
+        (
+            {"tcp-timeout-connect": -1},
+            "Invalid haproxy-route-tcp configuration; see debug-log",
+            "Invalid haproxy-route-tcp configuration: TimeoutConfiguration: "
+            "connect: Input should be greater than 0",
+        ),
+        (
+            {"tcp-health-check-interval": 5},
+            "Invalid haproxy-route-tcp configuration; see debug-log",
+            "Invalid haproxy-route-tcp configuration: TCPHealthCheck: Value error, "
+            "Health check configuration is incomplete: interval, rise, and fall "
+            "must all be set if any one of them is specified.",
+        ),
+        (
+            {"tcp-load-balancing-algorithm": "invalid"},
+            "Invalid load balancing algorithm (tcp-load-balancing-algorithm); see debug-log",
+            "Invalid load balancing algorithm (tcp-load-balancing-algorithm): "
+            "'invalid' is not a valid LoadBalancingAlgorithm",
+        ),
+        (
+            {"tcp-port-mapping": "invalid", "tcp-frontend-port": None, "tcp-backend-port": None},
+            "Invalid tcp-port-mapping; see debug-log",
+            "Invalid tcp-port-mapping: Invalid port mapping 'invalid', expected "
+            "'frontend_start-frontend_end:backend_start-backend_end' format.",
+        ),
+    ],
+)
+def test_tcp_config_validation_has_concise_status_and_complete_logs(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+    caplog: pytest.LogCaptureFixture,
+    config: dict,
+    expected_status: str,
+    expected_log_details: str,
+):
+    """TCP status stays concise while logs retain the complete explanation."""
+    config = {
+        "tcp-backend-addresses": "10.0.0.1",
+        "tcp-frontend-port": 8443,
+        "tcp-backend-port": 443,
+        **config,
+    }
+    state = ops.testing.State(
+        config={key: value for key, value in config.items() if value is not None},
+        relations=[ops.testing.Relation("haproxy-route-tcp")],
+        leader=True,
+    )
+
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.BlockedStatus(expected_status)
+    assert f"Invalid haproxy-route-tcp config: {expected_log_details}" in caplog.messages
+    assert any(record.exc_info is not None for record in caplog.records)
 
 
 def test_config_changed_ingress_relation_not_ready(

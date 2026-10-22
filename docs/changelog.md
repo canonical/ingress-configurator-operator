@@ -12,6 +12,15 @@ Each revision is versioned by the date of the revision.
 
 - Cleaned up the GatewayRouteState by removing the integrator mode sub-state.
 
+## 2026-10-22
+
+- Cleaned up the GatewayRouteState by removing the integrator mode sub-state.
+- Preserve validation field paths and reasons in logs for HAProxy HTTP, HAProxy TCP,
+  and gateway-route configuration, including cross-field validation errors. Blocked
+  statuses show concise configuration summaries, include the error count when
+  multiple validations fail, and direct users to debug-log for the full diagnostics
+  without exposing internal validation models.
+
 ## 2026-10-19
 
 - Moved the documentation tooling to the centrally managed `platform-engineering-documentation-files` Copier template and added a scheduled workflow that keeps it in sync. There is no change to the charm.

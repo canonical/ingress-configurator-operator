@@ -10,7 +10,6 @@ from charms.gateway_api_integrator.v1.gateway_route import valid_fqdn
 from charms.traefik_k8s.v2.ingress import IngressRequirerData
 from pydantic import BeforeValidator, Field, TypeAdapter, ValidationError, field_validator
 from pydantic.dataclasses import dataclass
-from pydantic.json_schema import JsonSchemaValue
 from pydantic_core import PydanticUseDefault
 
 from helpers import InvalidRouteStateError, split_delimited
@@ -20,9 +19,9 @@ class InvalidGatewayRouteStateError(InvalidRouteStateError):
     """Exception raised when a GatewayRouteState contains invalid attributes."""
 
     @staticmethod
-    def _validation_schema() -> JsonSchemaValue:
-        """Return the gateway state schema for validation diagnostics."""
-        return TypeAdapter(GatewayRouteState).json_schema()
+    def _validation_model() -> type:
+        """Return the gateway state model for validation diagnostics."""
+        return GatewayRouteState
 
 
 @dataclass(frozen=True)

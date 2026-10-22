@@ -7,8 +7,8 @@ import hashlib
 import logging
 import string
 
-from pydantic import ValidationError
-from pydantic.json_schema import JsonSchemaValue
+from pydantic import JsonValue, ValidationError
+from pydantic.dataclasses import is_pydantic_dataclass
 
 logger = logging.getLogger()
 
@@ -57,71 +57,6 @@ def value_has_valid_characters(value: str) -> str:
     return value
 
 
-def _validation_error_source(
-    schema: JsonSchemaValue, location: tuple[str | int, ...]
-) -> str | None:
-    """Find source-name/public-field metadata at the most specific schema location.
-
-    Retain parent sources for list items and nested library fields without their own metadata.
-    """
-    definitions = schema.get("$defs", {})
-
-    def resolve(node: JsonSchemaValue) -> JsonSchemaValue:
-        while "$ref" in node or "anyOf" in node:
-            if "$ref" in node:
-                reference = node["$ref"].rsplit("/", 1)[-1]
-                node = {**definitions[reference], **node}
-                del node["$ref"]
-            else:
-                variant = next(item for item in node["anyOf"] if item.get("type") != "null")
-                node = {**node, **variant}
-                del node["anyOf"]
-        return node
-
-    node = resolve(schema)
-    sources = node.get("sources", {}) if not location else {}
-    for part in location:
-        node = resolve(
-            node.get("items", {})
-            if isinstance(part, int)
-            else node.get("properties", {}).get(part, {})
-        )
-        if "sources" in node:
-            sources = node["sources"]
-    return (
-        " or ".join(
-            f"{source} '{field}'"
-            for source, fields in sorted(sources.items(), key=lambda item: item[0].casefold())
-            for field in fields
-        )
-        or None
-    )
-
-
-def format_validation_error(exc: ValidationError, *, schema: JsonSchemaValue | None = None) -> str:
-    """Format Pydantic validation reasons and locations for diagnostic logs.
-
-    Preserve model names, nested paths, and model-level errors. Omit Pydantic's
-    input and documentation URL metadata, but retain validator messages as-is.
-    Include possible sources when the schema supplies source-name/public-field metadata.
-
-    Args:
-        exc: The validation error exception.
-        schema: Optional state schema containing possible source metadata.
-            Source names map to lists of public field names.
-
-    Returns:
-        The model name and semicolon-separated validation locations and reasons.
-    """
-    details = []
-    for error in exc.errors(include_url=False, include_input=False, include_context=False):
-        location = ".".join(str(part) for part in error["loc"])
-        detail = f"{location}: {error['msg']}" if location else error["msg"]
-        source = _validation_error_source(schema, error["loc"]) if schema is not None else None
-        details.append(f"{detail} (possible sources: {source})" if source else detail)
-    return f"{exc.title}: {'; '.join(details)}"
-
-
 class InvalidRouteStateError(Exception):
     """Invalid route state with a concise status and complete diagnostic details.
 
@@ -142,15 +77,12 @@ class InvalidRouteStateError(Exception):
                 validation error is supplied; otherwise followed by a debug-log hint.
             validation_error: The original validation or parsing error, if any.
         """
-        schema = (
-            self._validation_schema() if isinstance(validation_error, ValidationError) else None
-        )
         if validation_error is None:
             self.details = message
             self._status_message = message
         else:
             reason = (
-                format_validation_error(validation_error, schema=schema)
+                self._format_validation_error(validation_error)
                 if isinstance(validation_error, ValidationError)
                 else str(validation_error)
             )
@@ -159,20 +91,72 @@ class InvalidRouteStateError(Exception):
         self._error_count = (
             validation_error.error_count() if isinstance(validation_error, ValidationError) else 0
         )
-        if (
-            isinstance(validation_error, ValidationError)
-            and self._error_count == 1
-            and schema is not None
-        ):
-            source = _validation_error_source(schema, validation_error.errors()[0]["loc"])
+        if isinstance(validation_error, ValidationError) and self._error_count == 1:
+            source = self._validation_error_source(validation_error.errors()[0]["loc"])
             if source:
                 self._status_message = f"Invalid {source}; see debug-log"
         super().__init__(self.details)
 
     @staticmethod
-    def _validation_schema() -> JsonSchemaValue | None:
-        """Return source metadata if this error is associated with a state model."""
+    def _validation_model() -> type | None:
+        """Return the state model associated with this error, if any."""
         return None
+
+    def _validation_error_source(self, location: tuple[str | int, ...]) -> str | None:
+        """Read source metadata directly, retaining parent sources for nested values."""
+        model = self._validation_model()
+        if model is None or not is_pydantic_dataclass(model):
+            return None
+
+        fields = model.__pydantic_fields__
+        metadata = model.__pydantic_config__.get("json_schema_extra") if not location else {}
+        if not isinstance(metadata, dict):
+            metadata = {}
+        sources = metadata.get("sources", {})
+        for part in location:
+            if isinstance(part, int):
+                continue
+            field = fields.get(part)
+            properties = metadata.get("properties", {})
+            if not isinstance(properties, dict):
+                raise TypeError("Validation source properties must be a dictionary")
+            child = properties.get(part)
+            if child is None:
+                if field is None:
+                    break
+                field_metadata = field.json_schema_extra
+                child = field_metadata if isinstance(field_metadata, dict) else {}
+            metadata = child if isinstance(child, dict) else {}
+            sources = metadata.get("sources", sources)
+            annotation = field.annotation if field is not None else None
+            fields = (
+                annotation.__pydantic_fields__
+                if isinstance(annotation, type) and is_pydantic_dataclass(annotation)
+                else {}
+            )
+        return self._format_sources(sources)
+
+    @staticmethod
+    def _format_sources(sources: JsonValue) -> str | None:
+        """Render source names and their public field names."""
+        if not isinstance(sources, dict):
+            raise TypeError("Validation sources must be a dictionary")
+        labels: list[str] = []
+        for source, names in sorted(sources.items(), key=lambda item: item[0].casefold()):
+            if not isinstance(names, list) or not all(isinstance(name, str) for name in names):
+                raise TypeError("Validation source names must be lists of strings")
+            labels.extend(f"{source} '{name}'" for name in names)
+        return " or ".join(labels) or None
+
+    def _format_validation_error(self, exc: ValidationError) -> str:
+        """Preserve paths and reasons, adding possible sources but omitting input metadata."""
+        details = []
+        for error in exc.errors(include_url=False, include_input=False, include_context=False):
+            location = ".".join(str(part) for part in error["loc"])
+            detail = f"{location}: {error['msg']}" if location else error["msg"]
+            source = self._validation_error_source(error["loc"])
+            details.append(f"{detail} (possible sources: {source})" if source else detail)
+        return f"{exc.title}: {'; '.join(details)}"
 
     def __str__(self) -> str:
         """Return the status summary, including the count for multiple errors.

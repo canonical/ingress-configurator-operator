@@ -28,7 +28,6 @@ from pydantic import (
     model_validator,
 )
 from pydantic.dataclasses import dataclass
-from pydantic.json_schema import JsonSchemaValue
 from pydantic.networks import IPvAnyAddress
 
 from helpers import InvalidRouteStateError, split_delimited
@@ -38,9 +37,9 @@ class InvalidHaproxyRouteTcpStateError(InvalidRouteStateError):
     """Exception raised when HAProxy TCP route requirements are invalid."""
 
     @staticmethod
-    def _validation_schema() -> JsonSchemaValue:
-        """Return the TCP state schema for validation diagnostics."""
-        return TypeAdapter(HaproxyRouteTcpState).json_schema()
+    def _validation_model() -> type:
+        """Return the TCP state model for validation diagnostics."""
+        return HaproxyRouteTcpState
 
 
 @dataclass(frozen=True)

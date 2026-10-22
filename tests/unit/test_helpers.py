@@ -3,10 +3,12 @@
 
 """Unit tests for the helpers module."""
 
-import pytest
-from pydantic import ValidationError
+from unittest.mock import Mock
 
-from helpers import InvalidRouteStateError, format_validation_error, truncate_k8s_resource_name
+import pytest
+from pydantic import TypeAdapter, ValidationError
+
+from helpers import InvalidRouteStateError, truncate_k8s_resource_name
 from state.gateway_route import GatewayRouteState, InvalidGatewayRouteStateError
 from state.haproxy_route import HaproxyRouteState, InvalidHaproxyRouteStateError
 from state.haproxy_route_tcp import HaproxyRouteTcpState, InvalidHaproxyRouteTcpStateError
@@ -98,8 +100,14 @@ def test_config_error_keeps_parser_details_out_of_status():
         (
             HaproxyRouteTcpState,
             InvalidHaproxyRouteTcpStateError,
-            ("port_mapping",),
+            ("port_mapping", "frontend", "start"),
             "config 'tcp-port-mapping' or config 'tcp-frontend-port' or config 'tcp-backend-port'",
+        ),
+        (
+            HaproxyRouteState,
+            InvalidHaproxyRouteStateError,
+            (),
+            "config 'external-grpc-port' or config 'backend-protocol' or config 'allow-http'",
         ),
         (
             GatewayRouteState,
@@ -109,8 +117,15 @@ def test_config_error_keeps_parser_details_out_of_status():
         ),
     ],
 )
-def test_validation_diagnostics_identify_possible_sources(model, error_type, location, sources):
+def test_validation_diagnostics_identify_possible_sources(
+    model, error_type, location, sources, monkeypatch
+):
     """Use field metadata for public source names without discarding missing-field details."""
+    monkeypatch.setattr(
+        TypeAdapter,
+        "json_schema",
+        Mock(side_effect=AssertionError("Source lookup must not generate JSON Schema")),
+    )
     exc = ValidationError.from_exception_data(
         model.__name__,
         [{"type": "missing", "loc": location, "input": {}}],
@@ -149,8 +164,10 @@ def test_format_validation_error_preserves_paths_and_reasons():
         ],
     )
 
-    assert format_validation_error(exc) == (
-        "Example: items.1: Input should be greater than 0; "
+    error = InvalidRouteStateError("Invalid configuration", validation_error=exc)
+
+    assert error.details == (
+        "Invalid configuration: Example: items.1: Input should be greater than 0; "
         "ports: List should have at least 1 item after validation, not 0"
     )
 
@@ -169,8 +186,10 @@ def test_format_validation_error_preserves_model_level_errors():
         ],
     )
 
-    assert format_validation_error(exc) == (
-        "HealthCheck: Value error, interval, rise, and fall must all be set"
+    error = InvalidRouteStateError("Invalid configuration", validation_error=exc)
+
+    assert error.details == (
+        "Invalid configuration: HealthCheck: Value error, interval, rise, and fall must all be set"
     )
 
 
@@ -181,7 +200,7 @@ def test_format_validation_error_omits_input_metadata_and_urls():
         [{"type": "int_parsing", "loc": ("count",), "input": "private-input"}],
     )
 
-    message = format_validation_error(exc)
+    message = InvalidRouteStateError("Invalid configuration", validation_error=exc).details
 
     assert "count: Input should be a valid integer" in message
     assert "private-input" not in message

@@ -4,6 +4,7 @@
 """Unit tests for HaproxyRouteState in integrator mode (build_for_integrator_mode)."""
 
 from dataclasses import asdict
+from ipaddress import ip_address
 from unittest.mock import Mock
 
 import pytest
@@ -53,7 +54,19 @@ def test_integrator_state_from_charm():
     "field, raw_value, expected",
     [
         ("backend_addresses", " , 127.0.0.1, ::1, ", ["127.0.0.1", "::1"]),
+        ("backend_addresses", "127.0.0.1,::1", ["127.0.0.1", "::1"]),
+        ("backend_addresses", ["127.0.0.1", "::1"], ["127.0.0.1", "::1"]),
+        (
+            "backend_addresses",
+            [ip_address("127.0.0.1"), ip_address("::1")],
+            ["127.0.0.1", "::1"],
+        ),
         ("backend_ports", " , 80 , ,443, ", [80, 443]),
+        ("backend_ports", "80,443", [80, 443]),
+        ("backend_ports", " 80 ,+443,8_080", [80, 443, 8080]),
+        ("backend_ports", "80,", [80]),
+        ("backend_ports", [80, 443], [80, 443]),
+        ("backend_ports", ["80", "443"], [80, 443]),
         ("paths", " /api, , /other, ", ["/api", "/other"]),
         ("deny_paths", " /admin, , /private, ", ["/admin", "/private"]),
         (
@@ -80,6 +93,37 @@ def test_http_state_parses_comma_separated_fields(field, raw_value, expected):
     assert ([str(address) for address in value] if field == "backend_addresses" else value) == (
         expected
     )
+
+
+@pytest.mark.parametrize(
+    "field, raw_value",
+    [
+        ("backend_addresses", None),
+        ("backend_addresses", ""),
+        ("backend_addresses", " , , "),
+        ("backend_addresses", []),
+        ("backend_addresses", "invalid"),
+        ("backend_ports", None),
+        ("backend_ports", ""),
+        ("backend_ports", " , , "),
+        ("backend_ports", []),
+        ("backend_ports", "invalid"),
+        ("backend_ports", "8080.0"),
+        ("backend_ports", "0"),
+        ("backend_ports", "65536"),
+        ("backend_ports", [1.5]),
+    ],
+)
+def test_http_state_rejects_invalid_backend_fields(field, raw_value):
+    """Enforce nonempty backend lists, integer syntax, and valid port ranges."""
+    charm = Mock(CharmBase)
+    charm.config = {"backend-addresses": "127.0.0.1", "backend-ports": "8080"}
+    valid_state = _make_integrator_state(charm)
+
+    with pytest.raises(ValidationError) as exc_info:
+        TypeAdapter(HaproxyRouteState).validate_python({**asdict(valid_state), field: raw_value})
+
+    assert exc_info.value.errors()[0]["loc"][0] == field
 
 
 def test_http_state_collects_invalid_address_and_port_items():

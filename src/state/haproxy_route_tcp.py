@@ -10,6 +10,7 @@ in the ingress configurator operator.
 from typing import Annotated, Optional, Self, cast
 
 import ops
+from annotated_types import Len
 from charms.haproxy.v1.haproxy_route_tcp import (
     LoadBalancingAlgorithm,
     PortMapping,
@@ -21,9 +22,10 @@ from charms.haproxy.v1.haproxy_route_tcp import (
 )
 from pydantic import BeforeValidator, Field, TypeAdapter, ValidationError, model_validator
 from pydantic.dataclasses import dataclass
+from pydantic.networks import IPvAnyAddress
 
 from helpers import InvalidRouteStateError
-from state.validators import BackendAddresses
+from state.validators import split_comma_separated
 
 
 class InvalidHaproxyRouteTcpStateError(InvalidRouteStateError):
@@ -131,7 +133,9 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
         proxy_protocol: Whether to enable PROXY protocol when connecting to backend servers.
     """
 
-    backend_addresses: BackendAddresses
+    backend_addresses: Annotated[
+        list[IPvAnyAddress], Len(min_length=1), BeforeValidator(split_comma_separated)
+    ]
     tls_terminate: bool
     hostname: Annotated[str, BeforeValidator(valid_domain_with_wildcard)] | None
     retry: Retry | None

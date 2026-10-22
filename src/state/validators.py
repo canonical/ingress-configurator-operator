@@ -4,11 +4,6 @@
 """Reusable parsing and validation for comma-separated route fields."""
 
 from collections.abc import Callable
-from typing import Annotated
-
-from annotated_types import Len
-from pydantic import BeforeValidator, Field
-from pydantic.networks import IPvAnyAddress
 
 
 def split_comma_separated(value: object, *, convert: Callable[[str], object] = str) -> object:
@@ -41,13 +36,3 @@ def parse_integer(value: object) -> object:
         ValueError: If a string cannot be parsed as an integer.
     """
     return int(value) if isinstance(value, str) else value
-
-
-BackendAddresses = Annotated[
-    list[IPvAnyAddress], Len(min_length=1), BeforeValidator(split_comma_separated)
-]
-BackendPorts = Annotated[
-    list[Annotated[int, BeforeValidator(parse_integer), Field(gt=0, le=65535)]],
-    Len(min_length=1),
-    BeforeValidator(split_comma_separated),
-]

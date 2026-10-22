@@ -10,6 +10,7 @@ in the ingress configurator operator.
 from typing import Annotated, Literal, Optional, Self, cast
 
 import ops
+from annotated_types import Len
 from charms.haproxy.v2.haproxy_route import (
     LoadBalancingAlgorithm,
     LoadBalancingConfiguration,
@@ -24,7 +25,7 @@ from pydantic.networks import IPvAnyAddress
 
 from helpers import InvalidRouteStateError, value_has_valid_characters
 from state.kubernetes import NodePortState
-from state.validators import BackendAddresses, BackendPorts, split_comma_separated
+from state.validators import parse_integer, split_comma_separated
 
 DEFAULT_PATH_REWRITE_EXPRESSION_DELIMITER = ";"
 
@@ -114,8 +115,14 @@ class HaproxyRouteState:
         external_grpc_port: Optional gRPC external port.
     """
 
-    backend_addresses: BackendAddresses
-    backend_ports: BackendPorts
+    backend_addresses: Annotated[
+        list[IPvAnyAddress], Len(min_length=1), BeforeValidator(split_comma_separated)
+    ]
+    backend_ports: Annotated[
+        list[Annotated[int, BeforeValidator(parse_integer), Field(gt=0, le=65535)]],
+        Len(min_length=1),
+        BeforeValidator(split_comma_separated),
+    ]
     backend_protocol: Literal["http", "https"]
     health_check: HealthCheck
     retry: Retry | None

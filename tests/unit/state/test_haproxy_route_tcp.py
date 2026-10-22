@@ -60,9 +60,8 @@ def test_haproxy_route_tcp_requirements_for_integrator_mode():
     assert requirements.proxy_protocol is False
 
 
-@pytest.mark.parametrize("addresses", [" , 127.0.0.1, ::1, ", ["127.0.0.1", "::1"]])
-def test_tcp_state_parses_backend_addresses(addresses):
-    """Accept comma-separated addresses and already-parsed lists in the state model."""
+def test_tcp_state_parses_backend_addresses():
+    """Parse comma-separated address strings in the state model."""
     charm = Mock(CharmBase)
     charm.config = {
         "tcp-backend-addresses": "127.0.0.1",
@@ -75,7 +74,7 @@ def test_tcp_state_parses_backend_addresses(addresses):
     valid_state = _make_tcp_integrator_state(charm)
 
     state = TypeAdapter(HaproxyRouteTcpState).validate_python(
-        {**asdict(valid_state), "backend_addresses": addresses}
+        {**asdict(valid_state), "backend_addresses": " , 127.0.0.1, ::1, "}
     )
 
     assert [str(address) for address in state.backend_addresses] == ["127.0.0.1", "::1"]
@@ -919,14 +918,13 @@ def test_tcp_state_collects_nested_validation_errors():
     ]
 
 
-@pytest.mark.parametrize("check_type", [None, ""])
-def test_tcp_unset_health_check_type_preserves_optional_values(check_type):
+def test_tcp_unset_health_check_type_preserves_optional_values():
     """Keep empty health-check type, absent retries, and unset timeouts optional."""
     charm = Mock(CharmBase)
     charm.config = {
         **BASE_PORT_MAPPING_CONFIG,
         "tcp-port-mapping": "8443:443",
-        "tcp-health-check-type": check_type,
+        "tcp-health-check-type": "",
     }
 
     state = _make_tcp_integrator_state(charm)
@@ -938,12 +936,8 @@ def test_tcp_unset_health_check_type_preserves_optional_values(check_type):
     assert state.timeout.queue is None
 
 
-@pytest.mark.parametrize(
-    "mapping",
-    [" 4000-4499:20000-20499 ", PortMapping.from_string("4000-4499:20000-20499")],
-)
-def test_tcp_state_accepts_raw_and_parsed_port_mappings(mapping):
-    """Parse raw mapping strings while preserving already-resolved mappings."""
+def test_tcp_state_parses_port_mapping():
+    """Parse raw mapping strings."""
     charm = Mock(CharmBase)
     charm.config = {
         **BASE_PORT_MAPPING_CONFIG,
@@ -952,7 +946,7 @@ def test_tcp_state_accepts_raw_and_parsed_port_mappings(mapping):
     valid_state = _make_tcp_integrator_state(charm)
 
     state = TypeAdapter(HaproxyRouteTcpState).validate_python(
-        {**asdict(valid_state), "port_mapping": mapping}
+        {**asdict(valid_state), "port_mapping": " 4000-4499:20000-20499 "}
     )
 
     assert state.port_mapping == valid_state.port_mapping

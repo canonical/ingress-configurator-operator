@@ -17,23 +17,18 @@ from state.gateway_route import GatewayRouteState
     "field, raw_value, expected",
     [
         ("paths", " /api, , /other, ", ["/api", "/other"]),
-        ("paths", None, ["/"]),
         ("paths", "", ["/"]),
         ("paths", " , , ", ["/"]),
-        ("paths", ["/api", "/other"], ["/api", "/other"]),
-        ("paths", [], []),
         (
             "additional_hostnames",
             " api.example.com, , other.example.com, ",
             ["api.example.com", "other.example.com"],
         ),
-        ("additional_hostnames", ["api.example.com"], ["api.example.com"]),
-        ("additional_hostnames", None, []),
         ("additional_hostnames", "", []),
     ],
 )
 def test_gateway_state_parses_raw_fields(field, raw_value, expected):
-    """Normalize raw config while accepting already-parsed values."""
+    """Normalize raw string config."""
     state = TypeAdapter(GatewayRouteState).validate_python(
         {
             "application_name": "backend",

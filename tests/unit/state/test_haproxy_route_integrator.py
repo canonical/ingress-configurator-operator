@@ -4,7 +4,6 @@
 """Unit tests for HaproxyRouteState in integrator mode (build_for_integrator_mode)."""
 
 from dataclasses import asdict
-from ipaddress import ip_address
 from unittest.mock import Mock
 
 import pytest
@@ -55,19 +54,11 @@ def test_integrator_state_from_charm():
     [
         ("backend_addresses", " , 127.0.0.1, ::1, ", ["127.0.0.1", "::1"]),
         ("backend_addresses", "127.0.0.1,::1", ["127.0.0.1", "::1"]),
-        ("backend_addresses", ["127.0.0.1", "::1"], ["127.0.0.1", "::1"]),
-        (
-            "backend_addresses",
-            [ip_address("127.0.0.1"), ip_address("::1")],
-            ["127.0.0.1", "::1"],
-        ),
         ("backend_ports", " , 80 , ,443, ", [80, 443]),
         ("backend_ports", "80,443", [80, 443]),
         ("backend_ports", "8000.0", [8000]),
         ("backend_ports", " 80 ,+443,8_080", [80, 443, 8080]),
         ("backend_ports", "80,", [80]),
-        ("backend_ports", [80, 443], [80, 443]),
-        ("backend_ports", ["80", "443"], [80, 443]),
         ("paths", " /api, , /other, ", ["/api", "/other"]),
         ("deny_paths", " /admin, , /private, ", ["/admin", "/private"]),
         (
@@ -75,13 +66,13 @@ def test_integrator_state_from_charm():
             " api.example.com, , static.example.com, ",
             ["api.example.com", "static.example.com"],
         ),
-        ("paths", None, []),
+        ("paths", "", []),
         ("deny_paths", "", []),
-        ("additional_hostnames", None, []),
+        ("additional_hostnames", "", []),
     ],
 )
 def test_http_state_parses_comma_separated_fields(field, raw_value, expected):
-    """Parse raw fields inside Pydantic while accepting already-resolved state."""
+    """Parse raw string fields inside Pydantic."""
     charm = Mock(CharmBase)
     charm.config = {"backend-addresses": "127.0.0.1", "backend-ports": "8080"}
     valid_state = _make_integrator_state(charm)
@@ -99,20 +90,15 @@ def test_http_state_parses_comma_separated_fields(field, raw_value, expected):
 @pytest.mark.parametrize(
     "field, raw_value",
     [
-        ("backend_addresses", None),
         ("backend_addresses", ""),
         ("backend_addresses", " , , "),
-        ("backend_addresses", []),
         ("backend_addresses", "invalid"),
-        ("backend_ports", None),
         ("backend_ports", ""),
         ("backend_ports", " , , "),
-        ("backend_ports", []),
         ("backend_ports", "invalid"),
         ("backend_ports", "8000.5"),
         ("backend_ports", "0"),
         ("backend_ports", "65536"),
-        ("backend_ports", [1.5]),
     ],
 )
 def test_http_state_rejects_invalid_backend_fields(field, raw_value):

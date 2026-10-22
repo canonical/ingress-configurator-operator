@@ -117,6 +117,34 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
     proxy_protocol: bool
     port_mapping: PortMapping
 
+    @model_validator(mode="before")
+    @classmethod
+    def resolve_port_mapping(cls, value: object) -> object:
+        """Resolve mutually exclusive raw port inputs into a mapping.
+
+        Args:
+            value: State input, optionally including frontend_port and backend_port.
+
+        Returns:
+            State input with single-port configuration converted to a raw mapping.
+
+        Raises:
+            ValueError: If a mapping and single-port configuration are both provided.
+        """
+        if not isinstance(value, dict):
+            return value
+
+        port_mapping = value.get("port_mapping")
+        frontend_port = value.get("frontend_port")
+        backend_port = value.get("backend_port")
+        if port_mapping is not None and (frontend_port is not None or backend_port is not None):
+            raise ValueError(
+                "tcp-port-mapping is mutually exclusive with tcp-frontend-port and tcp-backend-port."
+            )
+        if port_mapping is None and ("frontend_port" in value or "backend_port" in value):
+            return {**value, "port_mapping": f"{frontend_port}:{backend_port}"}
+        return value
+
     @field_validator("port_mapping", mode="before")
     @classmethod
     def parse_port_mapping(cls, value: object) -> object:
@@ -178,40 +206,19 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
         Returns:
             HaproxyRouteTcpState: instance of the TCP state.
         """
-        port_mapping_str = cast(str | None, charm.config.get("tcp-port-mapping"))
-        tcp_frontend_port = cast(int | None, charm.config.get("tcp-frontend-port"))
-        tcp_backend_port = cast(int | None, charm.config.get("tcp-backend-port"))
-
-        if port_mapping_str is not None and (
-            tcp_frontend_port is not None or tcp_backend_port is not None
-        ):
-            raise InvalidHaproxyRouteTcpStateError(
-                "tcp-port-mapping is mutually exclusive with tcp-frontend-port and tcp-backend-port."
-            )
-
-        port_mapping = (
-            port_mapping_str
-            if port_mapping_str is not None
-            else f"{tcp_frontend_port}:{tcp_backend_port}"
-        )
-
-        return cls._build(
-            charm, cast(str | None, charm.config.get("tcp-backend-addresses")), port_mapping
-        )
+        return cls._build(charm, cast(str | None, charm.config.get("tcp-backend-addresses")))
 
     @classmethod
     def _build(
         cls,
         charm: ops.CharmBase,
         backend_addresses: str | None,
-        port_mapping: str,
     ) -> Self:
-        """Build HaproxyRouteTcpState from backend config and a raw port mapping.
+        """Build HaproxyRouteTcpState from backend config and raw port inputs.
 
         Args:
             charm: The IngressConfiguratorCharm instance.
             backend_addresses: Raw comma-separated backend address config.
-            port_mapping: Raw TCP port mapping (single-port or range).
 
         Raises:
             InvalidHaproxyRouteTcpStateError: If the configuration
@@ -261,7 +268,9 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
                         "queue": charm.config.get("tcp-timeout-queue"),
                     },
                     "proxy_protocol": charm.config.get("tcp-enable-proxy-protocol", False),
-                    "port_mapping": port_mapping,
+                    "port_mapping": charm.config.get("tcp-port-mapping"),
+                    "frontend_port": charm.config.get("tcp-frontend-port"),
+                    "backend_port": charm.config.get("tcp-backend-port"),
                 }
             )
         except ValidationError as exc:

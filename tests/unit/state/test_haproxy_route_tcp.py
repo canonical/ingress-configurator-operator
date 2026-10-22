@@ -829,8 +829,11 @@ def test_haproxy_route_tcp_port_mapping_mutually_exclusive_with_frontend_port():
         "tcp-frontend-port": 4000,
     }
 
-    with pytest.raises(InvalidHaproxyRouteTcpStateError, match="mutually exclusive"):
+    with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
+
+    assert isinstance(exc_info.value.__cause__, ValidationError)
+    assert "mutually exclusive" in exc_info.value.details
 
 
 def test_haproxy_route_tcp_port_mapping_mutually_exclusive_with_backend_port():
@@ -846,8 +849,11 @@ def test_haproxy_route_tcp_port_mapping_mutually_exclusive_with_backend_port():
         "tcp-backend-port": 20000,
     }
 
-    with pytest.raises(InvalidHaproxyRouteTcpStateError, match="mutually exclusive"):
+    with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
+
+    assert isinstance(exc_info.value.__cause__, ValidationError)
+    assert "mutually exclusive" in exc_info.value.details
 
 
 def test_haproxy_route_tcp_port_mapping_invalid_mapping_string():

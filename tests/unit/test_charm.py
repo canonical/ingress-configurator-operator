@@ -76,13 +76,13 @@ def test_config_changed_invalid_state(
         (
             {"timeout-connect": -1},
             "Invalid haproxy-route configuration; see debug-log",
-            "Invalid haproxy-route configuration: TimeoutConfiguration: "
-            "connect: Input should be greater than 0",
+            "Invalid haproxy-route configuration: HaproxyRouteState: "
+            "timeout.connect: Input should be greater than 0",
         ),
         (
             {"health-check-interval": 5},
             "Invalid haproxy-route configuration; see debug-log",
-            "Invalid haproxy-route configuration: HealthCheck: Value error, "
+            "Invalid haproxy-route configuration: HaproxyRouteState: health_check: Value error, "
             "Health check configuration is incomplete: interval, rise, and fall "
             "must all be set if any one of them is specified.",
         ),

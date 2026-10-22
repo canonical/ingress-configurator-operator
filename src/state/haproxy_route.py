@@ -70,24 +70,6 @@ class HealthCheck:
             )
         return self
 
-    @classmethod
-    def from_charm(cls, charm: ops.CharmBase) -> Self:
-        """Create an HealthCheck class from a charm instance.
-
-        Args:
-            charm: the ingress-configurator charm.
-
-        Returns:
-            HealthCheck: instance of the health check component.
-        """
-        return cls(
-            interval=cast(Optional[int], charm.config.get("health-check-interval")),
-            rise=cast(Optional[int], charm.config.get("health-check-rise")),
-            fall=cast(Optional[int], charm.config.get("health-check-fall")),
-            path=cast(Optional[str], charm.config.get("health-check-path")),
-            port=cast(Optional[int], charm.config.get("health-check-port")),
-        )
-
 
 # pylint: disable=too-many-instance-attributes,too-many-locals
 @dataclass(frozen=True)
@@ -297,21 +279,6 @@ class HaproxyRouteState:
             external_grpc_port = cast(int | None, charm.config.get("external-grpc-port"))
             hostname = cast(Optional[str], charm.config.get("hostname"))
             http_server_close = cast(bool, charm.config.get("http-server-close", False))
-            load_balancing_algorithm = LoadBalancingAlgorithm(
-                cast(
-                    Optional[str],
-                    charm.config.get(
-                        "load-balancing-algorithm", LoadBalancingAlgorithm.LEASTCONN.value
-                    ),
-                )
-            )
-            load_balancing_configuration = LoadBalancingConfiguration(
-                algorithm=load_balancing_algorithm,
-                cookie=cast(Optional[str], charm.config.get("load-balancing-cookie")),
-                consistent_hashing=cast(
-                    bool, charm.config.get("load-balancing-consistent-hashing", False)
-                ),
-            )
             path_rewrite_expressions = (
                 # The new line character ('\n') is escaped ('\\n') as set by the
                 # configuration option
@@ -333,24 +300,22 @@ class HaproxyRouteState:
             )
             retry_count = cast(int | None, charm.config.get("retry-count"))
             retry = (
-                Retry(
-                    count=retry_count,
-                    redispatch=cast(bool, charm.config.get("retry-redispatch")),
-                )
+                {
+                    "count": retry_count,
+                    "redispatch": charm.config.get("retry-redispatch"),
+                }
                 if retry_count is not None
                 else None
             )
-            timeout = TimeoutConfiguration(
-                **{
-                    k: v
-                    for k, v in {
-                        "server": cast(int | None, charm.config.get("timeout-server")),
-                        "connect": cast(int | None, charm.config.get("timeout-connect")),
-                        "queue": cast(int | None, charm.config.get("timeout-queue")),
-                    }.items()
-                    if v is not None
-                }
-            )
+            timeout = {
+                k: v
+                for k, v in {
+                    "server": charm.config.get("timeout-server"),
+                    "connect": charm.config.get("timeout-connect"),
+                    "queue": charm.config.get("timeout-queue"),
+                }.items()
+                if v is not None
+            }
             allow_http = cast(bool, charm.config.get("allow-http", False))
             backend_protocol = cast(
                 Literal["http", "https"],
@@ -363,13 +328,27 @@ class HaproxyRouteState:
                     "backend_protocol": backend_protocol,
                     "paths": charm.config.get("paths"),
                     "deny_paths": charm.config.get("deny-paths"),
-                    "health_check": HealthCheck.from_charm(charm),
+                    "health_check": {
+                        "interval": charm.config.get("health-check-interval"),
+                        "rise": charm.config.get("health-check-rise"),
+                        "fall": charm.config.get("health-check-fall"),
+                        "path": charm.config.get("health-check-path"),
+                        "port": charm.config.get("health-check-port"),
+                    },
                     "retry": retry,
                     "timeout": timeout,
                     "service": service,
                     "hostname": hostname,
                     "additional_hostnames": charm.config.get("additional-hostnames"),
-                    "load_balancing_configuration": load_balancing_configuration,
+                    "load_balancing_configuration": {
+                        "algorithm": charm.config.get(
+                            "load-balancing-algorithm", LoadBalancingAlgorithm.LEASTCONN.value
+                        ),
+                        "cookie": charm.config.get("load-balancing-cookie"),
+                        "consistent_hashing": charm.config.get(
+                            "load-balancing-consistent-hashing", False
+                        ),
+                    },
                     "http_server_close": http_server_close,
                     "path_rewrite_expressions": path_rewrite_expressions,
                     "header_rewrite_expressions": header_rewrite_expressions,
@@ -378,10 +357,6 @@ class HaproxyRouteState:
                 }
             )
         except ValidationError as exc:
-            raise InvalidHaproxyRouteStateError(
-                "Invalid haproxy-route configuration", validation_error=exc
-            ) from exc
-        except ValueError as exc:
             raise InvalidHaproxyRouteStateError(
                 "Invalid haproxy-route configuration", validation_error=exc
             ) from exc

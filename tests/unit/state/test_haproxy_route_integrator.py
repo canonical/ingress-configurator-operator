@@ -148,6 +148,34 @@ def test_http_state_collects_invalid_address_and_port_items():
     ]
 
 
+def test_http_state_collects_nested_validation_errors():
+    """Collect independent backend and component failures in a single validation call."""
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "invalid",
+        "backend-ports": "8080",
+        "health-check-interval": 5,
+        "retry-count": "invalid",
+        "retry-redispatch": False,
+        "timeout-connect": -1,
+        "load-balancing-algorithm": "invalid",
+    }
+
+    with pytest.raises(InvalidHaproxyRouteStateError) as exc_info:
+        _make_integrator_state(charm)
+
+    assert str(exc_info.value) == "5 validation errors; see debug-log"
+    cause = exc_info.value.__cause__
+    assert isinstance(cause, ValidationError)
+    assert [error["loc"] for error in cause.errors()] == [
+        ("backend_addresses", 0),
+        ("health_check",),
+        ("retry", "count"),
+        ("timeout", "connect"),
+        ("load_balancing_configuration", "algorithm"),
+    ]
+
+
 def test_state_from_charm_no_backend():
     """
     arrange: mock a charm with no backend configuration

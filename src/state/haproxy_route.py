@@ -10,7 +10,6 @@ in the ingress configurator operator.
 from typing import Annotated, Literal, Optional, Self, cast
 
 import ops
-from annotated_types import Len
 from charms.haproxy.v2.haproxy_route import (
     LoadBalancingAlgorithm,
     LoadBalancingConfiguration,
@@ -19,14 +18,14 @@ from charms.haproxy.v2.haproxy_route import (
     valid_domain_with_wildcard,
 )
 from charms.traefik_k8s.v2.ingress import IngressRequirerData
-from pydantic import BeforeValidator, Field, ValidationError, model_validator
+from pydantic import BeforeValidator, Field, TypeAdapter, ValidationError, model_validator
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
 from helpers import InvalidRouteStateError, value_has_valid_characters
 from state.kubernetes import NodePortState
+from state.validators import BackendAddresses, BackendPorts, split_comma_separated
 
-CHARM_CONFIG_DELIMITER = ","
 DEFAULT_PATH_REWRITE_EXPRESSION_DELIMITER = ";"
 
 
@@ -115,23 +114,28 @@ class HaproxyRouteState:
         external_grpc_port: Optional gRPC external port.
     """
 
-    backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
-    backend_ports: Annotated[list[Annotated[int, Field(gt=0, le=65535)]], Len(min_length=1)]
+    backend_addresses: BackendAddresses
+    backend_ports: BackendPorts
     backend_protocol: Literal["http", "https"]
     health_check: HealthCheck
     retry: Retry | None
     timeout: TimeoutConfiguration
     service: str = Field(..., min_length=1)
-    paths: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(default=[])
-    deny_paths: list[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(
-        default=[]
-    )
+    paths: Annotated[
+        list[Annotated[str, BeforeValidator(value_has_valid_characters)]],
+        BeforeValidator(split_comma_separated),
+    ] = Field(default=[])
+    deny_paths: Annotated[
+        list[Annotated[str, BeforeValidator(value_has_valid_characters)]],
+        BeforeValidator(split_comma_separated),
+    ] = Field(default=[])
     hostname: Optional[Annotated[str, BeforeValidator(valid_domain_with_wildcard)]] = Field(
         default=None
     )
-    additional_hostnames: list[Annotated[str, BeforeValidator(valid_domain_with_wildcard)]] = (
-        Field(default=[])
-    )
+    additional_hostnames: Annotated[
+        list[Annotated[str, BeforeValidator(valid_domain_with_wildcard)]],
+        BeforeValidator(split_comma_separated),
+    ] = Field(default=[])
     load_balancing_configuration: LoadBalancingConfiguration = Field(
         default=LoadBalancingConfiguration()
     )
@@ -200,28 +204,10 @@ class HaproxyRouteState:
         Returns:
             HaproxyRouteState: instance of the state.
         """
-        try:
-            config_backend_addresses = (
-                [
-                    cast(IPvAnyAddress, address)
-                    for address in cast(str, charm.config.get("backend-addresses")).split(",")
-                ]
-                if charm.config.get("backend-addresses")
-                else []
-            )
-            config_backend_ports = (
-                [int(port) for port in cast(str, charm.config.get("backend-ports")).split(",")]
-                if charm.config.get("backend-ports")
-                else []
-            )
-        except ValueError as exc:
-            raise InvalidHaproxyRouteStateError(
-                "Invalid haproxy-route configuration: backend-ports", validation_error=exc
-            ) from exc
         return cls._build(
             charm,
-            config_backend_addresses,
-            config_backend_ports,
+            cast(str | None, charm.config.get("backend-addresses")),
+            cast(str | None, charm.config.get("backend-ports")),
             f"{charm.model.name}-{charm.app.name}",
         )
 
@@ -283,16 +269,16 @@ class HaproxyRouteState:
     def _build(
         cls,
         charm: ops.CharmBase,
-        backend_addresses: list[IPvAnyAddress],
-        backend_ports: list[int],
+        backend_addresses: list[IPvAnyAddress] | str | None,
+        backend_ports: list[int] | str | None,
         service: str,
     ) -> Self:
         """Build HaproxyRouteState from resolved backend fields and charm config.
 
         Args:
             charm: the ingress-configurator charm.
-            backend_addresses: list of resolved backend IP addresses.
-            backend_ports: list of resolved backend ports.
+            backend_addresses: Resolved IP addresses or raw comma-separated config.
+            backend_ports: Resolved ports or raw comma-separated config.
             service: the service name.
 
         Raises:
@@ -303,22 +289,7 @@ class HaproxyRouteState:
         """
         try:
             external_grpc_port = cast(int | None, charm.config.get("external-grpc-port"))
-            paths = (
-                cast(str, charm.config.get("paths")).split(CHARM_CONFIG_DELIMITER)
-                if charm.config.get("paths")
-                else []
-            )
-            deny_paths = (
-                cast(str, charm.config.get("deny-paths")).split(CHARM_CONFIG_DELIMITER)
-                if charm.config.get("deny-paths")
-                else []
-            )
             hostname = cast(Optional[str], charm.config.get("hostname"))
-            additional_hostnames = (
-                cast(str, charm.config.get("additional-hostnames")).split(CHARM_CONFIG_DELIMITER)
-                if charm.config.get("additional-hostnames")
-                else []
-            )
             http_server_close = cast(bool, charm.config.get("http-server-close", False))
             load_balancing_algorithm = LoadBalancingAlgorithm(
                 cast(
@@ -379,24 +350,26 @@ class HaproxyRouteState:
                 Literal["http", "https"],
                 charm.config.get("backend-protocol", "http"),
             )
-            return cls(
-                backend_addresses=backend_addresses,
-                backend_ports=backend_ports,
-                backend_protocol=backend_protocol,
-                paths=paths,
-                deny_paths=deny_paths,
-                health_check=HealthCheck.from_charm(charm),
-                retry=retry,
-                timeout=timeout,
-                service=service,
-                hostname=hostname,
-                additional_hostnames=additional_hostnames,
-                load_balancing_configuration=load_balancing_configuration,
-                http_server_close=http_server_close,
-                path_rewrite_expressions=path_rewrite_expressions,
-                header_rewrite_expressions=header_rewrite_expressions,
-                allow_http=allow_http,
-                external_grpc_port=external_grpc_port,
+            return TypeAdapter(cls).validate_python(
+                {
+                    "backend_addresses": backend_addresses,
+                    "backend_ports": backend_ports,
+                    "backend_protocol": backend_protocol,
+                    "paths": charm.config.get("paths"),
+                    "deny_paths": charm.config.get("deny-paths"),
+                    "health_check": HealthCheck.from_charm(charm),
+                    "retry": retry,
+                    "timeout": timeout,
+                    "service": service,
+                    "hostname": hostname,
+                    "additional_hostnames": charm.config.get("additional-hostnames"),
+                    "load_balancing_configuration": load_balancing_configuration,
+                    "http_server_close": http_server_close,
+                    "path_rewrite_expressions": path_rewrite_expressions,
+                    "header_rewrite_expressions": header_rewrite_expressions,
+                    "allow_http": allow_http,
+                    "external_grpc_port": external_grpc_port,
+                }
             )
         except ValidationError as exc:
             raise InvalidHaproxyRouteStateError(

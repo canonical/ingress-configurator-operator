@@ -3,11 +3,13 @@
 
 """Unit tests for HaproxyRouteState in integrator mode (build_for_integrator_mode)."""
 
+from dataclasses import asdict
 from unittest.mock import Mock
 
 import pytest
 from charms.haproxy.v2.haproxy_route import LoadBalancingAlgorithm
 from ops import CharmBase
+from pydantic import TypeAdapter, ValidationError
 
 from state.haproxy_route import (
     HaproxyRouteState,
@@ -45,6 +47,60 @@ def test_integrator_state_from_charm():
     assert charm_state.retry.redispatch == charm.config.get("retry-redispatch")
     assert charm_state.http_server_close == charm.config.get("http-server-close")
     assert charm_state.allow_http is False
+
+
+@pytest.mark.parametrize(
+    "field, raw_value, expected",
+    [
+        ("backend_addresses", "127.0.0.1,::1", ["127.0.0.1", "::1"]),
+        ("backend_ports", " 80 ,443", [80, 443]),
+        ("paths", "/api,/other", ["/api", "/other"]),
+        ("deny_paths", "/admin,/private", ["/admin", "/private"]),
+        (
+            "additional_hostnames",
+            "api.example.com,static.example.com",
+            ["api.example.com", "static.example.com"],
+        ),
+        ("paths", None, []),
+        ("deny_paths", "", []),
+        ("additional_hostnames", None, []),
+    ],
+)
+def test_http_state_parses_comma_separated_fields(field, raw_value, expected):
+    """Parse raw fields inside Pydantic while accepting already-resolved state."""
+    charm = Mock(CharmBase)
+    charm.config = {"backend-addresses": "127.0.0.1", "backend-ports": "8080"}
+    valid_state = _make_integrator_state(charm)
+
+    state = TypeAdapter(HaproxyRouteState).validate_python(
+        {**asdict(valid_state), field: raw_value}
+    )
+
+    value = getattr(state, field)
+    assert ([str(address) for address in value] if field == "backend_addresses" else value) == (
+        expected
+    )
+
+
+def test_http_state_collects_invalid_address_and_port_items():
+    """Report item-level failures together instead of stopping at integer parsing."""
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "invalid",
+        "backend-ports": "invalid,also-invalid",
+    }
+
+    with pytest.raises(InvalidHaproxyRouteStateError) as exc_info:
+        _make_integrator_state(charm)
+
+    assert str(exc_info.value) == "3 validation errors; see debug-log"
+    cause = exc_info.value.__cause__
+    assert isinstance(cause, ValidationError)
+    assert [error["loc"] for error in cause.errors()] == [
+        ("backend_addresses", 0),
+        ("backend_ports", 0),
+        ("backend_ports", 1),
+    ]
 
 
 def test_state_from_charm_no_backend():

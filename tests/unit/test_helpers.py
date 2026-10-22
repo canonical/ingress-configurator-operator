@@ -4,7 +4,7 @@
 """Unit tests for the helpers module."""
 
 import pytest
-from pydantic import TypeAdapter, ValidationError
+from pydantic import ValidationError
 
 from helpers import InvalidRouteStateError, format_validation_error, truncate_k8s_resource_name
 from state.gateway_route import GatewayRouteState, InvalidGatewayRouteStateError
@@ -75,38 +75,50 @@ def test_config_error_keeps_parser_details_out_of_status():
 
 
 @pytest.mark.parametrize(
-    "model, location, sources",
+    "model, error_type, location, sources",
     [
         (
             HaproxyRouteState,
+            InvalidHaproxyRouteStateError,
             ("backend_ports", 0),
             "config 'backend-ports' or ingress 'port' or Kubernetes Service 'nodePort'",
         ),
-        (HaproxyRouteState, ("timeout", "connect"), "config 'timeout-connect'"),
+        (
+            HaproxyRouteState,
+            InvalidHaproxyRouteStateError,
+            ("timeout", "connect"),
+            "config 'timeout-connect'",
+        ),
         (
             HaproxyRouteTcpState,
+            InvalidHaproxyRouteTcpStateError,
             ("health_check", "check_type"),
             "config 'tcp-health-check-type'",
         ),
         (
             HaproxyRouteTcpState,
+            InvalidHaproxyRouteTcpStateError,
             ("port_mapping",),
             "config 'tcp-port-mapping' or config 'tcp-frontend-port' or config 'tcp-backend-port'",
         ),
-        (GatewayRouteState, ("backend_port",), "ingress 'port'"),
+        (
+            GatewayRouteState,
+            InvalidGatewayRouteStateError,
+            ("backend_port",),
+            "ingress 'port'",
+        ),
     ],
 )
-def test_validation_diagnostics_identify_possible_sources(model, location, sources):
+def test_validation_diagnostics_identify_possible_sources(model, error_type, location, sources):
     """Use field metadata for public source names without discarding missing-field details."""
     exc = ValidationError.from_exception_data(
         model.__name__,
         [{"type": "missing", "loc": location, "input": {}}],
     )
 
-    error = InvalidRouteStateError(
+    error = error_type(
         "Invalid configuration",
         validation_error=exc,
-        schema=TypeAdapter(model).json_schema(),
     )
 
     path = ".".join(str(part) for part in location)

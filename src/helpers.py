@@ -134,7 +134,6 @@ class InvalidRouteStateError(Exception):
         message: str,
         *,
         validation_error: ValueError | None = None,
-        schema: JsonSchemaValue | None = None,
     ) -> None:
         """Initialize the status summary and diagnostic details.
 
@@ -142,8 +141,10 @@ class InvalidRouteStateError(Exception):
             message: User-facing route state error summary. Used unchanged when no
                 validation error is supplied; otherwise followed by a debug-log hint.
             validation_error: The original validation or parsing error, if any.
-            schema: Optional state schema containing possible source metadata.
         """
+        schema = (
+            self._validation_schema() if isinstance(validation_error, ValidationError) else None
+        )
         if validation_error is None:
             self.details = message
             self._status_message = message
@@ -167,6 +168,11 @@ class InvalidRouteStateError(Exception):
             if source:
                 self._status_message = f"Invalid {source}; see debug-log"
         super().__init__(self.details)
+
+    @staticmethod
+    def _validation_schema() -> JsonSchemaValue | None:
+        """Return source metadata if this error is associated with a state model."""
+        return None
 
     def __str__(self) -> str:
         """Return the status summary, including the count for multiple errors.

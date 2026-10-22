@@ -217,7 +217,8 @@ def test_haproxy_route_tcp_requirements_empty_backend_addresses():
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
+    assert "Invalid haproxy-route-tcp configuration" in exc_info.value.details
+    assert "backend_addresses: List should have at least 1 item" in exc_info.value.details
 
 
 @pytest.mark.parametrize(

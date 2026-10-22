@@ -672,6 +672,7 @@ def test_haproxy_route_tcp_requirements_invalid_health_check_type():
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
     assert "health_check.check_type:" in exc_info.value.details
+    assert "(possible sources: config 'tcp-health-check-type')" in exc_info.value.details
 
 
 @pytest.mark.parametrize(

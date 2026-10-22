@@ -133,6 +133,9 @@ def test_http_state_collects_nested_validation_errors():
         ("load_balancing_configuration", "algorithm"),
         ("external_grpc_port",),
     ]
+    for error in cause.errors():
+        location = ".".join(str(part) for part in error["loc"])
+        assert f"{location}:" in exc_info.value.details
 
 
 def test_state_from_charm_no_backend():
@@ -205,8 +208,19 @@ def test_state_from_charm_invalid_port():
         "backend-addresses": "127.0.0.1,127.0.0.2",
         "backend-ports": "99999",
     }
-    with pytest.raises(InvalidHaproxyRouteStateError):
+    with pytest.raises(InvalidHaproxyRouteStateError) as exc_info:
         _make_integrator_state(charm)
+
+    assert exc_info.value.details == (
+        "Invalid haproxy-route configuration: HaproxyRouteState: "
+        "backend_ports.0: Input should be less than or equal to 65535 "
+        "(possible sources: config 'backend-ports' or ingress 'port' or "
+        "Kubernetes Service 'nodePort')"
+    )
+    assert exc_info.value.juju_status_msg == (
+        "Invalid config 'backend-ports' or ingress 'port' or "
+        "Kubernetes Service 'nodePort'; see debug-log"
+    )
 
 
 def test_state_from_charm_invalid_protocol():
@@ -396,8 +410,15 @@ def test_state_from_charm_invalid_timeout_connect():
         "backend-ports": "8080",
         "timeout-connect": -1,
     }
-    with pytest.raises(InvalidHaproxyRouteStateError):
+    with pytest.raises(InvalidHaproxyRouteStateError) as exc_info:
         _make_integrator_state(charm)
+
+    assert exc_info.value.details == (
+        "Invalid haproxy-route configuration: HaproxyRouteState: "
+        "timeout.connect: Input should be greater than 0 "
+        "(possible sources: config 'timeout-connect')"
+    )
+    assert exc_info.value.juju_status_msg == "Invalid config 'timeout-connect'; see debug-log"
 
 
 def test_state_from_charm_invalid_timeout_queue():

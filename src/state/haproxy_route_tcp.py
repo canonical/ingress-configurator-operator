@@ -21,7 +21,6 @@ from charms.haproxy.v1.haproxy_route_tcp import (
 )
 from pydantic import (
     BeforeValidator,
-    ConfigDict,
     Field,
     TypeAdapter,
     ValidationError,
@@ -97,14 +96,7 @@ class TCPHealthCheck:
         return self
 
 
-@dataclass(
-    frozen=True,
-    config=ConfigDict(
-        json_schema_extra={
-            "sources": {"config": ["tcp-port-mapping", "tcp-frontend-port", "tcp-backend-port"]},
-        }
-    ),
-)
+@dataclass(frozen=True)
 class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
     """Requirements for HAProxy TCP route configuration.
 
@@ -193,48 +185,31 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
         }
     )
 
-    @model_validator(mode="before")
-    @classmethod
-    def resolve_port_mapping(cls, value: object) -> object:
-        """Resolve mutually exclusive raw port inputs into a mapping.
-
-        Args:
-            value: State input, optionally including frontend_port and backend_port.
-
-        Returns:
-            State input with single-port configuration converted to a raw mapping.
-
-        Raises:
-            ValueError: If a mapping and single-port configuration are both provided.
-        """
-        if not isinstance(value, dict):
-            return value
-
-        port_mapping = value.get("port_mapping")
-        frontend_port = value.get("frontend_port")
-        backend_port = value.get("backend_port")
-        if port_mapping is not None and (frontend_port is not None or backend_port is not None):
-            raise ValueError(
-                "tcp-port-mapping is mutually exclusive with tcp-frontend-port and tcp-backend-port."
-            )
-        if port_mapping is None and ("frontend_port" in value or "backend_port" in value):
-            return {**value, "port_mapping": f"{frontend_port}:{backend_port}"}
-        return value
-
     @field_validator("port_mapping", mode="before")
     @classmethod
     def parse_port_mapping(cls, value: object) -> object:
-        """Parse raw mappings while preserving already-resolved values.
+        """Resolve raw port alternatives and parse mappings, preserving resolved values.
 
         Args:
-            value: A raw mapping string or parsed mapping input.
+            value: Raw port alternatives, a mapping string, or parsed mapping input.
 
         Returns:
-            A parsed mapping for string input, otherwise the original value.
+            A parsed mapping for raw input, otherwise the original value.
 
         Raises:
-            ValueError: If a raw mapping string is invalid.
+            ValueError: If port alternatives conflict or a raw mapping string is invalid.
         """
+        if isinstance(value, dict) and "mapping" in value:
+            mapping = value["mapping"]
+            frontend_port = value.get("frontend_port")
+            backend_port = value.get("backend_port")
+            if mapping is not None and (frontend_port is not None or backend_port is not None):
+                raise ValueError(
+                    "tcp-port-mapping is mutually exclusive with "
+                    "tcp-frontend-port and tcp-backend-port."
+                )
+            value = mapping if mapping is not None else f"{frontend_port}:{backend_port}"
+
         if isinstance(value, str):
             return PortMapping.from_string(value.strip())
         return value
@@ -344,9 +319,11 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
                         "queue": charm.config.get("tcp-timeout-queue"),
                     },
                     "proxy_protocol": charm.config.get("tcp-enable-proxy-protocol", False),
-                    "port_mapping": charm.config.get("tcp-port-mapping"),
-                    "frontend_port": charm.config.get("tcp-frontend-port"),
-                    "backend_port": charm.config.get("tcp-backend-port"),
+                    "port_mapping": {
+                        "mapping": charm.config.get("tcp-port-mapping"),
+                        "frontend_port": charm.config.get("tcp-frontend-port"),
+                        "backend_port": charm.config.get("tcp-backend-port"),
+                    },
                 }
             )
         except ValidationError as exc:

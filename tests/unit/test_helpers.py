@@ -90,7 +90,7 @@ def test_config_error_keeps_parser_details_out_of_status():
         ),
         (
             HaproxyRouteTcpState,
-            (),
+            ("port_mapping",),
             "config 'tcp-port-mapping' or config 'tcp-frontend-port' or config 'tcp-backend-port'",
         ),
         (GatewayRouteState, ("backend_port",), "ingress 'port'"),

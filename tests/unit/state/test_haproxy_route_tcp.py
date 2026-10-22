@@ -832,7 +832,9 @@ def test_haproxy_route_tcp_port_mapping_mutually_exclusive_with_frontend_port():
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
 
-    assert isinstance(exc_info.value.__cause__, ValidationError)
+    cause = exc_info.value.__cause__
+    assert isinstance(cause, ValidationError)
+    assert [error["loc"] for error in cause.errors()] == [("port_mapping",)]
     assert "mutually exclusive" in exc_info.value.details
 
 
@@ -852,7 +854,9 @@ def test_haproxy_route_tcp_port_mapping_mutually_exclusive_with_backend_port():
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
 
-    assert isinstance(exc_info.value.__cause__, ValidationError)
+    cause = exc_info.value.__cause__
+    assert isinstance(cause, ValidationError)
+    assert [error["loc"] for error in cause.errors()] == [("port_mapping",)]
     assert "mutually exclusive" in exc_info.value.details
 
 
@@ -882,7 +886,8 @@ def test_tcp_state_collects_nested_validation_errors():
     charm.config = {
         **BASE_PORT_MAPPING_CONFIG,
         "tcp-backend-addresses": "invalid",
-        "tcp-port-mapping": "not-valid",
+        "tcp-port-mapping": "8443:443",
+        "tcp-frontend-port": "8443",
         "tcp-health-check-type": "invalid",
         "tcp-retry-count": "invalid",
         "tcp-retry-redispatch": False,

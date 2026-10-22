@@ -24,8 +24,7 @@ from pydantic import BeforeValidator, Field, TypeAdapter, ValidationError, model
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
-from helpers import InvalidRouteStateError
-from state.validators import split_comma_separated
+from helpers import InvalidRouteStateError, split_comma_separated
 
 
 class InvalidHaproxyRouteTcpStateError(InvalidRouteStateError):

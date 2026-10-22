@@ -8,7 +8,7 @@ from typing import Annotated
 import pytest
 from pydantic import BeforeValidator, TypeAdapter, ValidationError
 
-from state.validators import split_comma_separated
+from helpers import split_comma_separated
 
 
 @pytest.mark.parametrize(

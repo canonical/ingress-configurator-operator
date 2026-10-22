@@ -115,3 +115,19 @@ class InvalidRouteStateError(Exception):
         if self._error_count > 1:
             return f"{self._error_count} validation errors; see debug-log"
         return self._status_message
+
+
+def split_comma_separated(value: object) -> object:
+    """Split trimmed nonempty string items; preserve already-parsed inputs.
+
+    Args:
+        value: A comma-separated string, unset value, or already-parsed field input.
+
+    Returns:
+        Trimmed nonempty items for strings, an empty list for None, or the original value.
+    """
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    return value

@@ -23,9 +23,8 @@ from pydantic import BeforeValidator, Field, TypeAdapter, ValidationError, model
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
-from helpers import InvalidRouteStateError, value_has_valid_characters
+from helpers import InvalidRouteStateError, split_comma_separated, value_has_valid_characters
 from state.kubernetes import NodePortState
-from state.validators import split_comma_separated
 
 DEFAULT_PATH_REWRITE_EXPRESSION_DELIMITER = ";"
 

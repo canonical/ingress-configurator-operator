@@ -12,8 +12,7 @@ from pydantic import BeforeValidator, Field, TypeAdapter, ValidationError, field
 from pydantic.dataclasses import dataclass
 from pydantic_core import PydanticUseDefault
 
-from helpers import InvalidRouteStateError
-from state.validators import split_comma_separated
+from helpers import InvalidRouteStateError, split_comma_separated
 
 
 class InvalidGatewayRouteStateError(InvalidRouteStateError):
@@ -44,7 +43,7 @@ class GatewayRouteState:
     additional_hostnames: Annotated[
         list[Annotated[str, BeforeValidator(valid_fqdn)]],
         BeforeValidator(split_comma_separated),
-    ] = Field(default_factory=lambda: [])
+    ] = Field(default=[])
     paths: list[str] = Field(default=["/"])
     strip_prefix: bool = False
 

@@ -7,7 +7,6 @@ This module provides state management functionality for HAProxy TCP routes
 in the ingress configurator operator.
 """
 
-import logging
 from typing import Annotated, Optional, Self, cast
 
 import ops
@@ -25,12 +24,10 @@ from pydantic import BeforeValidator, Field, ValidationError, model_validator
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
-from helpers import get_invalid_config_fields
-
-logger = logging.getLogger(__name__)
+from helpers import InvalidRouteStateError
 
 
-class InvalidHaproxyRouteTcpStateError(Exception):
+class InvalidHaproxyRouteTcpStateError(InvalidRouteStateError):
     """Exception raised when HAProxy TCP route requirements are invalid."""
 
 
@@ -210,7 +207,6 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
                 else []
             )
         except ValueError as exc:
-            logger.error(str(exc))
             raise InvalidHaproxyRouteTcpStateError(
                 "TCP backend state contains invalid value(s)."
             ) from exc
@@ -222,8 +218,9 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
                 else f"{tcp_frontend_port}:{tcp_backend_port}"
             )
         except ValueError as exc:
-            logger.error(str(exc))
-            raise InvalidHaproxyRouteTcpStateError(f"Invalid tcp-port-mapping: {exc}") from exc
+            raise InvalidHaproxyRouteTcpStateError(
+                "Invalid tcp-port-mapping", validation_error=exc
+            ) from exc
 
         return cls._build(charm, backend_addresses, port_mapping)
 
@@ -256,8 +253,10 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
                 cast(str, charm.config.get("tcp-load-balancing-algorithm"))
             )
         except ValueError as exc:
-            logger.error(str(exc))
-            raise InvalidHaproxyRouteTcpStateError("Invalid load balancing algorithm.") from exc
+            raise InvalidHaproxyRouteTcpStateError(
+                "Invalid load balancing algorithm (tcp-load-balancing-algorithm)",
+                validation_error=exc,
+            ) from exc
 
         try:
             load_balancing_configuration = TCPLoadBalancingConfiguration(
@@ -292,10 +291,6 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
                 port_mapping=port_mapping,
             )
         except ValidationError as exc:
-            logger.error(
-                "Failed to validate haproxy-route-tcp requirements. Invalid config fields: %s",
-                get_invalid_config_fields(exc),
-            )
             raise InvalidHaproxyRouteTcpStateError(
-                "Invalid haproxy-route-tcp configuration."
+                "Invalid haproxy-route-tcp configuration", validation_error=exc
             ) from exc

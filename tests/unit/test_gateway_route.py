@@ -4,6 +4,7 @@
 """Unit tests for gateway-route support in the ingress configurator charm."""
 
 import json
+import logging
 from typing import TYPE_CHECKING
 from unittest.mock import ANY, MagicMock
 
@@ -33,6 +34,42 @@ GATEWAY_ROUTE_PROVIDER_DATA = {
     "https_mode": '"enforced"',
     "endpoints": json.dumps(["https://example.com/app1"]),
 }
+
+
+@pytest.mark.usefixtures("mock_lightkube")
+def test_gateway_route_multiple_validation_errors(
+    context_k8s: ops.testing.Context["IngressConfiguratorCharm"],
+    caplog: pytest.LogCaptureFixture,
+):
+    """Keep gateway-route status concise and log all validation failures."""
+    state = ops.testing.State(
+        config={"hostname": "invalid hostname!", "backend-protocol": "https"},
+        relations=[
+            ops.testing.Relation(
+                endpoint="ingress",
+                remote_app_data=INGRESS_REMOTE_APP_DATA,
+                remote_units_data=INGRESS_REMOTE_UNITS_DATA,
+            ),
+            ops.testing.Relation(
+                endpoint="gateway-route",
+                remote_app_data=GATEWAY_ROUTE_PROVIDER_DATA,
+            ),
+        ],
+        leader=True,
+    )
+
+    out = context_k8s.run(context_k8s.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.BlockedStatus("2 validation errors; see debug-log")
+    assert (
+        "Invalid gateway-route config: Invalid gateway-route configuration: GatewayRouteState: "
+        "hostname: Value error, Invalid domain: invalid hostname!; "
+        "backend_protocol: Input should be 'http'"
+    ) in caplog.messages
+    assert any(record.exc_info is not None for record in caplog.records)
+    assert [record.name for record in caplog.records if record.levelno >= logging.ERROR] == [
+        "charm"
+    ]
 
 
 @pytest.mark.usefixtures("mock_lightkube")
@@ -160,8 +197,13 @@ def test_gateway_route_invalid_hostname(
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert out.unit_status == ops.testing.BlockedStatus("Invalid gateway-route configuration")
-    assert "hostname" in caplog.text
+    assert out.unit_status == ops.testing.BlockedStatus(
+        "Invalid gateway-route configuration; see debug-log"
+    )
+    assert (
+        "Invalid gateway-route config: Invalid gateway-route configuration: GatewayRouteState: "
+        "hostname: Value error, Invalid domain: not a valid hostname!"
+    ) in caplog.messages
 
 
 @pytest.mark.usefixtures("mock_lightkube")
@@ -192,8 +234,13 @@ def test_gateway_route_https_backend_protocol_blocked(
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert out.unit_status == ops.testing.BlockedStatus("Invalid gateway-route configuration")
-    assert "backend_protocol" in caplog.text
+    assert out.unit_status == ops.testing.BlockedStatus(
+        "Invalid gateway-route configuration; see debug-log"
+    )
+    assert (
+        "Invalid gateway-route config: Invalid gateway-route configuration: GatewayRouteState: "
+        "backend_protocol: Input should be 'http'"
+    ) in caplog.messages
 
 
 @pytest.mark.usefixtures("mock_lightkube")
@@ -331,8 +378,13 @@ def test_gateway_route_wildcard_hostname_blocked(
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert out.unit_status == ops.testing.BlockedStatus("Invalid gateway-route configuration")
-    assert "hostname" in caplog.text
+    assert out.unit_status == ops.testing.BlockedStatus(
+        "Invalid gateway-route configuration; see debug-log"
+    )
+    assert (
+        "Invalid gateway-route config: Invalid gateway-route configuration: GatewayRouteState: "
+        "hostname: Value error, Invalid domain: *.example.com"
+    ) in caplog.messages
 
 
 def test_gateway_route_https_mode_disabled(

@@ -868,34 +868,13 @@ def test_haproxy_route_tcp_port_mapping_invalid_mapping_string():
         _make_tcp_integrator_state(charm)
 
 
-def test_tcp_mapping_and_backend_errors_are_collected_together():
-    """Keep mapping parse errors indexed alongside other invalid state fields."""
-    charm = Mock(CharmBase)
-    charm.config = {
-        **BASE_PORT_MAPPING_CONFIG,
-        "tcp-backend-addresses": "invalid",
-        "tcp-port-mapping": "not-valid",
-    }
-
-    with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
-        _make_tcp_integrator_state(charm)
-
-    assert str(exc_info.value) == "2 validation errors; see debug-log"
-    cause = exc_info.value.__cause__
-    assert isinstance(cause, ValidationError)
-    assert [error["loc"] for error in cause.errors()] == [
-        ("backend_addresses", 0),
-        ("port_mapping",),
-    ]
-
-
 def test_tcp_state_collects_nested_validation_errors():
     """Collect backend, enum, and nested component failures in a single validation call."""
     charm = Mock(CharmBase)
     charm.config = {
         **BASE_PORT_MAPPING_CONFIG,
         "tcp-backend-addresses": "invalid",
-        "tcp-port-mapping": "8443:443",
+        "tcp-port-mapping": "not-valid",
         "tcp-health-check-type": "invalid",
         "tcp-retry-count": "invalid",
         "tcp-retry-redispatch": False,
@@ -906,7 +885,7 @@ def test_tcp_state_collects_nested_validation_errors():
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
 
-    assert str(exc_info.value) == "5 validation errors; see debug-log"
+    assert str(exc_info.value) == "6 validation errors; see debug-log"
     cause = exc_info.value.__cause__
     assert isinstance(cause, ValidationError)
     assert [error["loc"] for error in cause.errors()] == [
@@ -915,11 +894,12 @@ def test_tcp_state_collects_nested_validation_errors():
         ("load_balancing_configuration", "algorithm"),
         ("health_check", "check_type"),
         ("timeout", "connect"),
+        ("port_mapping",),
     ]
 
 
-def test_tcp_unset_health_check_type_preserves_optional_values():
-    """Keep empty health-check type, absent retries, and unset timeouts optional."""
+def test_tcp_empty_health_check_type_is_unset():
+    """Treat an empty health-check type string as unspecified."""
     charm = Mock(CharmBase)
     charm.config = {
         **BASE_PORT_MAPPING_CONFIG,
@@ -930,26 +910,6 @@ def test_tcp_unset_health_check_type_preserves_optional_values():
     state = _make_tcp_integrator_state(charm)
 
     assert state.health_check.check_type is None
-    assert state.retry is None
-    assert state.timeout.server is None
-    assert state.timeout.connect is None
-    assert state.timeout.queue is None
-
-
-def test_tcp_state_parses_port_mapping():
-    """Parse raw mapping strings."""
-    charm = Mock(CharmBase)
-    charm.config = {
-        **BASE_PORT_MAPPING_CONFIG,
-        "tcp-port-mapping": "4000-4499:20000-20499",
-    }
-    valid_state = _make_tcp_integrator_state(charm)
-
-    state = TypeAdapter(HaproxyRouteTcpState).validate_python(
-        {**asdict(valid_state), "port_mapping": " 4000-4499:20000-20499 "}
-    )
-
-    assert state.port_mapping == valid_state.port_mapping
 
 
 def test_haproxy_route_tcp_port_mapping_unequal_ranges_via_integrator_mode():

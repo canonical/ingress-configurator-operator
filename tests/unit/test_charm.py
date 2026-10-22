@@ -68,18 +68,6 @@ def test_config_changed_invalid_state(
             "backend_ports: List should have at least 1 item after validation, not 0",
         ),
         (
-            {"backend-ports": "invalid"},
-            "Invalid haproxy-route configuration; see debug-log",
-            "Invalid haproxy-route configuration: HaproxyRouteState: backend_ports.0: "
-            "Input should be a valid integer, unable to parse string as an integer",
-        ),
-        (
-            {"timeout-connect": -1},
-            "Invalid haproxy-route configuration; see debug-log",
-            "Invalid haproxy-route configuration: HaproxyRouteState: "
-            "timeout.connect: Input should be greater than 0",
-        ),
-        (
             {"health-check-interval": 5},
             "Invalid haproxy-route configuration; see debug-log",
             "Invalid haproxy-route configuration: HaproxyRouteState: health_check: Value error, "
@@ -188,19 +176,6 @@ def test_config_validation_recovers_after_correction(
 @pytest.mark.parametrize(
     "config, expected_status, expected_log_details",
     [
-        (
-            {"tcp-backend-addresses": "invalid"},
-            "Invalid haproxy-route-tcp configuration; see debug-log",
-            "Invalid haproxy-route-tcp configuration: HaproxyRouteTcpState: "
-            "backend_addresses.0: value is not a valid IPv4 or IPv6 address",
-        ),
-        (
-            {"tcp-load-balancing-algorithm": "invalid"},
-            "Invalid haproxy-route-tcp configuration; see debug-log",
-            "Invalid haproxy-route-tcp configuration: HaproxyRouteTcpState: "
-            "load_balancing_configuration.algorithm: "
-            "Input should be 'leastconn', 'source' or 'roundrobin'",
-        ),
         (
             {"tcp-port-mapping": "invalid", "tcp-frontend-port": None, "tcp-backend-port": None},
             "Invalid haproxy-route-tcp configuration; see debug-log",

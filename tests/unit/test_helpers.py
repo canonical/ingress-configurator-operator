@@ -77,8 +77,8 @@ def test_config_error_separates_status_from_details(fields, expected_status):
         (
             HaproxyRouteState,
             InvalidHaproxyRouteStateError,
-            (),
-            "config 'external-grpc-port' or config 'backend-protocol' or config 'allow-http'",
+            ("external_grpc_port",),
+            "config 'external-grpc-port'",
         ),
         (
             GatewayRouteState,

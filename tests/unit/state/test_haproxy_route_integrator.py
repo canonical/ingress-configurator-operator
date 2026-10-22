@@ -114,12 +114,13 @@ def test_http_state_collects_nested_validation_errors():
         "retry-redispatch": False,
         "timeout-connect": -1,
         "load-balancing-algorithm": "invalid",
+        "external-grpc-port": "50051",
     }
 
     with pytest.raises(InvalidHaproxyRouteStateError) as exc_info:
         _make_integrator_state(charm)
 
-    assert exc_info.value.juju_status_msg == "7 validation errors; see debug-log"
+    assert exc_info.value.juju_status_msg == "8 validation errors; see debug-log"
     cause = exc_info.value.__cause__
     assert isinstance(cause, ValidationError)
     assert [error["loc"] for error in cause.errors()] == [
@@ -130,6 +131,7 @@ def test_http_state_collects_nested_validation_errors():
         ("retry", "count"),
         ("timeout", "connect"),
         ("load_balancing_configuration", "algorithm"),
+        ("external_grpc_port",),
     ]
 
 
@@ -729,7 +731,7 @@ def test_state_from_charm_invalid_external_grpc_port_and_http():
     """
     arrange: mock a charm with external-grpc-port but http protocol
     act: instantiate a State via build_for_integrator_mode
-    assert: a InvalidStateError is raised with ValueError as cause
+    assert: a InvalidStateError is raised with a field-located ValidationError as cause
     """
     charm = Mock(CharmBase)
     charm.config = {
@@ -740,7 +742,10 @@ def test_state_from_charm_invalid_external_grpc_port_and_http():
     }
     with pytest.raises(InvalidHaproxyRouteStateError) as exc_info:
         _make_integrator_state(charm)
-    assert isinstance(exc_info.value.__cause__, ValueError)
+    cause = exc_info.value.__cause__
+    assert isinstance(cause, ValidationError)
+    assert [error["loc"] for error in cause.errors()] == [("external_grpc_port",)]
+    assert exc_info.value.juju_status_msg == "Invalid config 'external-grpc-port'; see debug-log"
     assert "external_grpc_port can only be set when backend_protocol is 'https'" in str(
         exc_info.value.__cause__
     )
@@ -762,6 +767,10 @@ def test_state_from_charm_invalid_external_grpc_port_invalid_and_allow_http():
     }
     with pytest.raises(InvalidHaproxyRouteStateError) as exc_info:
         _make_integrator_state(charm)
+    cause = exc_info.value.__cause__
+    assert isinstance(cause, ValidationError)
+    assert [error["loc"] for error in cause.errors()] == [("external_grpc_port",)]
+    assert exc_info.value.juju_status_msg == "Invalid config 'external-grpc-port'; see debug-log"
     assert "external_grpc_port cannot be set when allow_http is True." in str(
         exc_info.value.__cause__
     )

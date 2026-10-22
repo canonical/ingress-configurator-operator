@@ -98,10 +98,8 @@ class InvalidRouteStateError(Exception):
             return None
 
         fields = model.__pydantic_fields__
-        metadata = model.__pydantic_config__.get("json_schema_extra") if not location else {}
-        if not isinstance(metadata, dict):
-            metadata = {}
-        sources = metadata.get("sources", {})
+        metadata: dict[str, JsonValue] = {}
+        sources: JsonValue = {}
         for part in location:
             if isinstance(part, int):
                 continue

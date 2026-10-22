@@ -21,10 +21,11 @@ from charms.haproxy.v2.haproxy_route import (
 from charms.traefik_k8s.v2.ingress import IngressRequirerData
 from pydantic import (
     BeforeValidator,
-    ConfigDict,
     Field,
     TypeAdapter,
     ValidationError,
+    ValidationInfo,
+    field_validator,
     model_validator,
 )
 from pydantic.dataclasses import dataclass
@@ -94,14 +95,7 @@ class HealthCheck:
 
 
 # pylint: disable=too-many-instance-attributes,too-many-locals
-@dataclass(
-    frozen=True,
-    config=ConfigDict(
-        json_schema_extra={
-            "sources": {"config": ["external-grpc-port", "backend-protocol", "allow-http"]},
-        }
-    ),
-)
+@dataclass(frozen=True)
 class HaproxyRouteState:
     """Charm state that contains the configuration.
 
@@ -241,35 +235,31 @@ class HaproxyRouteState:
         json_schema_extra={"sources": {"config": ["external-grpc-port"]}},
     )
 
-    @model_validator(mode="after")
-    def validate_external_grpc_port_requires_https(self) -> Self:
-        """Perform additional validations.
+    @field_validator("external_grpc_port")
+    @classmethod
+    def validate_external_grpc_port(cls, value: int | None, info: ValidationInfo) -> int | None:
+        """Check gRPC compatibility using the preceding protocol and HTTP fields.
 
-        Returns: this class instance.
+        Args:
+            value: The validated external gRPC port.
+            info: Successfully validated preceding fields.
 
-        Raises:
-            ValueError: if the validation doesn't pass.
-        """
-        if self.external_grpc_port is not None and self.backend_protocol != "https":
-            msg = "external_grpc_port can only be set when backend_protocol is 'https'."
-            raise ValueError(msg)
-
-        return self
-
-    @model_validator(mode="after")
-    def validate_external_grpc_port_and_not_allow_http(self) -> Self:
-        """Perform additional validations.
-
-        Returns: this class instance.
+        Returns:
+            The external gRPC port.
 
         Raises:
-            ValueError: if the validation doesn't pass.
+            ValueError: If the port conflicts with the backend protocol or allow-http.
         """
-        if self.external_grpc_port is not None and self.allow_http:
-            msg = "external_grpc_port cannot be set when allow_http is True."
-            raise ValueError(msg)
-
-        return self
+        if value is None:
+            return value
+        protocol = info.data.get("backend_protocol")
+        if protocol is not None and protocol != "https":
+            raise ValueError(
+                "external_grpc_port can only be set when backend_protocol is 'https'."
+            )
+        if info.data.get("allow_http") is True:
+            raise ValueError("external_grpc_port cannot be set when allow_http is True.")
+        return value
 
     @staticmethod
     def has_integrator_config(charm: ops.CharmBase) -> bool:

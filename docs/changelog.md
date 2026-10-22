@@ -20,6 +20,8 @@ Each revision is versioned by the date of the revision.
   statuses show concise configuration summaries, include the error count when
   multiple validations fail, and direct users to debug-log for the full diagnostics
   without exposing internal validation models.
+- Validate comma-separated route fields together, including malformed backend port
+  values, while preserving existing parsing rules and gateway-specific defaults.
 
 ## 2026-10-19
 

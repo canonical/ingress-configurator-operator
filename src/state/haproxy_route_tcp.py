@@ -10,7 +10,6 @@ in the ingress configurator operator.
 from typing import Annotated, Optional, Self, cast
 
 import ops
-from annotated_types import Len
 from charms.haproxy.v1.haproxy_route_tcp import (
     LoadBalancingAlgorithm,
     PortMapping,
@@ -20,11 +19,11 @@ from charms.haproxy.v1.haproxy_route_tcp import (
     TimeoutConfiguration,
     valid_domain_with_wildcard,
 )
-from pydantic import BeforeValidator, Field, ValidationError, model_validator
+from pydantic import BeforeValidator, Field, TypeAdapter, ValidationError, model_validator
 from pydantic.dataclasses import dataclass
-from pydantic.networks import IPvAnyAddress
 
 from helpers import InvalidRouteStateError
+from state.validators import BackendAddresses
 
 
 class InvalidHaproxyRouteTcpStateError(InvalidRouteStateError):
@@ -132,7 +131,7 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
         proxy_protocol: Whether to enable PROXY protocol when connecting to backend servers.
     """
 
-    backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
+    backend_addresses: BackendAddresses
     tls_terminate: bool
     hostname: Annotated[str, BeforeValidator(valid_domain_with_wildcard)] | None
     retry: Retry | None
@@ -198,20 +197,6 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
             )
 
         try:
-            backend_addresses = (
-                [
-                    cast(IPvAnyAddress, address)
-                    for address in cast(str, charm.config.get("tcp-backend-addresses")).split(",")
-                ]
-                if charm.config.get("tcp-backend-addresses")
-                else []
-            )
-        except ValueError as exc:
-            raise InvalidHaproxyRouteTcpStateError(
-                "TCP backend state contains invalid value(s)."
-            ) from exc
-
-        try:
             port_mapping = PortMapping.from_string(
                 port_mapping_str.strip()
                 if port_mapping_str is not None
@@ -222,20 +207,22 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
                 "Invalid tcp-port-mapping", validation_error=exc
             ) from exc
 
-        return cls._build(charm, backend_addresses, port_mapping)
+        return cls._build(
+            charm, cast(str | None, charm.config.get("tcp-backend-addresses")), port_mapping
+        )
 
     @classmethod
     def _build(
         cls,
         charm: ops.CharmBase,
-        backend_addresses: list[IPvAnyAddress],
+        backend_addresses: str | None,
         port_mapping: PortMapping,
     ) -> Self:
-        """Build HaproxyRouteTcpState from resolved backend fields and charm config.
+        """Build HaproxyRouteTcpState from backend config and a resolved port mapping.
 
         Args:
             charm: The IngressConfiguratorCharm instance.
-            backend_addresses: list of resolved backend IP addresses.
+            backend_addresses: Raw comma-separated backend address config.
             port_mapping: the resolved TCP port mapping (single-port or range).
 
         Raises:
@@ -274,21 +261,23 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
                 if retry_count is not None
                 else None
             )
-            return cls(
-                backend_addresses=backend_addresses,
-                tls_terminate=tls_terminate,
-                hostname=hostname,
-                retry=retry,
-                load_balancing_configuration=load_balancing_configuration,
-                enforce_tls=enforce_tls,
-                health_check=TCPHealthCheck.from_charm(charm),
-                timeout=TimeoutConfiguration(
-                    server=cast(int | None, charm.config.get("tcp-timeout-server")),
-                    connect=cast(int | None, charm.config.get("tcp-timeout-connect")),
-                    queue=cast(int | None, charm.config.get("tcp-timeout-queue")),
-                ),
-                proxy_protocol=cast(bool, charm.config.get("tcp-enable-proxy-protocol", False)),
-                port_mapping=port_mapping,
+            return TypeAdapter(cls).validate_python(
+                {
+                    "backend_addresses": backend_addresses,
+                    "tls_terminate": tls_terminate,
+                    "hostname": hostname,
+                    "retry": retry,
+                    "load_balancing_configuration": load_balancing_configuration,
+                    "enforce_tls": enforce_tls,
+                    "health_check": TCPHealthCheck.from_charm(charm),
+                    "timeout": TimeoutConfiguration(
+                        server=cast(int | None, charm.config.get("tcp-timeout-server")),
+                        connect=cast(int | None, charm.config.get("tcp-timeout-connect")),
+                        queue=cast(int | None, charm.config.get("tcp-timeout-queue")),
+                    ),
+                    "proxy_protocol": charm.config.get("tcp-enable-proxy-protocol", False),
+                    "port_mapping": port_mapping,
+                }
             )
         except ValidationError as exc:
             raise InvalidHaproxyRouteTcpStateError(

@@ -3,11 +3,13 @@
 
 """Unit tests for the haproxy_route_tcp module."""
 
+from dataclasses import asdict
 from unittest.mock import Mock
 
 import pytest
 from charms.haproxy.v1.haproxy_route_tcp import LoadBalancingAlgorithm, PortMapping
 from ops import CharmBase
+from pydantic import TypeAdapter
 
 from state.haproxy_route_tcp import (
     HaproxyRouteTcpState,
@@ -56,6 +58,27 @@ def test_haproxy_route_tcp_requirements_for_integrator_mode():
     assert requirements.load_balancing_configuration.consistent_hashing is False
     assert requirements.enforce_tls is True
     assert requirements.proxy_protocol is False
+
+
+@pytest.mark.parametrize("addresses", ["127.0.0.1,::1", ["127.0.0.1", "::1"]])
+def test_tcp_state_parses_backend_addresses(addresses):
+    """Accept comma-separated addresses and already-parsed lists in the state model."""
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": "127.0.0.1",
+        "tcp-frontend-port": 9000,
+        "tcp-backend-port": 9001,
+        "tcp-enforce-tls": False,
+        "tcp-load-balancing-algorithm": "roundrobin",
+        "tcp-load-balancing-consistent-hashing": False,
+    }
+    valid_state = _make_tcp_integrator_state(charm)
+
+    state = TypeAdapter(HaproxyRouteTcpState).validate_python(
+        {**asdict(valid_state), "backend_addresses": addresses}
+    )
+
+    assert [str(address) for address in state.backend_addresses] == ["127.0.0.1", "::1"]
 
 
 def test_haproxy_route_tcp_invalid_algorithm():

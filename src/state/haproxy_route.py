@@ -325,15 +325,11 @@ class HaproxyRouteState:
         Returns:
             HaproxyRouteState: instance of the state.
         """
-        try:
-            backend_addresses = [cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units]
-            backend_ports = [ingress_data.app.port]
-        except ValueError as exc:
-            raise InvalidHaproxyRouteStateError(
-                "HAProxy route state contains invalid value(s)."
-            ) from exc
         return cls._build(
-            charm, backend_addresses, backend_ports, f"{charm.model.name}-{charm.app.name}"
+            charm,
+            [unit.ip for unit in ingress_data.units],
+            [ingress_data.app.port],
+            f"{charm.model.name}-{charm.app.name}",
         )
 
     @classmethod
@@ -365,7 +361,7 @@ class HaproxyRouteState:
     def _build(
         cls,
         charm: ops.CharmBase,
-        backend_addresses: list[IPvAnyAddress] | str | None,
+        backend_addresses: list[IPvAnyAddress] | list[str | None] | str | None,
         backend_ports: list[int] | str | None,
         service: str,
     ) -> Self:

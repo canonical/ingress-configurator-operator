@@ -15,24 +15,6 @@ from state.haproxy_route_tcp import HaproxyRouteTcpState, InvalidHaproxyRouteTcp
 
 
 @pytest.mark.parametrize(
-    "error_type",
-    [
-        InvalidHaproxyRouteStateError,
-        InvalidHaproxyRouteTcpStateError,
-        InvalidGatewayRouteStateError,
-    ],
-)
-def test_config_error_preserves_explicit_message(error_type):
-    """Errors without validation details preserve the explicit message."""
-    error = error_type("A required option is missing.")
-
-    assert isinstance(error, InvalidRouteStateError)
-    assert str(error) == "A required option is missing."
-    assert error.juju_status_msg == "A required option is missing."
-    assert error.details == "A required option is missing."
-
-
-@pytest.mark.parametrize(
     "fields, expected_status",
     [
         (("port",), "Invalid configuration; see debug-log"),
@@ -63,20 +45,6 @@ def test_config_error_separates_status_from_details(fields, expected_status):
     assert error.details == expected_details
     assert error.juju_status_msg == expected_status
     assert str(error) == expected_details
-
-
-def test_config_error_keeps_parser_details_out_of_status():
-    """A parsing error's implementation details belong only in diagnostic logs."""
-    error = InvalidRouteStateError(
-        "Invalid backend-ports",
-        validation_error=ValueError("invalid literal for int() with base 10: 'invalid'"),
-    )
-
-    assert error.juju_status_msg == "Invalid backend-ports; see debug-log"
-    assert error.details == (
-        "Invalid backend-ports: invalid literal for int() with base 10: 'invalid'"
-    )
-    assert str(error) == error.details
 
 
 @pytest.mark.parametrize(

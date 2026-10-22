@@ -69,30 +69,18 @@ class InvalidRouteStateError(Exception):
         self,
         message: str,
         *,
-        validation_error: ValueError | None = None,
+        validation_error: ValidationError,
     ) -> None:
         """Initialize the status summary and diagnostic details.
 
         Args:
-            message: User-facing route state error summary. Used unchanged when no
-                validation error is supplied; otherwise followed by a debug-log hint.
-            validation_error: The original validation or parsing error, if any.
+            message: Route state error summary, used in diagnostics and as a status fallback.
+            validation_error: The original Pydantic validation error.
         """
-        if validation_error is None:
-            self._details = message
-            self._status_message = message
-        else:
-            reason = (
-                self._format_validation_error(validation_error)
-                if isinstance(validation_error, ValidationError)
-                else str(validation_error)
-            )
-            self._details = f"{message}: {reason}"
-            self._status_message = f"{message}; see debug-log"
-        self._error_count = (
-            validation_error.error_count() if isinstance(validation_error, ValidationError) else 0
-        )
-        if isinstance(validation_error, ValidationError) and self._error_count == 1:
+        self._details = f"{message}: {self._format_validation_error(validation_error)}"
+        self._status_message = f"{message}; see debug-log"
+        self._error_count = validation_error.error_count()
+        if self._error_count == 1:
             source = self._validation_error_source(validation_error.errors()[0]["loc"])
             if source:
                 self._status_message = f"Invalid {source}; see debug-log"

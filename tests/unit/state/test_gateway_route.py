@@ -8,7 +8,8 @@ from unittest.mock import Mock
 import pytest
 from charms.traefik_k8s.v2.ingress import IngressRequirerAppData, IngressRequirerData
 from ops import CharmBase
-from pydantic import TypeAdapter, ValidationError
+from pydantic import Field, TypeAdapter, ValidationError
+from pydantic.dataclasses import dataclass
 
 from state.gateway_route import GatewayRouteState
 
@@ -47,6 +48,30 @@ def test_gateway_state_parses_raw_fields(field, raw_value, expected):
     )
 
     assert getattr(state, field) == expected
+
+
+@pytest.mark.parametrize("raw_paths", [None, "", " , , "])
+def test_gateway_empty_paths_use_declared_field_default(raw_paths):
+    """Use the field's default factory rather than a fallback inside the validator."""
+
+    @dataclass(frozen=True)
+    class CustomDefaultGatewayRouteState(GatewayRouteState):
+        """Gateway state with a different declared path default."""
+
+        paths: list[str] = Field(default_factory=lambda: ["/custom"])
+
+    state = TypeAdapter(CustomDefaultGatewayRouteState).validate_python(
+        {
+            "application_name": "backend",
+            "model_name": "test-model",
+            "hostname": None,
+            "backend_protocol": "http",
+            "backend_port": 8080,
+            "paths": raw_paths,
+        }
+    )
+
+    assert state.paths == ["/custom"]
 
 
 @pytest.mark.parametrize(

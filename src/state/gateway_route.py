@@ -10,6 +10,7 @@ from charms.gateway_api_integrator.v1.gateway_route import valid_fqdn
 from charms.traefik_k8s.v2.ingress import IngressRequirerData
 from pydantic import BeforeValidator, Field, TypeAdapter, ValidationError, field_validator
 from pydantic.dataclasses import dataclass
+from pydantic_core import PydanticUseDefault
 
 from helpers import InvalidRouteStateError
 from state.validators import (
@@ -53,16 +54,22 @@ class GatewayRouteState:
     @field_validator("paths", mode="before")
     @classmethod
     def parse_paths(cls, value: object) -> object:
-        """Normalize configured paths, defaulting empty raw config to the root path.
+        """Normalize configured paths, using the field default for empty raw config.
 
         Args:
             value: Raw comma-separated path config or an already-parsed list.
 
         Returns:
             Normalized paths for raw config, otherwise the original value.
+
+        Raises:
+            PydanticUseDefault: If raw config contains no nonempty paths.
         """
         if value is None or isinstance(value, str):
-            return split_trimmed_comma_separated(value, convert=str) or ["/"]
+            paths = split_trimmed_comma_separated(value, convert=str)
+            if not paths:
+                raise PydanticUseDefault()
+            return paths
         return value
 
     @property

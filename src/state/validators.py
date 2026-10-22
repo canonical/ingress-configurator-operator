@@ -4,7 +4,7 @@
 """Reusable parsing and validation for comma-separated route fields."""
 
 from collections.abc import Callable
-from typing import Annotated, overload
+from typing import Annotated
 
 from annotated_types import Len
 from pydantic import BeforeValidator, Field
@@ -25,16 +25,6 @@ def split_comma_separated(value: object) -> object:
     if isinstance(value, str):
         return value.split(",") if value else []
     return value
-
-
-@overload
-def split_trimmed_comma_separated[T](
-    value: str | None, convert: Callable[[str], T]
-) -> list[T]: ...
-
-
-@overload
-def split_trimmed_comma_separated(value: object, convert: Callable[[str], object]) -> object: ...
 
 
 def split_trimmed_comma_separated(value: object, convert: Callable[[str], object]) -> object:

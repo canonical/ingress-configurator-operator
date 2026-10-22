@@ -52,22 +52,21 @@ def test_split_comma_separated_does_not_modify_lists():
 def test_split_trimmed_comma_separated_converts_integers(
     value: str | None, expected: list[int]
 ) -> None:
-    """Infer integer results from the converter and ignore empty raw items."""
-    result: list[int] = split_trimmed_comma_separated(value, convert=int)
-
-    assert result == expected
+    """Convert integer items and ignore empty raw items."""
+    assert split_trimmed_comma_separated(value, convert=int) == expected
 
 
 def test_split_trimmed_comma_separated_converts_strings() -> None:
     """Keep trimmed string results when using the string converter."""
-    result: list[str] = split_trimmed_comma_separated(" first, , second, ", convert=str)
-
-    assert result == ["first", "second"]
+    assert split_trimmed_comma_separated(" first, , second, ", convert=str) == [
+        "first",
+        "second",
+    ]
 
 
 def test_split_trimmed_comma_separated_converts_addresses() -> None:
     """Support converters other than builtin scalar types."""
-    result: list[ipaddress.IPv4Address] = split_trimmed_comma_separated(
+    result = split_trimmed_comma_separated(
         " 10.0.0.1, , 10.0.0.2, ", convert=ipaddress.IPv4Address
     )
 

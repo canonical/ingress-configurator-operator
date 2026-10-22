@@ -117,17 +117,21 @@ class InvalidRouteStateError(Exception):
         return self._status_message
 
 
-def split_comma_separated(value: object) -> object:
+def split_delimited(value: object, *, delimiter: str = ",") -> object:
     """Split trimmed nonempty string items; preserve already-parsed inputs.
 
     Args:
-        value: A comma-separated string, unset value, or already-parsed field input.
+        value: A delimited string, unset value, or already-parsed field input.
+        delimiter: Separator between items, defaulting to a comma.
 
     Returns:
         Trimmed nonempty items for strings, an empty list for None, or the original value.
+
+    Raises:
+        ValueError: If a string input is split with an empty delimiter.
     """
     if value is None:
         return []
     if isinstance(value, str):
-        return [item.strip() for item in value.split(",") if item.strip()]
+        return [item.strip() for item in value.split(delimiter) if item.strip()]
     return value

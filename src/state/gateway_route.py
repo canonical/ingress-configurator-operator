@@ -12,7 +12,7 @@ from pydantic import BeforeValidator, Field, TypeAdapter, ValidationError, field
 from pydantic.dataclasses import dataclass
 from pydantic_core import PydanticUseDefault
 
-from helpers import InvalidRouteStateError, split_comma_separated
+from helpers import InvalidRouteStateError, split_delimited
 
 
 class InvalidGatewayRouteStateError(InvalidRouteStateError):
@@ -42,7 +42,7 @@ class GatewayRouteState:
     backend_port: int = Field(gt=0, le=65535)
     additional_hostnames: Annotated[
         list[Annotated[str, BeforeValidator(valid_fqdn)]],
-        BeforeValidator(split_comma_separated),
+        BeforeValidator(split_delimited),
     ] = Field(default=[])
     paths: list[str] = Field(default=["/"])
     strip_prefix: bool = False
@@ -62,7 +62,7 @@ class GatewayRouteState:
             PydanticUseDefault: If raw config contains no nonempty paths.
         """
         if value is None or isinstance(value, str):
-            paths = split_comma_separated(value)
+            paths = split_delimited(value)
             if not paths:
                 raise PydanticUseDefault()
             return paths

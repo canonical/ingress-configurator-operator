@@ -24,7 +24,7 @@ from pydantic import BeforeValidator, Field, TypeAdapter, ValidationError, model
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
-from helpers import InvalidRouteStateError, split_comma_separated
+from helpers import InvalidRouteStateError, split_delimited
 
 
 class InvalidHaproxyRouteTcpStateError(InvalidRouteStateError):
@@ -133,7 +133,7 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
     """
 
     backend_addresses: Annotated[
-        list[IPvAnyAddress], Len(min_length=1), BeforeValidator(split_comma_separated)
+        list[IPvAnyAddress], Len(min_length=1), BeforeValidator(split_delimited)
     ]
     tls_terminate: bool
     hostname: Annotated[str, BeforeValidator(valid_domain_with_wildcard)] | None

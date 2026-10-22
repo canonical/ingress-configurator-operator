@@ -23,7 +23,7 @@ from pydantic import BeforeValidator, Field, TypeAdapter, ValidationError, model
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
-from helpers import InvalidRouteStateError, split_comma_separated, value_has_valid_characters
+from helpers import InvalidRouteStateError, split_delimited, value_has_valid_characters
 from state.kubernetes import NodePortState
 
 DEFAULT_PATH_REWRITE_EXPRESSION_DELIMITER = ";"
@@ -115,12 +115,12 @@ class HaproxyRouteState:
     """
 
     backend_addresses: Annotated[
-        list[IPvAnyAddress], Len(min_length=1), BeforeValidator(split_comma_separated)
+        list[IPvAnyAddress], Len(min_length=1), BeforeValidator(split_delimited)
     ]
     backend_ports: Annotated[
         list[Annotated[int, Field(gt=0, le=65535)]],
         Len(min_length=1),
-        BeforeValidator(split_comma_separated),
+        BeforeValidator(split_delimited),
     ]
     backend_protocol: Literal["http", "https"]
     health_check: HealthCheck
@@ -129,18 +129,18 @@ class HaproxyRouteState:
     service: str = Field(..., min_length=1)
     paths: Annotated[
         list[Annotated[str, BeforeValidator(value_has_valid_characters)]],
-        BeforeValidator(split_comma_separated),
+        BeforeValidator(split_delimited),
     ] = Field(default=[])
     deny_paths: Annotated[
         list[Annotated[str, BeforeValidator(value_has_valid_characters)]],
-        BeforeValidator(split_comma_separated),
+        BeforeValidator(split_delimited),
     ] = Field(default=[])
     hostname: Optional[Annotated[str, BeforeValidator(valid_domain_with_wildcard)]] = Field(
         default=None
     )
     additional_hostnames: Annotated[
         list[Annotated[str, BeforeValidator(valid_domain_with_wildcard)]],
-        BeforeValidator(split_comma_separated),
+        BeforeValidator(split_delimited),
     ] = Field(default=[])
     load_balancing_configuration: LoadBalancingConfiguration = Field(
         default=LoadBalancingConfiguration()

@@ -14,7 +14,7 @@ from pydantic.dataclasses import dataclass
 
 from helpers import InvalidRouteStateError
 from state.validators import (
-    parse_integer,
+    normalize_trimmed_comma_separated,
     split_comma_separated,
     split_trimmed_comma_separated,
 )

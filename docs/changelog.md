@@ -8,7 +8,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Each revision is versioned by the date of the revision.
 
-
 ## 2026-10-22
 
 - Centralize route configuration validation with concise blocked statuses and

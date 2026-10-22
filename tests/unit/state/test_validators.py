@@ -4,9 +4,11 @@
 """Tests for reusable comma-separated field validation."""
 
 import ipaddress
+from functools import partial
+from typing import Annotated
 
 import pytest
-from pydantic import TypeAdapter, ValidationError
+from pydantic import BeforeValidator, TypeAdapter, ValidationError
 
 from state.validators import (
     BackendAddresses,
@@ -78,6 +80,27 @@ def test_split_trimmed_comma_separated_propagates_conversion_errors() -> None:
         split_trimmed_comma_separated("80,invalid,443", convert=int)
 
     assert str(exc_info.value) == "invalid literal for int() with base 10: 'invalid'"
+
+
+@pytest.mark.parametrize("value", [[80, 443], [" first ", ""], 42, {"port": 80}])
+def test_split_trimmed_comma_separated_preserves_nonstring_inputs(value: object) -> None:
+    """Leave parsed lists and invalid input types unchanged for Pydantic."""
+    assert split_trimmed_comma_separated(value, convert=str) is value
+
+
+def test_split_trimmed_partial_retains_item_validation_errors() -> None:
+    """A bound converter must leave parsed-list validation to Pydantic."""
+    adapter: TypeAdapter[list[int]] = TypeAdapter(
+        Annotated[
+            list[int],
+            BeforeValidator(partial(split_trimmed_comma_separated, convert=str)),
+        ]
+    )
+
+    with pytest.raises(ValidationError) as exc_info:
+        adapter.validate_python(["invalid", "also-invalid"])
+
+    assert [error["loc"] for error in exc_info.value.errors()] == [(0,), (1,)]
 
 
 @pytest.mark.parametrize(

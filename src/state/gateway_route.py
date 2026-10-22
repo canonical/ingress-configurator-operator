@@ -9,12 +9,15 @@ from typing import Annotated, Literal, Self, cast
 import ops
 from charms.gateway_api_integrator.v1.gateway_route import valid_fqdn
 from charms.traefik_k8s.v2.ingress import IngressRequirerData
-from pydantic import BeforeValidator, Field, ValidationError
+from pydantic import BeforeValidator, Field, TypeAdapter, ValidationError, field_validator
 from pydantic.dataclasses import dataclass
 
 from helpers import InvalidRouteStateError
-
-CHARM_CONFIG_DELIMITER = ","
+from state.validators import (
+    parse_integer,
+    split_comma_separated,
+    split_trimmed_comma_separated,
+)
 
 
 class InvalidGatewayRouteStateError(InvalidRouteStateError):
@@ -42,9 +45,10 @@ class GatewayRouteState:
     hostname: Annotated[str, BeforeValidator(valid_fqdn)] | None
     backend_protocol: Literal["http"] | None
     backend_port: int = Field(gt=0, le=65535)
-    additional_hostnames: list[Annotated[str, BeforeValidator(valid_fqdn)]] = Field(
-        default_factory=lambda: []
-    )
+    additional_hostnames: Annotated[
+        list[Annotated[str, BeforeValidator(valid_fqdn)]],
+        BeforeValidator(split_comma_separated),
+    ] = Field(default_factory=lambda: [])
     paths: list[str] = Field(default_factory=lambda: ["/"])
     strip_prefix: bool = False
 
@@ -168,37 +172,10 @@ class GatewayRouteState:
         Returns:
             GatewayRouteState instance with integrator_state populated.
         """
-        raw_addresses = cast(str, charm.config.get("backend-addresses") or "")
-        addr_strings = [
-            a.strip() for a in raw_addresses.split(CHARM_CONFIG_DELIMITER) if a.strip()
-        ]
-
-        raw_ports = cast(str, charm.config.get("backend-ports") or "")
-        port_values = [p.strip() for p in raw_ports.split(CHARM_CONFIG_DELIMITER) if p.strip()]
-        if len(port_values) != 1:
-            raise InvalidGatewayRouteStateError(
-                "gateway-route requires exactly one port in backend-ports."
-            )
-        try:
-            backend_port = int(port_values[0])
-        except ValueError as exc:
-            raise InvalidGatewayRouteStateError(
-                f"Invalid port value in backend-ports: '{port_values[0]}'."
-            ) from exc
-
-        try:
-            integrator_state = GatewayRouteIntegratorSubState(
-                backend_addresses=addr_strings,  # type: ignore[arg-type]
-            )
-        except ValidationError as exc:
-            raise InvalidGatewayRouteStateError(
-                "Invalid gateway-route configuration", validation_error=exc
-            ) from exc
-
         return cls._build(
             charm,
             application_name=charm.app.name,
             model_name=charm.model.name,
-            backend_port=backend_port,
-            integrator_state=integrator_state,
+            backend_port=cast(str | None, charm.config.get("backend-ports")),
+            integrator_state={"backend_addresses": charm.config.get("backend-addresses")},
         )

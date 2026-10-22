@@ -26,6 +26,20 @@ def split_comma_separated(value: object) -> object:
     return value
 
 
+def split_trimmed_comma_separated(value: object) -> object:
+    """Trim and drop empty string items; preserve already-parsed values.
+
+    Args:
+        value: A comma-separated string, parsed list, or unset value.
+
+    Returns:
+        Nonempty trimmed items for strings, an empty list for None, or the original value.
+    """
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    return [] if value is None else value
+
+
 def parse_integer(value: object) -> object:
     """Convert string integers without accepting fractional string syntax.
 

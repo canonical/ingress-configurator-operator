@@ -12,7 +12,6 @@ from typing import Annotated, Optional, Self, cast
 import ops
 from annotated_types import Len
 from charms.haproxy.v1.haproxy_route_tcp import (
-    LoadBalancingAlgorithm,
     PortMapping,
     Retry,
     TCPHealthCheckType,
@@ -79,40 +78,6 @@ class TCPHealthCheck:
                 "fall must all be set if any one of them is specified."
             )
         return self
-
-    @classmethod
-    def from_charm(cls, charm: ops.CharmBase) -> Self:
-        """Create a TCPHealthCheck from charm config.
-
-        Args:
-            charm: The charm instance.
-
-        Raises:
-            InvalidHaproxyRouteTcpStateError: If the health check type is invalid.
-
-        Returns:
-            TCPHealthCheck instance.
-        """
-        check_type_str = cast(Optional[str], charm.config.get("tcp-health-check-type"))
-        check_type = None
-        if check_type_str:
-            try:
-                check_type = TCPHealthCheckType(check_type_str)
-            except ValueError as exc:
-                raise InvalidHaproxyRouteTcpStateError(
-                    f"Invalid health check type: {check_type_str}. "
-                    "Must be one of: generic, mysql, postgres, redis, smtp."
-                ) from exc
-
-        return cls(
-            interval=cast(Optional[int], charm.config.get("tcp-health-check-interval")),
-            rise=cast(Optional[int], charm.config.get("tcp-health-check-rise")),
-            fall=cast(Optional[int], charm.config.get("tcp-health-check-fall")),
-            check_type=check_type,
-            send=cast(Optional[str], charm.config.get("tcp-health-check-send")),
-            expect=cast(Optional[str], charm.config.get("tcp-health-check-expect")),
-            db_user=cast(Optional[str], charm.config.get("tcp-health-check-db-user")),
-        )
 
 
 @dataclass(frozen=True)
@@ -259,28 +224,12 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
         hostname = cast(str | None, charm.config.get("tcp-hostname"))
         enforce_tls = cast(bool, charm.config.get("tcp-enforce-tls"))
         try:
-            load_balancing_algorithm = LoadBalancingAlgorithm(
-                cast(str, charm.config.get("tcp-load-balancing-algorithm"))
-            )
-        except ValueError as exc:
-            raise InvalidHaproxyRouteTcpStateError(
-                "Invalid load balancing algorithm (tcp-load-balancing-algorithm)",
-                validation_error=exc,
-            ) from exc
-
-        try:
-            load_balancing_configuration = TCPLoadBalancingConfiguration(
-                algorithm=load_balancing_algorithm,
-                consistent_hashing=cast(
-                    bool, charm.config.get("tcp-load-balancing-consistent-hashing")
-                ),
-            )
             retry_count = cast(int | None, charm.config.get("tcp-retry-count"))
             retry = (
-                Retry(
-                    count=retry_count,
-                    redispatch=cast(bool, charm.config.get("tcp-retry-redispatch")),
-                )
+                {
+                    "count": retry_count,
+                    "redispatch": charm.config.get("tcp-retry-redispatch"),
+                }
                 if retry_count is not None
                 else None
             )
@@ -290,14 +239,27 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
                     "tls_terminate": tls_terminate,
                     "hostname": hostname,
                     "retry": retry,
-                    "load_balancing_configuration": load_balancing_configuration,
+                    "load_balancing_configuration": {
+                        "algorithm": charm.config.get("tcp-load-balancing-algorithm"),
+                        "consistent_hashing": charm.config.get(
+                            "tcp-load-balancing-consistent-hashing"
+                        ),
+                    },
                     "enforce_tls": enforce_tls,
-                    "health_check": TCPHealthCheck.from_charm(charm),
-                    "timeout": TimeoutConfiguration(
-                        server=cast(int | None, charm.config.get("tcp-timeout-server")),
-                        connect=cast(int | None, charm.config.get("tcp-timeout-connect")),
-                        queue=cast(int | None, charm.config.get("tcp-timeout-queue")),
-                    ),
+                    "health_check": {
+                        "interval": charm.config.get("tcp-health-check-interval"),
+                        "rise": charm.config.get("tcp-health-check-rise"),
+                        "fall": charm.config.get("tcp-health-check-fall"),
+                        "check_type": charm.config.get("tcp-health-check-type") or None,
+                        "send": charm.config.get("tcp-health-check-send"),
+                        "expect": charm.config.get("tcp-health-check-expect"),
+                        "db_user": charm.config.get("tcp-health-check-db-user"),
+                    },
+                    "timeout": {
+                        "server": charm.config.get("tcp-timeout-server"),
+                        "connect": charm.config.get("tcp-timeout-connect"),
+                        "queue": charm.config.get("tcp-timeout-queue"),
+                    },
                     "proxy_protocol": charm.config.get("tcp-enable-proxy-protocol", False),
                     "port_mapping": port_mapping,
                 }

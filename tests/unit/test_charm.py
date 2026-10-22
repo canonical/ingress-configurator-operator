@@ -196,9 +196,10 @@ def test_config_validation_recovers_after_correction(
         ),
         (
             {"tcp-load-balancing-algorithm": "invalid"},
-            "Invalid load balancing algorithm (tcp-load-balancing-algorithm); see debug-log",
-            "Invalid load balancing algorithm (tcp-load-balancing-algorithm): "
-            "'invalid' is not a valid LoadBalancingAlgorithm",
+            "Invalid haproxy-route-tcp configuration; see debug-log",
+            "Invalid haproxy-route-tcp configuration: HaproxyRouteTcpState: "
+            "load_balancing_configuration.algorithm: "
+            "Input should be 'leastconn', 'source' or 'roundrobin'",
         ),
         (
             {"tcp-port-mapping": "invalid", "tcp-frontend-port": None, "tcp-backend-port": None},

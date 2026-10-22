@@ -99,7 +99,7 @@ def test_haproxy_route_tcp_invalid_algorithm():
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid load balancing algorithm" in str(exc_info.value)
+    assert "load_balancing_configuration.algorithm:" in exc_info.value.details
 
 
 def test_haproxy_route_tcp_requirements_for_integrator_mode_no_tls():
@@ -270,7 +270,7 @@ def test_haproxy_route_tcp_requirements_invalid_backend_address(invalid_address)
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid load balancing algorithm" in str(exc_info.value)
+    assert "backend_addresses.0:" in exc_info.value.details
 
 
 @pytest.mark.parametrize(
@@ -520,7 +520,9 @@ def test_haproxy_route_tcp_requirements_incomplete_health_check(missing_field):
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
+    assert "health_check: Value error, Health check configuration is incomplete:" in (
+        exc_info.value.details
+    )
 
 
 @pytest.mark.parametrize(
@@ -551,7 +553,8 @@ def test_haproxy_route_tcp_requirements_invalid_health_check_values(invalid_valu
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
+    assert "health_check." in exc_info.value.details
+    assert "Input should be greater than 0" in exc_info.value.details
 
 
 def test_haproxy_route_tcp_requirements_health_check_with_type_generic():
@@ -674,7 +677,7 @@ def test_haproxy_route_tcp_requirements_invalid_health_check_type():
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid health check type" in str(exc_info.value)
+    assert "health_check.check_type:" in exc_info.value.details
 
 
 @pytest.mark.parametrize(
@@ -750,7 +753,8 @@ def test_haproxy_route_tcp_requirements_invalid_timeout_values(invalid_value):
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
+    assert "timeout." in exc_info.value.details
+    assert "Input should be greater than 0" in exc_info.value.details
 
 
 def test_haproxy_route_tcp_requirements_proxy_protocol_enabled():
@@ -884,6 +888,54 @@ def test_tcp_mapping_and_backend_errors_are_collected_together():
         ("backend_addresses", 0),
         ("port_mapping",),
     ]
+
+
+def test_tcp_state_collects_nested_validation_errors():
+    """Collect backend, enum, and nested component failures in a single validation call."""
+    charm = Mock(CharmBase)
+    charm.config = {
+        **BASE_PORT_MAPPING_CONFIG,
+        "tcp-backend-addresses": "invalid",
+        "tcp-port-mapping": "8443:443",
+        "tcp-health-check-type": "invalid",
+        "tcp-retry-count": "invalid",
+        "tcp-retry-redispatch": False,
+        "tcp-timeout-connect": -1,
+        "tcp-load-balancing-algorithm": "invalid",
+    }
+
+    with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
+        _make_tcp_integrator_state(charm)
+
+    assert str(exc_info.value) == "5 validation errors; see debug-log"
+    cause = exc_info.value.__cause__
+    assert isinstance(cause, ValidationError)
+    assert [error["loc"] for error in cause.errors()] == [
+        ("backend_addresses", 0),
+        ("retry", "count"),
+        ("load_balancing_configuration", "algorithm"),
+        ("health_check", "check_type"),
+        ("timeout", "connect"),
+    ]
+
+
+@pytest.mark.parametrize("check_type", [None, ""])
+def test_tcp_unset_health_check_type_preserves_optional_values(check_type):
+    """Keep empty health-check type, absent retries, and unset timeouts optional."""
+    charm = Mock(CharmBase)
+    charm.config = {
+        **BASE_PORT_MAPPING_CONFIG,
+        "tcp-port-mapping": "8443:443",
+        "tcp-health-check-type": check_type,
+    }
+
+    state = _make_tcp_integrator_state(charm)
+
+    assert state.health_check.check_type is None
+    assert state.retry is None
+    assert state.timeout.server is None
+    assert state.timeout.connect is None
+    assert state.timeout.queue is None
 
 
 @pytest.mark.parametrize(

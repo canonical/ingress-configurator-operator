@@ -217,7 +217,7 @@ def test_haproxy_route_tcp_requirements_invalid_wildcard_sni(invalid_hostname):
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
+    assert str(exc_info.value) == "Invalid config 'tcp-hostname'; see debug-log"
 
 
 def test_haproxy_route_tcp_requirements_empty_backend_addresses():
@@ -869,7 +869,9 @@ def test_haproxy_route_tcp_port_mapping_invalid_mapping_string():
     }
 
     with pytest.raises(
-        InvalidHaproxyRouteTcpStateError, match="Invalid haproxy-route-tcp configuration"
+        InvalidHaproxyRouteTcpStateError,
+        match="Invalid config 'tcp-port-mapping' or config 'tcp-frontend-port' or "
+        "config 'tcp-backend-port'; see debug-log",
     ):
         _make_tcp_integrator_state(charm)
 

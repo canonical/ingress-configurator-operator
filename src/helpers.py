@@ -8,6 +8,7 @@ import logging
 import string
 
 from pydantic import ValidationError
+from pydantic.json_schema import JsonSchemaValue
 
 logger = logging.getLogger()
 
@@ -56,14 +57,58 @@ def value_has_valid_characters(value: str) -> str:
     return value
 
 
-def format_validation_error(exc: ValidationError) -> str:
+def _validation_error_source(
+    schema: JsonSchemaValue, location: tuple[str | int, ...]
+) -> str | None:
+    """Find source-name/public-field metadata at the most specific schema location.
+
+    Retain parent sources for list items and nested library fields without their own metadata.
+    """
+    definitions = schema.get("$defs", {})
+
+    def resolve(node: JsonSchemaValue) -> JsonSchemaValue:
+        while "$ref" in node or "anyOf" in node:
+            if "$ref" in node:
+                reference = node["$ref"].rsplit("/", 1)[-1]
+                node = {**definitions[reference], **node}
+                del node["$ref"]
+            else:
+                variant = next(item for item in node["anyOf"] if item.get("type") != "null")
+                node = {**node, **variant}
+                del node["anyOf"]
+        return node
+
+    node = resolve(schema)
+    sources = node.get("sources", {}) if not location else {}
+    for part in location:
+        node = resolve(
+            node.get("items", {})
+            if isinstance(part, int)
+            else node.get("properties", {}).get(part, {})
+        )
+        if "sources" in node:
+            sources = node["sources"]
+    return (
+        " or ".join(
+            f"{source} '{field}'"
+            for source, fields in sorted(sources.items(), key=lambda item: item[0].casefold())
+            for field in fields
+        )
+        or None
+    )
+
+
+def format_validation_error(exc: ValidationError, *, schema: JsonSchemaValue | None = None) -> str:
     """Format Pydantic validation reasons and locations for diagnostic logs.
 
     Preserve model names, nested paths, and model-level errors. Omit Pydantic's
     input and documentation URL metadata, but retain validator messages as-is.
+    Include possible sources when the schema supplies source-name/public-field metadata.
 
     Args:
         exc: The validation error exception.
+        schema: Optional state schema containing possible source metadata.
+            Source names map to lists of public field names.
 
     Returns:
         The model name and semicolon-separated validation locations and reasons.
@@ -71,7 +116,9 @@ def format_validation_error(exc: ValidationError) -> str:
     details = []
     for error in exc.errors(include_url=False, include_input=False, include_context=False):
         location = ".".join(str(part) for part in error["loc"])
-        details.append(f"{location}: {error['msg']}" if location else error["msg"])
+        detail = f"{location}: {error['msg']}" if location else error["msg"]
+        source = _validation_error_source(schema, error["loc"]) if schema is not None else None
+        details.append(f"{detail} (possible sources: {source})" if source else detail)
     return f"{exc.title}: {'; '.join(details)}"
 
 
@@ -82,20 +129,27 @@ class InvalidRouteStateError(Exception):
         details: The full route state error explanation for logging.
     """
 
-    def __init__(self, message: str, *, validation_error: ValueError | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        validation_error: ValueError | None = None,
+        schema: JsonSchemaValue | None = None,
+    ) -> None:
         """Initialize the status summary and diagnostic details.
 
         Args:
             message: User-facing route state error summary. Used unchanged when no
                 validation error is supplied; otherwise followed by a debug-log hint.
             validation_error: The original validation or parsing error, if any.
+            schema: Optional state schema containing possible source metadata.
         """
         if validation_error is None:
             self.details = message
             self._status_message = message
         else:
             reason = (
-                format_validation_error(validation_error)
+                format_validation_error(validation_error, schema=schema)
                 if isinstance(validation_error, ValidationError)
                 else str(validation_error)
             )
@@ -104,6 +158,14 @@ class InvalidRouteStateError(Exception):
         self._error_count = (
             validation_error.error_count() if isinstance(validation_error, ValidationError) else 0
         )
+        if (
+            isinstance(validation_error, ValidationError)
+            and self._error_count == 1
+            and schema is not None
+        ):
+            source = _validation_error_source(schema, validation_error.errors()[0]["loc"])
+            if source:
+                self._status_message = f"Invalid {source}; see debug-log"
         super().__init__(self.details)
 
     def __str__(self) -> str:

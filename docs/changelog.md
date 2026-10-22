@@ -10,8 +10,8 @@ Each revision is versioned by the date of the revision.
 
 ## 2026-10-22
 
-- Centralize route configuration validation with concise blocked statuses and
-  detailed diagnostics in debug-log.
+- Centralize route validation with source-aware blocked statuses and detailed
+  diagnostics in debug-log.
 - Cleaned up the GatewayRouteState by removing the integrator mode sub-state.
 
 ## 2026-10-19

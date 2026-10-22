@@ -4,12 +4,12 @@
 """Unit tests for the helpers module."""
 
 import pytest
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from helpers import InvalidRouteStateError, format_validation_error, truncate_k8s_resource_name
-from state.gateway_route import InvalidGatewayRouteStateError
-from state.haproxy_route import InvalidHaproxyRouteStateError
-from state.haproxy_route_tcp import InvalidHaproxyRouteTcpStateError
+from state.gateway_route import GatewayRouteState, InvalidGatewayRouteStateError
+from state.haproxy_route import HaproxyRouteState, InvalidHaproxyRouteStateError
+from state.haproxy_route_tcp import HaproxyRouteTcpState, InvalidHaproxyRouteTcpStateError
 
 
 @pytest.mark.parametrize(
@@ -72,6 +72,49 @@ def test_config_error_keeps_parser_details_out_of_status():
     assert error.details == (
         "Invalid backend-ports: invalid literal for int() with base 10: 'invalid'"
     )
+
+
+@pytest.mark.parametrize(
+    "model, location, sources",
+    [
+        (
+            HaproxyRouteState,
+            ("backend_ports", 0),
+            "config 'backend-ports' or ingress 'port' or Kubernetes Service 'nodePort'",
+        ),
+        (HaproxyRouteState, ("timeout", "connect"), "config 'timeout-connect'"),
+        (
+            HaproxyRouteTcpState,
+            ("health_check", "check_type"),
+            "config 'tcp-health-check-type'",
+        ),
+        (
+            HaproxyRouteTcpState,
+            (),
+            "config 'tcp-port-mapping' or config 'tcp-frontend-port' or config 'tcp-backend-port'",
+        ),
+        (GatewayRouteState, ("backend_port",), "ingress 'port'"),
+    ],
+)
+def test_validation_diagnostics_identify_possible_sources(model, location, sources):
+    """Use field metadata for public source names without discarding missing-field details."""
+    exc = ValidationError.from_exception_data(
+        model.__name__,
+        [{"type": "missing", "loc": location, "input": {}}],
+    )
+
+    error = InvalidRouteStateError(
+        "Invalid configuration",
+        validation_error=exc,
+        schema=TypeAdapter(model).json_schema(),
+    )
+
+    path = ".".join(str(part) for part in location)
+    reason = f"{path}: Field required" if path else "Field required"
+    assert error.details == (
+        f"Invalid configuration: {model.__name__}: {reason} (possible sources: {sources})"
+    )
+    assert str(error) == f"Invalid {sources}; see debug-log"
 
 
 def test_format_validation_error_preserves_paths_and_reasons():

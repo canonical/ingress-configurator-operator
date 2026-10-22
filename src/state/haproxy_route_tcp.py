@@ -21,6 +21,7 @@ from charms.haproxy.v1.haproxy_route_tcp import (
 )
 from pydantic import (
     BeforeValidator,
+    ConfigDict,
     Field,
     TypeAdapter,
     ValidationError,
@@ -51,13 +52,29 @@ class TCPHealthCheck:
         db_user: Database user for health checks (mysql/postgres types only).
     """
 
-    interval: Optional[int] = Field(default=None, gt=0)
-    rise: Optional[int] = Field(default=None, gt=0)
-    fall: Optional[int] = Field(default=None, gt=0)
-    check_type: Optional[TCPHealthCheckType] = None
-    send: Optional[str] = None
-    expect: Optional[str] = None
-    db_user: Optional[str] = None
+    interval: Optional[int] = Field(
+        default=None,
+        gt=0,
+        json_schema_extra={"sources": {"config": ["tcp-health-check-interval"]}},
+    )
+    rise: Optional[int] = Field(
+        default=None, gt=0, json_schema_extra={"sources": {"config": ["tcp-health-check-rise"]}}
+    )
+    fall: Optional[int] = Field(
+        default=None, gt=0, json_schema_extra={"sources": {"config": ["tcp-health-check-fall"]}}
+    )
+    check_type: Optional[TCPHealthCheckType] = Field(
+        default=None, json_schema_extra={"sources": {"config": ["tcp-health-check-type"]}}
+    )
+    send: Optional[str] = Field(
+        default=None, json_schema_extra={"sources": {"config": ["tcp-health-check-send"]}}
+    )
+    expect: Optional[str] = Field(
+        default=None, json_schema_extra={"sources": {"config": ["tcp-health-check-expect"]}}
+    )
+    db_user: Optional[str] = Field(
+        default=None, json_schema_extra={"sources": {"config": ["tcp-health-check-db-user"]}}
+    )
 
     @model_validator(mode="after")
     def validate_health_check_all_set(self) -> Self:
@@ -80,7 +97,14 @@ class TCPHealthCheck:
         return self
 
 
-@dataclass(frozen=True)
+@dataclass(
+    frozen=True,
+    config=ConfigDict(
+        json_schema_extra={
+            "sources": {"config": ["tcp-port-mapping", "tcp-frontend-port", "tcp-backend-port"]},
+        }
+    ),
+)
 class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
     """Requirements for HAProxy TCP route configuration.
 
@@ -106,16 +130,68 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
 
     backend_addresses: Annotated[
         list[IPvAnyAddress], Len(min_length=1), BeforeValidator(split_delimited)
-    ]
-    tls_terminate: bool
-    hostname: Annotated[str, BeforeValidator(valid_domain_with_wildcard)] | None
-    retry: Retry | None
-    load_balancing_configuration: TCPLoadBalancingConfiguration
-    enforce_tls: bool
-    health_check: TCPHealthCheck
-    timeout: TimeoutConfiguration
-    proxy_protocol: bool
-    port_mapping: PortMapping
+    ] = Field(json_schema_extra={"sources": {"config": ["tcp-backend-addresses"]}})
+    tls_terminate: bool = Field(json_schema_extra={"sources": {"config": ["tcp-tls-terminate"]}})
+    hostname: Annotated[str, BeforeValidator(valid_domain_with_wildcard)] | None = Field(
+        json_schema_extra={"sources": {"config": ["tcp-hostname"]}}
+    )
+    retry: Retry | None = Field(
+        json_schema_extra={
+            "sources": {"config": ["tcp-retry-count", "tcp-retry-redispatch"]},
+            "properties": {
+                "count": {"sources": {"config": ["tcp-retry-count"]}},
+                "redispatch": {"sources": {"config": ["tcp-retry-redispatch"]}},
+            },
+        }
+    )
+    load_balancing_configuration: TCPLoadBalancingConfiguration = Field(
+        json_schema_extra={
+            "sources": {
+                "config": [
+                    "tcp-load-balancing-algorithm",
+                    "tcp-load-balancing-consistent-hashing",
+                ]
+            },
+            "properties": {
+                "algorithm": {"sources": {"config": ["tcp-load-balancing-algorithm"]}},
+                "consistent_hashing": {
+                    "sources": {"config": ["tcp-load-balancing-consistent-hashing"]}
+                },
+            },
+        }
+    )
+    enforce_tls: bool = Field(json_schema_extra={"sources": {"config": ["tcp-enforce-tls"]}})
+    health_check: TCPHealthCheck = Field(
+        json_schema_extra={
+            "sources": {
+                "config": [
+                    "tcp-health-check-interval",
+                    "tcp-health-check-rise",
+                    "tcp-health-check-fall",
+                ]
+            }
+        }
+    )
+    timeout: TimeoutConfiguration = Field(
+        json_schema_extra={
+            "sources": {
+                "config": ["tcp-timeout-server", "tcp-timeout-connect", "tcp-timeout-queue"]
+            },
+            "properties": {
+                "server": {"sources": {"config": ["tcp-timeout-server"]}},
+                "connect": {"sources": {"config": ["tcp-timeout-connect"]}},
+                "queue": {"sources": {"config": ["tcp-timeout-queue"]}},
+            },
+        }
+    )
+    proxy_protocol: bool = Field(
+        json_schema_extra={"sources": {"config": ["tcp-enable-proxy-protocol"]}}
+    )
+    port_mapping: PortMapping = Field(
+        json_schema_extra={
+            "sources": {"config": ["tcp-port-mapping", "tcp-frontend-port", "tcp-backend-port"]}
+        }
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -275,5 +351,7 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
             )
         except ValidationError as exc:
             raise InvalidHaproxyRouteTcpStateError(
-                "Invalid haproxy-route-tcp configuration", validation_error=exc
+                "Invalid haproxy-route-tcp configuration",
+                validation_error=exc,
+                schema=TypeAdapter(cls).json_schema(),
             ) from exc

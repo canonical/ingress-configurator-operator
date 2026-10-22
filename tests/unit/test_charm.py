@@ -62,16 +62,22 @@ def test_config_changed_invalid_state(
     [
         (
             {"backend-ports": ""},
-            "Invalid haproxy-route configuration; see debug-log",
+            "Invalid config 'backend-ports' or ingress 'port' or "
+            "Kubernetes Service 'nodePort'; see debug-log",
             "Invalid haproxy-route configuration: HaproxyRouteState: "
-            "backend_ports: List should have at least 1 item after validation, not 0",
+            "backend_ports: List should have at least 1 item after validation, not 0 "
+            "(possible sources: config 'backend-ports' or ingress 'port' or "
+            "Kubernetes Service 'nodePort')",
         ),
         (
             {"health-check-interval": 5},
-            "Invalid haproxy-route configuration; see debug-log",
+            "Invalid config 'health-check-interval' or config 'health-check-rise' or "
+            "config 'health-check-fall'; see debug-log",
             "Invalid haproxy-route configuration: HaproxyRouteState: health_check: Value error, "
             "Health check configuration is incomplete: interval, rise, and fall "
-            "must all be set if any one of them is specified.",
+            "must all be set if any one of them is specified. "
+            "(possible sources: config 'health-check-interval' or config 'health-check-rise' or "
+            "config 'health-check-fall')",
         ),
     ],
 )
@@ -103,8 +109,12 @@ def test_config_validation_has_concise_status_and_complete_logs(
             "haproxy-route",
             {"backend-ports": "99999,99998"},
             "Invalid haproxy-route configuration: HaproxyRouteState: "
-            "backend_ports.0: Input should be less than or equal to 65535; "
-            "backend_ports.1: Input should be less than or equal to 65535",
+            "backend_ports.0: Input should be less than or equal to 65535 "
+            "(possible sources: config 'backend-ports' or ingress 'port' or "
+            "Kubernetes Service 'nodePort'); "
+            "backend_ports.1: Input should be less than or equal to 65535 "
+            "(possible sources: config 'backend-ports' or ingress 'port' or "
+            "Kubernetes Service 'nodePort')",
         ),
         (
             "haproxy-route-tcp",
@@ -115,8 +125,10 @@ def test_config_validation_has_concise_status_and_complete_logs(
                 "tcp-hostname": "invalid hostname!",
             },
             "Invalid haproxy-route-tcp configuration: HaproxyRouteTcpState: "
-            "backend_addresses.0: value is not a valid IPv4 or IPv6 address; "
-            "hostname: Value error, Invalid domain: invalid hostname!",
+            "backend_addresses.0: value is not a valid IPv4 or IPv6 address "
+            "(possible sources: config 'tcp-backend-addresses'); "
+            "hostname: Value error, Invalid domain: invalid hostname! "
+            "(possible sources: config 'tcp-hostname')",
         ),
     ],
 )
@@ -154,10 +166,13 @@ def test_multiple_validation_errors_have_concise_status_and_complete_logs(
     [
         (
             {"tcp-port-mapping": "invalid", "tcp-frontend-port": None, "tcp-backend-port": None},
-            "Invalid haproxy-route-tcp configuration; see debug-log",
+            "Invalid config 'tcp-port-mapping' or config 'tcp-frontend-port' or "
+            "config 'tcp-backend-port'; see debug-log",
             "Invalid haproxy-route-tcp configuration: HaproxyRouteTcpState: "
             "port_mapping: Value error, Invalid port mapping 'invalid', expected "
-            "'frontend_start-frontend_end:backend_start-backend_end' format.",
+            "'frontend_start-frontend_end:backend_start-backend_end' format. "
+            "(possible sources: config 'tcp-port-mapping' or config 'tcp-frontend-port' or "
+            "config 'tcp-backend-port')",
         ),
     ],
 )

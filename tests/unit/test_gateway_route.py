@@ -63,8 +63,8 @@ def test_gateway_route_multiple_validation_errors(
     assert out.unit_status == ops.testing.BlockedStatus("2 validation errors; see debug-log")
     assert (
         "Invalid gateway-route config: Invalid gateway-route configuration: GatewayRouteState: "
-        "hostname: Value error, Invalid domain: invalid hostname!; "
-        "backend_protocol: Input should be 'http'"
+        "hostname: Value error, Invalid domain: invalid hostname! (possible sources: config 'hostname'); "
+        "backend_protocol: Input should be 'http' (possible sources: config 'backend-protocol')"
     ) in caplog.messages
     assert any(record.exc_info is not None for record in caplog.records)
     assert [record.name for record in caplog.records if record.levelno >= logging.ERROR] == [
@@ -197,12 +197,11 @@ def test_gateway_route_invalid_hostname(
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert out.unit_status == ops.testing.BlockedStatus(
-        "Invalid gateway-route configuration; see debug-log"
-    )
+    assert out.unit_status == ops.testing.BlockedStatus("Invalid config 'hostname'; see debug-log")
     assert (
         "Invalid gateway-route config: Invalid gateway-route configuration: GatewayRouteState: "
-        "hostname: Value error, Invalid domain: not a valid hostname!"
+        "hostname: Value error, Invalid domain: not a valid hostname! "
+        "(possible sources: config 'hostname')"
     ) in caplog.messages
 
 
@@ -235,11 +234,11 @@ def test_gateway_route_https_backend_protocol_blocked(
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
     assert out.unit_status == ops.testing.BlockedStatus(
-        "Invalid gateway-route configuration; see debug-log"
+        "Invalid config 'backend-protocol'; see debug-log"
     )
     assert (
         "Invalid gateway-route config: Invalid gateway-route configuration: GatewayRouteState: "
-        "backend_protocol: Input should be 'http'"
+        "backend_protocol: Input should be 'http' (possible sources: config 'backend-protocol')"
     ) in caplog.messages
 
 
@@ -378,12 +377,10 @@ def test_gateway_route_wildcard_hostname_blocked(
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert out.unit_status == ops.testing.BlockedStatus(
-        "Invalid gateway-route configuration; see debug-log"
-    )
+    assert out.unit_status == ops.testing.BlockedStatus("Invalid config 'hostname'; see debug-log")
     assert (
         "Invalid gateway-route config: Invalid gateway-route configuration: GatewayRouteState: "
-        "hostname: Value error, Invalid domain: *.example.com"
+        "hostname: Value error, Invalid domain: *.example.com (possible sources: config 'hostname')"
     ) in caplog.messages
 
 

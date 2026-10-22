@@ -19,7 +19,14 @@ from charms.haproxy.v2.haproxy_route import (
     valid_domain_with_wildcard,
 )
 from charms.traefik_k8s.v2.ingress import IngressRequirerData
-from pydantic import BeforeValidator, Field, TypeAdapter, ValidationError, model_validator
+from pydantic import (
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    ValidationError,
+    model_validator,
+)
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
@@ -45,11 +52,21 @@ class HealthCheck:
         fall: Number of failed health checks before server is considered down.
     """
 
-    path: Optional[Annotated[str, BeforeValidator(value_has_valid_characters)]]
-    port: Optional[int] = Field(gt=0, le=65536)
-    interval: Optional[int] = Field(gt=0)
-    rise: Optional[int] = Field(gt=0)
-    fall: Optional[int] = Field(gt=0)
+    path: Optional[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(
+        json_schema_extra={"sources": {"config": ["health-check-path"]}}
+    )
+    port: Optional[int] = Field(
+        gt=0, le=65536, json_schema_extra={"sources": {"config": ["health-check-port"]}}
+    )
+    interval: Optional[int] = Field(
+        gt=0, json_schema_extra={"sources": {"config": ["health-check-interval"]}}
+    )
+    rise: Optional[int] = Field(
+        gt=0, json_schema_extra={"sources": {"config": ["health-check-rise"]}}
+    )
+    fall: Optional[int] = Field(
+        gt=0, json_schema_extra={"sources": {"config": ["health-check-fall"]}}
+    )
 
     @model_validator(mode="after")
     def validate_health_check_all_set(self) -> Self:
@@ -72,7 +89,14 @@ class HealthCheck:
 
 
 # pylint: disable=too-many-instance-attributes,too-many-locals
-@dataclass(frozen=True)
+@dataclass(
+    frozen=True,
+    config=ConfigDict(
+        json_schema_extra={
+            "sources": {"config": ["external-grpc-port", "backend-protocol", "allow-http"]},
+        }
+    ),
+)
 class HaproxyRouteState:
     """Charm state that contains the configuration.
 
@@ -98,40 +122,119 @@ class HaproxyRouteState:
 
     backend_addresses: Annotated[
         list[IPvAnyAddress], Len(min_length=1), BeforeValidator(split_delimited)
-    ]
+    ] = Field(
+        json_schema_extra={
+            "sources": {
+                "config": ["backend-addresses"],
+                "ingress": ["ip"],
+                "Kubernetes Node": ["status.addresses"],
+            }
+        }
+    )
     backend_ports: Annotated[
         list[Annotated[int, Field(gt=0, le=65535)]],
         Len(min_length=1),
         BeforeValidator(split_delimited),
-    ]
-    backend_protocol: Literal["http", "https"]
-    health_check: HealthCheck
-    retry: Retry | None
-    timeout: TimeoutConfiguration
-    service: str = Field(..., min_length=1)
+    ] = Field(
+        json_schema_extra={
+            "sources": {
+                "config": ["backend-ports"],
+                "ingress": ["port"],
+                "Kubernetes Service": ["nodePort"],
+            }
+        }
+    )
+    backend_protocol: Literal["http", "https"] = Field(
+        json_schema_extra={"sources": {"config": ["backend-protocol"]}}
+    )
+    health_check: HealthCheck = Field(
+        json_schema_extra={
+            "sources": {
+                "config": ["health-check-interval", "health-check-rise", "health-check-fall"]
+            }
+        }
+    )
+    retry: Retry | None = Field(
+        json_schema_extra={
+            "sources": {"config": ["retry-count", "retry-redispatch"]},
+            "properties": {
+                "count": {"sources": {"config": ["retry-count"]}},
+                "redispatch": {"sources": {"config": ["retry-redispatch"]}},
+            },
+        }
+    )
+    timeout: TimeoutConfiguration = Field(
+        json_schema_extra={
+            "sources": {"config": ["timeout-server", "timeout-connect", "timeout-queue"]},
+            "properties": {
+                "server": {"sources": {"config": ["timeout-server"]}},
+                "connect": {"sources": {"config": ["timeout-connect"]}},
+                "queue": {"sources": {"config": ["timeout-queue"]}},
+            },
+        }
+    )
+    service: str = Field(
+        ...,
+        min_length=1,
+        json_schema_extra={
+            "sources": {
+                "Juju": ["model/application name"],
+                "Kubernetes Service": ["metadata.name"],
+            }
+        },
+    )
     paths: Annotated[
         list[Annotated[str, BeforeValidator(value_has_valid_characters)]],
         BeforeValidator(split_delimited),
-    ] = Field(default=[])
+    ] = Field(default=[], json_schema_extra={"sources": {"config": ["paths"]}})
     deny_paths: Annotated[
         list[Annotated[str, BeforeValidator(value_has_valid_characters)]],
         BeforeValidator(split_delimited),
-    ] = Field(default=[])
+    ] = Field(default=[], json_schema_extra={"sources": {"config": ["deny-paths"]}})
     hostname: Optional[Annotated[str, BeforeValidator(valid_domain_with_wildcard)]] = Field(
-        default=None
+        default=None, json_schema_extra={"sources": {"config": ["hostname"]}}
     )
     additional_hostnames: Annotated[
         list[Annotated[str, BeforeValidator(valid_domain_with_wildcard)]],
         BeforeValidator(split_delimited),
-    ] = Field(default=[])
+    ] = Field(default=[], json_schema_extra={"sources": {"config": ["additional-hostnames"]}})
     load_balancing_configuration: LoadBalancingConfiguration = Field(
-        default=LoadBalancingConfiguration()
+        default=LoadBalancingConfiguration(),
+        json_schema_extra={
+            "sources": {
+                "config": [
+                    "load-balancing-algorithm",
+                    "load-balancing-cookie",
+                    "load-balancing-consistent-hashing",
+                ]
+            },
+            "properties": {
+                "algorithm": {"sources": {"config": ["load-balancing-algorithm"]}},
+                "cookie": {"sources": {"config": ["load-balancing-cookie"]}},
+                "consistent_hashing": {
+                    "sources": {"config": ["load-balancing-consistent-hashing"]}
+                },
+            },
+        },
     )
-    http_server_close: bool = Field(default=False)
-    path_rewrite_expressions: list[str] = Field(default=[])
-    header_rewrite_expressions: list[tuple[str, str]] = Field(default=[])
-    allow_http: bool = Field(default=False)
-    external_grpc_port: int | None = Field(default=None, gt=0, le=65535)
+    http_server_close: bool = Field(
+        default=False, json_schema_extra={"sources": {"config": ["http-server-close"]}}
+    )
+    path_rewrite_expressions: list[str] = Field(
+        default=[], json_schema_extra={"sources": {"config": ["path-rewrite-expressions"]}}
+    )
+    header_rewrite_expressions: list[tuple[str, str]] = Field(
+        default=[], json_schema_extra={"sources": {"config": ["header-rewrite-expressions"]}}
+    )
+    allow_http: bool = Field(
+        default=False, json_schema_extra={"sources": {"config": ["allow-http"]}}
+    )
+    external_grpc_port: int | None = Field(
+        default=None,
+        gt=0,
+        le=65535,
+        json_schema_extra={"sources": {"config": ["external-grpc-port"]}},
+    )
 
     @model_validator(mode="after")
     def validate_external_grpc_port_requires_https(self) -> Self:
@@ -358,5 +461,7 @@ class HaproxyRouteState:
             )
         except ValidationError as exc:
             raise InvalidHaproxyRouteStateError(
-                "Invalid haproxy-route configuration", validation_error=exc
+                "Invalid haproxy-route configuration",
+                validation_error=exc,
+                schema=TypeAdapter(cls).json_schema(),
             ) from exc

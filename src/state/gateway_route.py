@@ -35,17 +35,23 @@ class GatewayRouteState:
             before the request reaches the backend.
     """
 
-    application_name: str
-    model_name: str
-    hostname: Annotated[str, BeforeValidator(valid_fqdn)] | None
-    backend_protocol: Literal["http"] | None
-    backend_port: int = Field(gt=0, le=65535)
+    application_name: str = Field(json_schema_extra={"sources": {"ingress": ["name"]}})
+    model_name: str = Field(json_schema_extra={"sources": {"ingress": ["model"]}})
+    hostname: Annotated[str, BeforeValidator(valid_fqdn)] | None = Field(
+        json_schema_extra={"sources": {"config": ["hostname"]}}
+    )
+    backend_protocol: Literal["http"] | None = Field(
+        json_schema_extra={"sources": {"config": ["backend-protocol"]}}
+    )
+    backend_port: int = Field(gt=0, le=65535, json_schema_extra={"sources": {"ingress": ["port"]}})
     additional_hostnames: Annotated[
         list[Annotated[str, BeforeValidator(valid_fqdn)]],
         BeforeValidator(split_delimited),
-    ] = Field(default=[])
-    paths: list[str] = Field(default=["/"])
-    strip_prefix: bool = False
+    ] = Field(default=[], json_schema_extra={"sources": {"config": ["additional-hostnames"]}})
+    paths: list[str] = Field(default=["/"], json_schema_extra={"sources": {"config": ["paths"]}})
+    strip_prefix: bool = Field(
+        default=False, json_schema_extra={"sources": {"ingress": ["strip-prefix"]}}
+    )
 
     @field_validator("paths", mode="before")
     @classmethod
@@ -128,7 +134,9 @@ class GatewayRouteState:
             )
         except ValidationError as exc:
             raise InvalidGatewayRouteStateError(
-                "Invalid gateway-route configuration", validation_error=exc
+                "Invalid gateway-route configuration",
+                validation_error=exc,
+                schema=TypeAdapter(cls).json_schema(),
             ) from exc
 
     @classmethod

@@ -52,13 +52,13 @@ def test_gateway_state_parses_raw_fields(field, raw_value, expected):
 
 @pytest.mark.parametrize("raw_paths", [None, "", " , , "])
 def test_gateway_empty_paths_use_declared_field_default(raw_paths):
-    """Use the field's default factory rather than a fallback inside the validator."""
+    """Use the field's declared default rather than a fallback inside the validator."""
 
     @dataclass(frozen=True)
     class CustomDefaultGatewayRouteState(GatewayRouteState):
         """Gateway state with a different declared path default."""
 
-        paths: list[str] = Field(default_factory=lambda: ["/custom"])
+        paths: list[str] = Field(default=["/custom"])
 
     state = TypeAdapter(CustomDefaultGatewayRouteState).validate_python(
         {
@@ -72,6 +72,26 @@ def test_gateway_empty_paths_use_declared_field_default(raw_paths):
     )
 
     assert state.paths == ["/custom"]
+
+
+@pytest.mark.parametrize("raw_fields", [{}, {"paths": None}])
+def test_gateway_path_defaults_are_not_shared(raw_fields):
+    """Give each state its own path list, including when a validator requests the default."""
+    data = {
+        "application_name": "backend",
+        "model_name": "test-model",
+        "hostname": None,
+        "backend_protocol": "http",
+        "backend_port": 8080,
+        **raw_fields,
+    }
+    adapter = TypeAdapter(GatewayRouteState)
+    first = adapter.validate_python(data)
+    second = adapter.validate_python(data)
+
+    assert first.paths is not second.paths
+    first.paths.append("/extra")
+    assert second.paths == ["/"]
 
 
 @pytest.mark.parametrize(

@@ -48,7 +48,7 @@ class GatewayRouteState:
         list[Annotated[str, BeforeValidator(valid_fqdn)]],
         BeforeValidator(split_comma_separated),
     ] = Field(default_factory=lambda: [])
-    paths: list[str] = Field(default_factory=lambda: ["/"])
+    paths: list[str] = Field(default=["/"])
     strip_prefix: bool = False
 
     @field_validator("paths", mode="before")

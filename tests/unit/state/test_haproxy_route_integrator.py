@@ -63,6 +63,7 @@ def test_integrator_state_from_charm():
         ),
         ("backend_ports", " , 80 , ,443, ", [80, 443]),
         ("backend_ports", "80,443", [80, 443]),
+        ("backend_ports", "8000.0", [8000]),
         ("backend_ports", " 80 ,+443,8_080", [80, 443, 8080]),
         ("backend_ports", "80,", [80]),
         ("backend_ports", [80, 443], [80, 443]),
@@ -108,14 +109,14 @@ def test_http_state_parses_comma_separated_fields(field, raw_value, expected):
         ("backend_ports", " , , "),
         ("backend_ports", []),
         ("backend_ports", "invalid"),
-        ("backend_ports", "8080.0"),
+        ("backend_ports", "8000.5"),
         ("backend_ports", "0"),
         ("backend_ports", "65536"),
         ("backend_ports", [1.5]),
     ],
 )
 def test_http_state_rejects_invalid_backend_fields(field, raw_value):
-    """Enforce nonempty backend lists, integer syntax, and valid port ranges."""
+    """Require nonempty backend lists and reject fractional or out-of-range ports."""
     charm = Mock(CharmBase)
     charm.config = {"backend-addresses": "127.0.0.1", "backend-ports": "8080"}
     valid_state = _make_integrator_state(charm)

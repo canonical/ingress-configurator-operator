@@ -77,7 +77,7 @@ def test_config_changed_invalid_state(
             {"backend-ports": "invalid"},
             "Invalid haproxy-route configuration; see debug-log",
             "Invalid haproxy-route configuration: HaproxyRouteState: backend_ports.0: "
-            "Value error, invalid literal for int() with base 10: 'invalid'",
+            "Input should be a valid integer, unable to parse string as an integer",
         ),
         (
             {"timeout-connect": -1},

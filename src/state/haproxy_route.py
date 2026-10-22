@@ -25,7 +25,7 @@ from pydantic.networks import IPvAnyAddress
 
 from helpers import InvalidRouteStateError, value_has_valid_characters
 from state.kubernetes import NodePortState
-from state.validators import parse_integer, split_comma_separated
+from state.validators import split_comma_separated
 
 DEFAULT_PATH_REWRITE_EXPRESSION_DELIMITER = ";"
 
@@ -119,7 +119,7 @@ class HaproxyRouteState:
         list[IPvAnyAddress], Len(min_length=1), BeforeValidator(split_comma_separated)
     ]
     backend_ports: Annotated[
-        list[Annotated[int, BeforeValidator(parse_integer), Field(gt=0, le=65535)]],
+        list[Annotated[int, Field(gt=0, le=65535)]],
         Len(min_length=1),
         BeforeValidator(split_comma_separated),
     ]

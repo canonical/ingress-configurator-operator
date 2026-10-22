@@ -8,7 +8,7 @@ from unittest.mock import Mock
 import pytest
 from charms.traefik_k8s.v2.ingress import IngressRequirerAppData, IngressRequirerData
 from ops import CharmBase
-from pydantic import Field, TypeAdapter, ValidationError
+from pydantic import Field, TypeAdapter
 from pydantic.dataclasses import dataclass
 
 from state.gateway_route import GatewayRouteState
@@ -26,7 +26,7 @@ from state.gateway_route import GatewayRouteState
         ("paths", [], []),
         (
             "additional_hostnames",
-            "api.example.com,other.example.com",
+            " api.example.com, , other.example.com, ",
             ["api.example.com", "other.example.com"],
         ),
         ("additional_hostnames", ["api.example.com"], ["api.example.com"]),
@@ -134,20 +134,3 @@ def test_gateway_adapter_parses_config_and_preserves_relation_data(paths, expect
     assert state.hostname == "example.com"
     assert state.additional_hostnames == ["api.example.com", "other.example.com"]
     assert state.paths == expected_paths
-
-
-def test_gateway_hostnames_do_not_trim_individual_items():
-    """Keep hostname parsing distinct from gateway path and backend normalization."""
-    with pytest.raises(ValidationError) as exc_info:
-        TypeAdapter(GatewayRouteState).validate_python(
-            {
-                "application_name": "backend",
-                "model_name": "test-model",
-                "hostname": None,
-                "backend_protocol": "http",
-                "backend_port": 8080,
-                "additional_hostnames": "example.com, other.example.com",
-            }
-        )
-
-    assert exc_info.value.errors()[0]["loc"] == ("additional_hostnames", 1)

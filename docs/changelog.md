@@ -21,7 +21,9 @@ Each revision is versioned by the date of the revision.
   multiple validations fail, and direct users to debug-log for the full diagnostics
   without exposing internal validation models.
 - Validate comma-separated route fields together, including malformed backend port
-  values, while preserving existing parsing rules and gateway-specific defaults.
+  values, while preserving gateway-specific path defaults.
+- Trim surrounding whitespace and ignore empty entries in comma-separated route
+  configuration.
 
 ## 2026-10-19
 

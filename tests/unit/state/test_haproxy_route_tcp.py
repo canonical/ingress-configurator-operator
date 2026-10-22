@@ -60,7 +60,7 @@ def test_haproxy_route_tcp_requirements_for_integrator_mode():
     assert requirements.proxy_protocol is False
 
 
-@pytest.mark.parametrize("addresses", ["127.0.0.1,::1", ["127.0.0.1", "::1"]])
+@pytest.mark.parametrize("addresses", [" , 127.0.0.1, ::1, ", ["127.0.0.1", "::1"]])
 def test_tcp_state_parses_backend_addresses(addresses):
     """Accept comma-separated addresses and already-parsed lists in the state model."""
     charm = Mock(CharmBase)

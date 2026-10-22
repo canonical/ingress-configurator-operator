@@ -52,13 +52,13 @@ def test_integrator_state_from_charm():
 @pytest.mark.parametrize(
     "field, raw_value, expected",
     [
-        ("backend_addresses", "127.0.0.1,::1", ["127.0.0.1", "::1"]),
-        ("backend_ports", " 80 ,443", [80, 443]),
-        ("paths", "/api,/other", ["/api", "/other"]),
-        ("deny_paths", "/admin,/private", ["/admin", "/private"]),
+        ("backend_addresses", " , 127.0.0.1, ::1, ", ["127.0.0.1", "::1"]),
+        ("backend_ports", " , 80 , ,443, ", [80, 443]),
+        ("paths", " /api, , /other, ", ["/api", "/other"]),
+        ("deny_paths", " /admin, , /private, ", ["/admin", "/private"]),
         (
             "additional_hostnames",
-            "api.example.com,static.example.com",
+            " api.example.com, , static.example.com, ",
             ["api.example.com", "static.example.com"],
         ),
         ("paths", None, []),

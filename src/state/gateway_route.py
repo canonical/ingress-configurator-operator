@@ -13,10 +13,7 @@ from pydantic.dataclasses import dataclass
 from pydantic_core import PydanticUseDefault
 
 from helpers import InvalidRouteStateError
-from state.validators import (
-    split_comma_separated,
-    split_trimmed_comma_separated,
-)
+from state.validators import split_comma_separated
 
 
 class InvalidGatewayRouteStateError(InvalidRouteStateError):
@@ -66,7 +63,7 @@ class GatewayRouteState:
             PydanticUseDefault: If raw config contains no nonempty paths.
         """
         if value is None or isinstance(value, str):
-            paths = split_trimmed_comma_separated(value, convert=str)
+            paths = split_comma_separated(value)
             if not paths:
                 raise PydanticUseDefault()
             return paths

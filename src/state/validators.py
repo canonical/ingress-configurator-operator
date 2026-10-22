@@ -11,28 +11,12 @@ from pydantic import BeforeValidator, Field
 from pydantic.networks import IPvAnyAddress
 
 
-def split_comma_separated(value: object) -> object:
-    """Split string inputs without trimming items; preserve already-parsed values.
-
-    Args:
-        value: A comma-separated string, parsed list, or unset value.
-
-    Returns:
-        A list for string or unset inputs, otherwise the original value.
-    """
-    if value is None:
-        return []
-    if isinstance(value, str):
-        return value.split(",") if value else []
-    return value
-
-
-def split_trimmed_comma_separated(value: object, convert: Callable[[str], object]) -> object:
-    """Convert trimmed string items; preserve other inputs for Pydantic to validate.
+def split_comma_separated(value: object, *, convert: Callable[[str], object] = str) -> object:
+    """Trim and convert nonempty string items; preserve already-parsed inputs.
 
     Args:
         value: A comma-separated string, unset value, or already-parsed field input.
-        convert: Callable that converts each trimmed item. Its exceptions propagate unchanged.
+        convert: Item converter, defaulting to str. Its exceptions propagate unchanged.
 
     Returns:
         Converted items for strings, an empty list for None, or the original value.

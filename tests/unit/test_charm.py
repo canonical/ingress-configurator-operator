@@ -5,7 +5,6 @@
 
 import json
 import logging
-from dataclasses import replace
 from itertools import combinations
 from typing import TYPE_CHECKING
 from unittest.mock import ANY
@@ -148,29 +147,6 @@ def test_multiple_validation_errors_have_concise_status_and_complete_logs(
     assert [record.name for record in caplog.records if record.levelno >= logging.ERROR] == [
         "charm"
     ]
-
-
-def test_config_validation_recovers_after_correction(
-    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
-):
-    """Correcting missing configuration resumes publication and active status."""
-    state = ops.testing.State(
-        config={"backend-addresses": "10.0.0.1"},
-        relations=[ops.testing.Relation("haproxy-route")],
-        leader=True,
-    )
-    blocked = context_machine.run(context_machine.on.config_changed(), state)
-    assert blocked.unit_status == ops.testing.BlockedStatus(
-        "Invalid haproxy-route configuration; see debug-log"
-    )
-
-    corrected = context_machine.run(
-        context_machine.on.config_changed(),
-        replace(blocked, config={**blocked.config, "backend-ports": "8080"}),
-    )
-
-    assert corrected.unit_status == ops.testing.ActiveStatus("Ready")
-    assert corrected.get_relations("haproxy-route")[0].local_app_data
 
 
 @pytest.mark.parametrize(

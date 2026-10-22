@@ -4,8 +4,148 @@
 """Unit tests for the helpers module."""
 
 import pytest
+from pydantic import ValidationError
 
-from helpers import truncate_k8s_resource_name
+from helpers import format_validation_error, truncate_k8s_resource_name
+from state.gateway_route import InvalidGatewayRouteStateError
+from state.haproxy_route import InvalidHaproxyRouteStateError
+from state.haproxy_route_tcp import InvalidHaproxyRouteTcpStateError
+
+
+@pytest.mark.parametrize(
+    "error_type",
+    [
+        InvalidHaproxyRouteStateError,
+        InvalidHaproxyRouteTcpStateError,
+        InvalidGatewayRouteStateError,
+    ],
+)
+def test_config_error_preserves_explicit_message(error_type):
+    """Errors without validation details preserve the explicit message."""
+    error = error_type("A required option is missing.")
+
+    assert str(error) == "A required option is missing."
+    assert error.details == "A required option is missing."
+
+
+@pytest.mark.parametrize(
+    "error_type",
+    [
+        InvalidHaproxyRouteStateError,
+        InvalidHaproxyRouteTcpStateError,
+        InvalidGatewayRouteStateError,
+    ],
+)
+@pytest.mark.parametrize(
+    "fields, expected_status",
+    [
+        (("port",), "Invalid configuration; see debug-log"),
+        (("port", "timeout"), "2 validation errors; see debug-log"),
+        (("port", "port", "timeout"), "3 validation errors; see debug-log"),
+    ],
+)
+def test_config_error_separates_status_from_details(error_type, fields, expected_status):
+    """Each route exception owns its status summary and complete diagnostics."""
+    validation_error = ValidationError.from_exception_data(
+        "Example",
+        [
+            {
+                "type": "greater_than",
+                "loc": (field,),
+                "input": -1,
+                "ctx": {"gt": 0},
+            }
+            for field in fields
+        ],
+    )
+
+    error = error_type("Invalid configuration", validation_error=validation_error)
+
+    expected_details = "Invalid configuration: Example: " + "; ".join(
+        f"{field}: Input should be greater than 0" for field in fields
+    )
+    assert error.details == expected_details
+    assert str(error) == expected_status
+
+
+@pytest.mark.parametrize(
+    "error_type",
+    [
+        InvalidHaproxyRouteStateError,
+        InvalidHaproxyRouteTcpStateError,
+        InvalidGatewayRouteStateError,
+    ],
+)
+def test_config_error_keeps_parser_details_out_of_status(error_type):
+    """A parsing error's implementation details belong only in diagnostic logs."""
+    error = error_type(
+        "Invalid backend-ports",
+        validation_error=ValueError("invalid literal for int() with base 10: 'invalid'"),
+    )
+
+    assert str(error) == "Invalid backend-ports; see debug-log"
+    assert error.details == (
+        "Invalid backend-ports: invalid literal for int() with base 10: 'invalid'"
+    )
+
+
+def test_format_validation_error_preserves_paths_and_reasons():
+    """Preserve nested locations, list indices, and every validation reason."""
+    exc = ValidationError.from_exception_data(
+        "Example",
+        [
+            {
+                "type": "greater_than",
+                "loc": ("items", 1),
+                "input": -1,
+                "ctx": {"gt": 0},
+            },
+            {
+                "type": "too_short",
+                "loc": ("ports",),
+                "input": [],
+                "ctx": {"field_type": "List", "min_length": 1, "actual_length": 0},
+            },
+        ],
+    )
+
+    assert format_validation_error(exc) == (
+        "Example: items.1: Input should be greater than 0; "
+        "ports: List should have at least 1 item after validation, not 0"
+    )
+
+
+def test_format_validation_error_preserves_model_level_errors():
+    """Do not discard errors without a field location."""
+    exc = ValidationError.from_exception_data(
+        "HealthCheck",
+        [
+            {
+                "type": "value_error",
+                "loc": (),
+                "input": {},
+                "ctx": {"error": ValueError("interval, rise, and fall must all be set")},
+            }
+        ],
+    )
+
+    assert format_validation_error(exc) == (
+        "HealthCheck: Value error, interval, rise, and fall must all be set"
+    )
+
+
+def test_format_validation_error_omits_input_metadata_and_urls():
+    """Only include the model, location, and Pydantic reason."""
+    exc = ValidationError.from_exception_data(
+        "Example",
+        [{"type": "int_parsing", "loc": ("count",), "input": "private-input"}],
+    )
+
+    message = format_validation_error(exc)
+
+    assert "count: Input should be a valid integer" in message
+    assert "private-input" not in message
+    assert "https://" not in message
 
 
 @pytest.mark.parametrize(

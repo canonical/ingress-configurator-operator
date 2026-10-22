@@ -202,8 +202,9 @@ def test_config_validation_recovers_after_correction(
         ),
         (
             {"tcp-port-mapping": "invalid", "tcp-frontend-port": None, "tcp-backend-port": None},
-            "Invalid tcp-port-mapping; see debug-log",
-            "Invalid tcp-port-mapping: Invalid port mapping 'invalid', expected "
+            "Invalid haproxy-route-tcp configuration; see debug-log",
+            "Invalid haproxy-route-tcp configuration: HaproxyRouteTcpState: "
+            "port_mapping: Value error, Invalid port mapping 'invalid', expected "
             "'frontend_start-frontend_end:backend_start-backend_end' format.",
         ),
     ],

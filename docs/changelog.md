@@ -24,6 +24,8 @@ Each revision is versioned by the date of the revision.
   values, while preserving gateway-specific path defaults.
 - Collect HTTP backend, health-check, retry, timeout, and load-balancing validation
   failures together, including their complete nested field paths.
+- Validate TCP port-mapping strings with the route state so parsing failures are
+  reported alongside other field errors.
 - Trim surrounding whitespace and ignore empty entries in comma-separated route
   configuration.
 

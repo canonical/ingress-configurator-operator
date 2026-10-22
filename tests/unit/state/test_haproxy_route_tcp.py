@@ -9,7 +9,7 @@ from unittest.mock import Mock
 import pytest
 from charms.haproxy.v1.haproxy_route_tcp import LoadBalancingAlgorithm, PortMapping
 from ops import CharmBase
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 
 from state.haproxy_route_tcp import (
     HaproxyRouteTcpState,
@@ -301,7 +301,7 @@ def test_haproxy_route_tcp_requirements_invalid_frontend_port(invalid_port):
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid tcp-port-mapping" in str(exc_info.value)
+    assert "port_mapping:" in exc_info.value.details
 
 
 @pytest.mark.parametrize(
@@ -332,7 +332,7 @@ def test_haproxy_route_tcp_requirements_invalid_backend_port(invalid_port):
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid tcp-port-mapping" in str(exc_info.value)
+    assert "port_mapping:" in exc_info.value.details
 
 
 def test_haproxy_route_tcp_requirements_valid_port_boundaries():
@@ -859,8 +859,51 @@ def test_haproxy_route_tcp_port_mapping_invalid_mapping_string():
         "tcp-port-mapping": "not-valid",
     }
 
-    with pytest.raises(InvalidHaproxyRouteTcpStateError, match="Invalid tcp-port-mapping"):
+    with pytest.raises(
+        InvalidHaproxyRouteTcpStateError, match="Invalid haproxy-route-tcp configuration"
+    ):
         _make_tcp_integrator_state(charm)
+
+
+def test_tcp_mapping_and_backend_errors_are_collected_together():
+    """Keep mapping parse errors indexed alongside other invalid state fields."""
+    charm = Mock(CharmBase)
+    charm.config = {
+        **BASE_PORT_MAPPING_CONFIG,
+        "tcp-backend-addresses": "invalid",
+        "tcp-port-mapping": "not-valid",
+    }
+
+    with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
+        _make_tcp_integrator_state(charm)
+
+    assert str(exc_info.value) == "2 validation errors; see debug-log"
+    cause = exc_info.value.__cause__
+    assert isinstance(cause, ValidationError)
+    assert [error["loc"] for error in cause.errors()] == [
+        ("backend_addresses", 0),
+        ("port_mapping",),
+    ]
+
+
+@pytest.mark.parametrize(
+    "mapping",
+    [" 4000-4499:20000-20499 ", PortMapping.from_string("4000-4499:20000-20499")],
+)
+def test_tcp_state_accepts_raw_and_parsed_port_mappings(mapping):
+    """Parse raw mapping strings while preserving already-resolved mappings."""
+    charm = Mock(CharmBase)
+    charm.config = {
+        **BASE_PORT_MAPPING_CONFIG,
+        "tcp-port-mapping": "4000-4499:20000-20499",
+    }
+    valid_state = _make_tcp_integrator_state(charm)
+
+    state = TypeAdapter(HaproxyRouteTcpState).validate_python(
+        {**asdict(valid_state), "port_mapping": mapping}
+    )
+
+    assert state.port_mapping == valid_state.port_mapping
 
 
 def test_haproxy_route_tcp_port_mapping_unequal_ranges_via_integrator_mode():

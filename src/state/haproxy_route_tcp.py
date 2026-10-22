@@ -59,25 +59,25 @@ class TCPHealthCheck:
     interval: Optional[int] = Field(
         default=None,
         gt=0,
-        json_schema_extra={"sources": {"config": ["tcp-health-check-interval"]}},
+        json_schema_extra={"config": ["tcp-health-check-interval"]},
     )
     rise: Optional[int] = Field(
-        default=None, gt=0, json_schema_extra={"sources": {"config": ["tcp-health-check-rise"]}}
+        default=None, gt=0, json_schema_extra={"config": ["tcp-health-check-rise"]}
     )
     fall: Optional[int] = Field(
-        default=None, gt=0, json_schema_extra={"sources": {"config": ["tcp-health-check-fall"]}}
+        default=None, gt=0, json_schema_extra={"config": ["tcp-health-check-fall"]}
     )
     check_type: Optional[TCPHealthCheckType] = Field(
-        default=None, json_schema_extra={"sources": {"config": ["tcp-health-check-type"]}}
+        default=None, json_schema_extra={"config": ["tcp-health-check-type"]}
     )
     send: Optional[str] = Field(
-        default=None, json_schema_extra={"sources": {"config": ["tcp-health-check-send"]}}
+        default=None, json_schema_extra={"config": ["tcp-health-check-send"]}
     )
     expect: Optional[str] = Field(
-        default=None, json_schema_extra={"sources": {"config": ["tcp-health-check-expect"]}}
+        default=None, json_schema_extra={"config": ["tcp-health-check-expect"]}
     )
     db_user: Optional[str] = Field(
-        default=None, json_schema_extra={"sources": {"config": ["tcp-health-check-db-user"]}}
+        default=None, json_schema_extra={"config": ["tcp-health-check-db-user"]}
     )
 
     @model_validator(mode="after")
@@ -127,67 +127,54 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
 
     backend_addresses: Annotated[
         list[IPvAnyAddress], Len(min_length=1), BeforeValidator(split_delimited)
-    ] = Field(json_schema_extra={"sources": {"config": ["tcp-backend-addresses"]}})
-    tls_terminate: bool = Field(json_schema_extra={"sources": {"config": ["tcp-tls-terminate"]}})
+    ] = Field(json_schema_extra={"config": ["tcp-backend-addresses"]})
+    tls_terminate: bool = Field(json_schema_extra={"config": ["tcp-tls-terminate"]})
     hostname: Annotated[str, BeforeValidator(valid_domain_with_wildcard)] | None = Field(
-        json_schema_extra={"sources": {"config": ["tcp-hostname"]}}
+        json_schema_extra={"config": ["tcp-hostname"]}
     )
     retry: Retry | None = Field(
         json_schema_extra={
-            "sources": {"config": ["tcp-retry-count", "tcp-retry-redispatch"]},
+            "config": ["tcp-retry-count", "tcp-retry-redispatch"],
             "properties": {
-                "count": {"sources": {"config": ["tcp-retry-count"]}},
-                "redispatch": {"sources": {"config": ["tcp-retry-redispatch"]}},
+                "count": {"config": ["tcp-retry-count"]},
+                "redispatch": {"config": ["tcp-retry-redispatch"]},
             },
         }
     )
     load_balancing_configuration: TCPLoadBalancingConfiguration = Field(
         json_schema_extra={
-            "sources": {
-                "config": [
-                    "tcp-load-balancing-algorithm",
-                    "tcp-load-balancing-consistent-hashing",
-                ]
-            },
+            "config": [
+                "tcp-load-balancing-algorithm",
+                "tcp-load-balancing-consistent-hashing",
+            ],
             "properties": {
-                "algorithm": {"sources": {"config": ["tcp-load-balancing-algorithm"]}},
-                "consistent_hashing": {
-                    "sources": {"config": ["tcp-load-balancing-consistent-hashing"]}
-                },
+                "algorithm": {"config": ["tcp-load-balancing-algorithm"]},
+                "consistent_hashing": {"config": ["tcp-load-balancing-consistent-hashing"]},
             },
         }
     )
-    enforce_tls: bool = Field(json_schema_extra={"sources": {"config": ["tcp-enforce-tls"]}})
+    enforce_tls: bool = Field(json_schema_extra={"config": ["tcp-enforce-tls"]})
     health_check: TCPHealthCheck = Field(
         json_schema_extra={
-            "sources": {
-                "config": [
-                    "tcp-health-check-interval",
-                    "tcp-health-check-rise",
-                    "tcp-health-check-fall",
-                ]
-            }
+            "config": [
+                "tcp-health-check-interval",
+                "tcp-health-check-rise",
+                "tcp-health-check-fall",
+            ]
         }
     )
     timeout: TimeoutConfiguration = Field(
         json_schema_extra={
-            "sources": {
-                "config": ["tcp-timeout-server", "tcp-timeout-connect", "tcp-timeout-queue"]
-            },
             "properties": {
-                "server": {"sources": {"config": ["tcp-timeout-server"]}},
-                "connect": {"sources": {"config": ["tcp-timeout-connect"]}},
-                "queue": {"sources": {"config": ["tcp-timeout-queue"]}},
+                "server": {"config": ["tcp-timeout-server"]},
+                "connect": {"config": ["tcp-timeout-connect"]},
+                "queue": {"config": ["tcp-timeout-queue"]},
             },
         }
     )
-    proxy_protocol: bool = Field(
-        json_schema_extra={"sources": {"config": ["tcp-enable-proxy-protocol"]}}
-    )
+    proxy_protocol: bool = Field(json_schema_extra={"config": ["tcp-enable-proxy-protocol"]})
     port_mapping: PortMapping = Field(
-        json_schema_extra={
-            "sources": {"config": ["tcp-port-mapping", "tcp-frontend-port", "tcp-backend-port"]}
-        }
+        json_schema_extra={"config": ["tcp-port-mapping", "tcp-frontend-port", "tcp-backend-port"]}
     )
 
     @field_validator("port_mapping", mode="before")

@@ -212,7 +212,7 @@ def test_haproxy_route_tcp_requirements_invalid_wildcard_sni(invalid_hostname):
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert exc_info.value.juju_status_msg == "Invalid config 'tcp-hostname'; see debug-log"
+    assert exc_info.value.juju_status_msg == "1 validation error; see debug-log"
 
 
 def test_haproxy_route_tcp_requirements_empty_backend_addresses():
@@ -672,7 +672,7 @@ def test_haproxy_route_tcp_requirements_invalid_health_check_type():
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
     assert "health_check.check_type:" in exc_info.value.details
-    assert "(possible sources: config 'tcp-health-check-type')" in exc_info.value.details
+    assert "(possible config sources: 'tcp-health-check-type')" in exc_info.value.details
 
 
 @pytest.mark.parametrize(
@@ -871,10 +871,11 @@ def test_haproxy_route_tcp_port_mapping_invalid_mapping_string():
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
 
-    assert exc_info.value.juju_status_msg == (
-        "Invalid config 'tcp-port-mapping' or config 'tcp-frontend-port' or "
-        "config 'tcp-backend-port'; see debug-log"
-    )
+    assert exc_info.value.juju_status_msg == "1 validation error; see debug-log"
+    assert (
+        "(possible config sources: 'tcp-port-mapping' or 'tcp-frontend-port' or "
+        "'tcp-backend-port')"
+    ) in exc_info.value.details
 
 
 def test_tcp_state_collects_nested_validation_errors():

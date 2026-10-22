@@ -70,10 +70,7 @@ def test_invalid_config_sets_blocked_status_and_logs_error(
 
     out = context_machine.run(context_machine.on.config_changed(), state)
 
-    assert out.unit_status == ops.testing.BlockedStatus(
-        "Invalid config 'backend-ports' or ingress 'port' or "
-        "Kubernetes Service 'nodePort'; see debug-log"
-    )
+    assert out.unit_status == ops.testing.BlockedStatus("1 validation error; see debug-log")
     assert any(message.startswith("Invalid haproxy-route config:") for message in caplog.messages)
     assert any(record.exc_info is not None for record in caplog.records)
 

@@ -172,7 +172,7 @@ def test_gateway_route_invalid_hostname(
     """
     arrange: invalid hostname in config.
     act: trigger config-changed.
-    assert: status is Blocked and identifies the invalid hostname option.
+    assert: status is Blocked and reports one validation error.
     """
     state = ops.testing.State(
         config={"hostname": "not a valid hostname!"},
@@ -192,7 +192,7 @@ def test_gateway_route_invalid_hostname(
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert out.unit_status == ops.testing.BlockedStatus("Invalid config 'hostname'; see debug-log")
+    assert out.unit_status == ops.testing.BlockedStatus("1 validation error; see debug-log")
 
 
 @pytest.mark.usefixtures("mock_lightkube")
@@ -202,7 +202,7 @@ def test_gateway_route_https_backend_protocol_blocked(
     """
     arrange: backend-protocol set to https in gateway-route mode.
     act: trigger config-changed.
-    assert: status is Blocked and identifies the unsupported backend-protocol option.
+    assert: status is Blocked and reports one validation error.
     """
     state = ops.testing.State(
         config={"hostname": "example.com", "backend-protocol": "https"},
@@ -222,9 +222,7 @@ def test_gateway_route_https_backend_protocol_blocked(
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert out.unit_status == ops.testing.BlockedStatus(
-        "Invalid config 'backend-protocol'; see debug-log"
-    )
+    assert out.unit_status == ops.testing.BlockedStatus("1 validation error; see debug-log")
 
 
 @pytest.mark.usefixtures("mock_lightkube")
@@ -341,7 +339,7 @@ def test_gateway_route_wildcard_hostname_blocked(
     """
     arrange: wildcard hostname in config.
     act: trigger config-changed.
-    assert: status is Blocked and identifies the unsupported hostname option.
+    assert: status is Blocked and reports one validation error.
     """
     state = ops.testing.State(
         config={"hostname": "*.example.com"},
@@ -361,7 +359,7 @@ def test_gateway_route_wildcard_hostname_blocked(
 
     out = context_k8s.run(context_k8s.on.config_changed(), state)
 
-    assert out.unit_status == ops.testing.BlockedStatus("Invalid config 'hostname'; see debug-log")
+    assert out.unit_status == ops.testing.BlockedStatus("1 validation error; see debug-log")
 
 
 def test_gateway_route_https_mode_disabled(

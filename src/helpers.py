@@ -74,16 +74,11 @@ class InvalidRouteStateError(Exception):
         """Initialize the status summary and diagnostic details.
 
         Args:
-            message: Route state error summary, used in diagnostics and as a status fallback.
+            message: Route state error summary, used in diagnostics.
             validation_error: The original Pydantic validation error.
         """
         self._details = f"{message}: {self._format_validation_error(validation_error)}"
-        self._status_message = f"{message}; see debug-log"
         self._error_count = validation_error.error_count()
-        if self._error_count == 1:
-            source = self._validation_error_source(validation_error.errors()[0]["loc"])
-            if source:
-                self._status_message = f"Invalid {source}; see debug-log"
         super().__init__(self.details)
 
     @staticmethod
@@ -91,22 +86,22 @@ class InvalidRouteStateError(Exception):
         """Return the state model associated with this error, if any."""
         return None
 
-    def _validation_error_source(self, location: tuple[str | int, ...]) -> str | None:
-        """Read source metadata directly, retaining parent sources for nested values."""
+    def _validation_error_config(self, location: tuple[str | int, ...]) -> str | None:
+        """Read possible config options, retaining parent options for nested values."""
         model = self._validation_model()
         if model is None or not is_pydantic_dataclass(model):
             return None
 
         fields = model.__pydantic_fields__
         metadata: dict[str, JsonValue] = {}
-        sources: JsonValue = {}
+        options: JsonValue = []
         for part in location:
             if isinstance(part, int):
                 continue
             field = fields.get(part)
             properties = metadata.get("properties", {})
             if not isinstance(properties, dict):
-                raise TypeError("Validation source properties must be a dictionary")
+                raise TypeError("Validation config properties must be a dictionary")
             child = properties.get(part)
             if child is None:
                 if field is None:
@@ -114,35 +109,30 @@ class InvalidRouteStateError(Exception):
                 field_metadata = field.json_schema_extra
                 child = field_metadata if isinstance(field_metadata, dict) else {}
             metadata = child if isinstance(child, dict) else {}
-            sources = metadata.get("sources", sources)
+            options = metadata.get("config", options)
             annotation = field.annotation if field is not None else None
             fields = (
                 annotation.__pydantic_fields__
                 if isinstance(annotation, type) and is_pydantic_dataclass(annotation)
                 else {}
             )
-        return self._format_sources(sources)
+        return self._format_config_options(options)
 
     @staticmethod
-    def _format_sources(sources: JsonValue) -> str | None:
-        """Render source names and their public field names."""
-        if not isinstance(sources, dict):
-            raise TypeError("Validation sources must be a dictionary")
-        labels: list[str] = []
-        for source, names in sorted(sources.items(), key=lambda item: item[0].casefold()):
-            if not isinstance(names, list) or not all(isinstance(name, str) for name in names):
-                raise TypeError("Validation source names must be lists of strings")
-            labels.extend(f"{source} '{name}'" for name in names)
-        return " or ".join(labels) or None
+    def _format_config_options(options: JsonValue) -> str | None:
+        """Render the config options that could supply a field's value."""
+        if not isinstance(options, list) or not all(isinstance(name, str) for name in options):
+            raise TypeError("Validation config options must be a list of strings")
+        return " or ".join(f"'{name}'" for name in options) or None
 
     def _format_validation_error(self, exc: ValidationError) -> str:
-        """Preserve paths and reasons, adding possible sources but omitting input metadata."""
+        """Preserve paths and reasons, adding possible config options without input metadata."""
         details = []
         for error in exc.errors(include_url=False, include_input=False, include_context=False):
             location = ".".join(str(part) for part in error["loc"])
             detail = f"{location}: {error['msg']}" if location else error["msg"]
-            source = self._validation_error_source(error["loc"])
-            details.append(f"{detail} (possible sources: {source})" if source else detail)
+            config = self._validation_error_config(error["loc"])
+            details.append(f"{detail} (possible config sources: {config})" if config else detail)
         return f"{exc.title}: {'; '.join(details)}"
 
     @property
@@ -152,14 +142,13 @@ class InvalidRouteStateError(Exception):
 
     @property
     def juju_status_msg(self) -> str:
-        """Return the status summary, including the count for multiple errors.
+        """Return the validation error count and a debug-log hint.
 
         Counts come from the supplied Pydantic validation call, not from distinct
         fields or subsequent validation calls.
         """
-        if self._error_count > 1:
-            return f"{self._error_count} validation errors; see debug-log"
-        return self._status_message
+        suffix = "" if self._error_count == 1 else "s"
+        return f"{self._error_count} validation error{suffix}; see debug-log"
 
 
 def split_delimited(value: object, *, delimiter: str = ",") -> object:

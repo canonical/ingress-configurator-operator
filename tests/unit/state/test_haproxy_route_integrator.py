@@ -214,13 +214,9 @@ def test_state_from_charm_invalid_port():
     assert exc_info.value.details == (
         "Invalid haproxy-route configuration: HaproxyRouteState: "
         "backend_ports.0: Input should be less than or equal to 65535 "
-        "(possible sources: config 'backend-ports' or ingress 'port' or "
-        "Kubernetes Service 'nodePort')"
+        "(possible config sources: 'backend-ports')"
     )
-    assert exc_info.value.juju_status_msg == (
-        "Invalid config 'backend-ports' or ingress 'port' or "
-        "Kubernetes Service 'nodePort'; see debug-log"
-    )
+    assert exc_info.value.juju_status_msg == "1 validation error; see debug-log"
 
 
 def test_state_from_charm_invalid_protocol():
@@ -416,9 +412,9 @@ def test_state_from_charm_invalid_timeout_connect():
     assert exc_info.value.details == (
         "Invalid haproxy-route configuration: HaproxyRouteState: "
         "timeout.connect: Input should be greater than 0 "
-        "(possible sources: config 'timeout-connect')"
+        "(possible config sources: 'timeout-connect')"
     )
-    assert exc_info.value.juju_status_msg == "Invalid config 'timeout-connect'; see debug-log"
+    assert exc_info.value.juju_status_msg == "1 validation error; see debug-log"
 
 
 def test_state_from_charm_invalid_timeout_queue():
@@ -766,7 +762,7 @@ def test_state_from_charm_invalid_external_grpc_port_and_http():
     cause = exc_info.value.__cause__
     assert isinstance(cause, ValidationError)
     assert [error["loc"] for error in cause.errors()] == [("external_grpc_port",)]
-    assert exc_info.value.juju_status_msg == "Invalid config 'external-grpc-port'; see debug-log"
+    assert exc_info.value.juju_status_msg == "1 validation error; see debug-log"
     assert "external_grpc_port can only be set when backend_protocol is 'https'" in str(
         exc_info.value.__cause__
     )
@@ -791,7 +787,7 @@ def test_state_from_charm_invalid_external_grpc_port_invalid_and_allow_http():
     cause = exc_info.value.__cause__
     assert isinstance(cause, ValidationError)
     assert [error["loc"] for error in cause.errors()] == [("external_grpc_port",)]
-    assert exc_info.value.juju_status_msg == "Invalid config 'external-grpc-port'; see debug-log"
+    assert exc_info.value.juju_status_msg == "1 validation error; see debug-log"
     assert "external_grpc_port cannot be set when allow_http is True." in str(
         exc_info.value.__cause__
     )

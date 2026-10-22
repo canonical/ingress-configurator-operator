@@ -59,20 +59,14 @@ class HealthCheck:
     """
 
     path: Optional[Annotated[str, BeforeValidator(value_has_valid_characters)]] = Field(
-        json_schema_extra={"sources": {"config": ["health-check-path"]}}
+        json_schema_extra={"config": ["health-check-path"]}
     )
     port: Optional[int] = Field(
-        gt=0, le=65536, json_schema_extra={"sources": {"config": ["health-check-port"]}}
+        gt=0, le=65536, json_schema_extra={"config": ["health-check-port"]}
     )
-    interval: Optional[int] = Field(
-        gt=0, json_schema_extra={"sources": {"config": ["health-check-interval"]}}
-    )
-    rise: Optional[int] = Field(
-        gt=0, json_schema_extra={"sources": {"config": ["health-check-rise"]}}
-    )
-    fall: Optional[int] = Field(
-        gt=0, json_schema_extra={"sources": {"config": ["health-check-fall"]}}
-    )
+    interval: Optional[int] = Field(gt=0, json_schema_extra={"config": ["health-check-interval"]})
+    rise: Optional[int] = Field(gt=0, json_schema_extra={"config": ["health-check-rise"]})
+    fall: Optional[int] = Field(gt=0, json_schema_extra={"config": ["health-check-fall"]})
 
     @model_validator(mode="after")
     def validate_health_check_all_set(self) -> Self:
@@ -121,118 +115,84 @@ class HaproxyRouteState:
 
     backend_addresses: Annotated[
         list[IPvAnyAddress], Len(min_length=1), BeforeValidator(split_delimited)
-    ] = Field(
-        json_schema_extra={
-            "sources": {
-                "config": ["backend-addresses"],
-                "ingress": ["ip"],
-                "Kubernetes Node": ["status.addresses"],
-            }
-        }
-    )
+    ] = Field(json_schema_extra={"config": ["backend-addresses"]})
     backend_ports: Annotated[
         list[Annotated[int, Field(gt=0, le=65535)]],
         Len(min_length=1),
         BeforeValidator(split_delimited),
-    ] = Field(
-        json_schema_extra={
-            "sources": {
-                "config": ["backend-ports"],
-                "ingress": ["port"],
-                "Kubernetes Service": ["nodePort"],
-            }
-        }
-    )
+    ] = Field(json_schema_extra={"config": ["backend-ports"]})
     backend_protocol: Literal["http", "https"] = Field(
-        json_schema_extra={"sources": {"config": ["backend-protocol"]}}
+        json_schema_extra={"config": ["backend-protocol"]}
     )
     health_check: HealthCheck = Field(
         json_schema_extra={
-            "sources": {
-                "config": ["health-check-interval", "health-check-rise", "health-check-fall"]
-            }
+            "config": ["health-check-interval", "health-check-rise", "health-check-fall"]
         }
     )
     retry: Retry | None = Field(
         json_schema_extra={
-            "sources": {"config": ["retry-count", "retry-redispatch"]},
+            "config": ["retry-count", "retry-redispatch"],
             "properties": {
-                "count": {"sources": {"config": ["retry-count"]}},
-                "redispatch": {"sources": {"config": ["retry-redispatch"]}},
+                "count": {"config": ["retry-count"]},
+                "redispatch": {"config": ["retry-redispatch"]},
             },
         }
     )
     timeout: TimeoutConfiguration = Field(
         json_schema_extra={
-            "sources": {"config": ["timeout-server", "timeout-connect", "timeout-queue"]},
             "properties": {
-                "server": {"sources": {"config": ["timeout-server"]}},
-                "connect": {"sources": {"config": ["timeout-connect"]}},
-                "queue": {"sources": {"config": ["timeout-queue"]}},
+                "server": {"config": ["timeout-server"]},
+                "connect": {"config": ["timeout-connect"]},
+                "queue": {"config": ["timeout-queue"]},
             },
         }
     )
-    service: str = Field(
-        ...,
-        min_length=1,
-        json_schema_extra={
-            "sources": {
-                "Juju": ["model/application name"],
-                "Kubernetes Service": ["metadata.name"],
-            }
-        },
-    )
+    service: str = Field(..., min_length=1)
     paths: Annotated[
         list[Annotated[str, BeforeValidator(value_has_valid_characters)]],
         BeforeValidator(split_delimited),
-    ] = Field(default=[], json_schema_extra={"sources": {"config": ["paths"]}})
+    ] = Field(default=[], json_schema_extra={"config": ["paths"]})
     deny_paths: Annotated[
         list[Annotated[str, BeforeValidator(value_has_valid_characters)]],
         BeforeValidator(split_delimited),
-    ] = Field(default=[], json_schema_extra={"sources": {"config": ["deny-paths"]}})
+    ] = Field(default=[], json_schema_extra={"config": ["deny-paths"]})
     hostname: Optional[Annotated[str, BeforeValidator(valid_domain_with_wildcard)]] = Field(
-        default=None, json_schema_extra={"sources": {"config": ["hostname"]}}
+        default=None, json_schema_extra={"config": ["hostname"]}
     )
     additional_hostnames: Annotated[
         list[Annotated[str, BeforeValidator(valid_domain_with_wildcard)]],
         BeforeValidator(split_delimited),
-    ] = Field(default=[], json_schema_extra={"sources": {"config": ["additional-hostnames"]}})
+    ] = Field(default=[], json_schema_extra={"config": ["additional-hostnames"]})
     load_balancing_configuration: LoadBalancingConfiguration = Field(
         default=LoadBalancingConfiguration(),
         json_schema_extra={
-            "sources": {
-                "config": [
-                    "load-balancing-algorithm",
-                    "load-balancing-cookie",
-                    "load-balancing-consistent-hashing",
-                ]
-            },
+            "config": [
+                "load-balancing-algorithm",
+                "load-balancing-cookie",
+                "load-balancing-consistent-hashing",
+            ],
             "properties": {
-                "algorithm": {"sources": {"config": ["load-balancing-algorithm"]}},
-                "cookie": {"sources": {"config": ["load-balancing-cookie"]}},
-                "consistent_hashing": {
-                    "sources": {"config": ["load-balancing-consistent-hashing"]}
-                },
+                "algorithm": {"config": ["load-balancing-algorithm"]},
+                "cookie": {"config": ["load-balancing-cookie"]},
+                "consistent_hashing": {"config": ["load-balancing-consistent-hashing"]},
             },
         },
     )
     http_server_close: bool = Field(
-        default=False, json_schema_extra={"sources": {"config": ["http-server-close"]}}
+        default=False, json_schema_extra={"config": ["http-server-close"]}
     )
     path_rewrite_expressions: list[str] = Field(
-        default=[], json_schema_extra={"sources": {"config": ["path-rewrite-expressions"]}}
+        default=[], json_schema_extra={"config": ["path-rewrite-expressions"]}
     )
     header_rewrite_expressions: list[tuple[str, str]] = Field(
-        default=[], json_schema_extra={"sources": {"config": ["header-rewrite-expressions"]}}
+        default=[], json_schema_extra={"config": ["header-rewrite-expressions"]}
     )
-    allow_http: bool = Field(
-        default=False, json_schema_extra={"sources": {"config": ["allow-http"]}}
-    )
+    allow_http: bool = Field(default=False, json_schema_extra={"config": ["allow-http"]})
     external_grpc_port: int | None = Field(
         default=None,
         gt=0,
         le=65535,
-        json_schema_extra={"sources": {"config": ["external-grpc-port"]}},
+        json_schema_extra={"config": ["external-grpc-port"]},
     )
 
     @field_validator("external_grpc_port")

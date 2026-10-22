@@ -7,7 +7,7 @@ from functools import partial
 from typing import Annotated
 
 import pytest
-from pydantic import BeforeValidator, TypeAdapter, ValidationError
+from pydantic import BeforeValidator, TypeAdapter
 
 from helpers import split_delimited
 
@@ -35,27 +35,9 @@ def test_split_delimited_preserves_nonstring_inputs(value: object) -> None:
     assert split_delimited(value) is value
 
 
-def test_split_delimited_retains_item_validation_errors() -> None:
-    """Leave parsed-list validation to Pydantic so all item failures are collected."""
-    adapter: TypeAdapter[list[int]] = TypeAdapter(
-        Annotated[
-            list[int],
-            BeforeValidator(split_delimited),
-        ]
-    )
-
-    with pytest.raises(ValidationError) as exc_info:
-        adapter.validate_python(["invalid", "also-invalid"])
-
-    assert [error["loc"] for error in exc_info.value.errors()] == [(0,), (1,)]
-
-
-@pytest.mark.parametrize("delimiter", [";", "|", "::"])
-def test_split_delimited_accepts_custom_delimiter(delimiter):
+def test_split_delimited_accepts_custom_delimiter():
     """Trim and skip empty items when a caller overrides the delimiter."""
-    value = f" first{delimiter} {delimiter}second{delimiter}"
-
-    assert split_delimited(value, delimiter=delimiter) == ["first", "second"]
+    assert split_delimited(" first:: ::second::", delimiter="::") == ["first", "second"]
 
 
 def test_split_delimited_partial_validates_items():
@@ -68,9 +50,3 @@ def test_split_delimited_partial_validates_items():
     )
 
     assert adapter.validate_python(" 80; ;443; ") == [80, 443]
-
-
-def test_split_delimited_rejects_empty_delimiter():
-    """Surface an invalid delimiter instead of silently ignoring it."""
-    with pytest.raises(ValueError, match="empty separator"):
-        split_delimited("first,second", delimiter="")

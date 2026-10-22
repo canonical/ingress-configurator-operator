@@ -6,7 +6,7 @@
 import pytest
 from pydantic import ValidationError
 
-from helpers import format_validation_error, truncate_k8s_resource_name
+from helpers import InvalidRouteStateError, format_validation_error, truncate_k8s_resource_name
 from state.gateway_route import InvalidGatewayRouteStateError
 from state.haproxy_route import InvalidHaproxyRouteStateError
 from state.haproxy_route_tcp import InvalidHaproxyRouteTcpStateError
@@ -24,18 +24,11 @@ def test_config_error_preserves_explicit_message(error_type):
     """Errors without validation details preserve the explicit message."""
     error = error_type("A required option is missing.")
 
+    assert isinstance(error, InvalidRouteStateError)
     assert str(error) == "A required option is missing."
     assert error.details == "A required option is missing."
 
 
-@pytest.mark.parametrize(
-    "error_type",
-    [
-        InvalidHaproxyRouteStateError,
-        InvalidHaproxyRouteTcpStateError,
-        InvalidGatewayRouteStateError,
-    ],
-)
 @pytest.mark.parametrize(
     "fields, expected_status",
     [
@@ -44,8 +37,8 @@ def test_config_error_preserves_explicit_message(error_type):
         (("port", "port", "timeout"), "3 validation errors; see debug-log"),
     ],
 )
-def test_config_error_separates_status_from_details(error_type, fields, expected_status):
-    """Each route exception owns its status summary and complete diagnostics."""
+def test_config_error_separates_status_from_details(fields, expected_status):
+    """The shared exception separates status summaries from complete diagnostics."""
     validation_error = ValidationError.from_exception_data(
         "Example",
         [
@@ -59,7 +52,7 @@ def test_config_error_separates_status_from_details(error_type, fields, expected
         ],
     )
 
-    error = error_type("Invalid configuration", validation_error=validation_error)
+    error = InvalidRouteStateError("Invalid configuration", validation_error=validation_error)
 
     expected_details = "Invalid configuration: Example: " + "; ".join(
         f"{field}: Input should be greater than 0" for field in fields
@@ -68,17 +61,9 @@ def test_config_error_separates_status_from_details(error_type, fields, expected
     assert str(error) == expected_status
 
 
-@pytest.mark.parametrize(
-    "error_type",
-    [
-        InvalidHaproxyRouteStateError,
-        InvalidHaproxyRouteTcpStateError,
-        InvalidGatewayRouteStateError,
-    ],
-)
-def test_config_error_keeps_parser_details_out_of_status(error_type):
+def test_config_error_keeps_parser_details_out_of_status():
     """A parsing error's implementation details belong only in diagnostic logs."""
-    error = error_type(
+    error = InvalidRouteStateError(
         "Invalid backend-ports",
         validation_error=ValueError("invalid literal for int() with base 10: 'invalid'"),
     )

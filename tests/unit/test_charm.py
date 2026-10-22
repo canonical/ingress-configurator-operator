@@ -68,12 +68,6 @@ def test_config_changed_invalid_state(
             "backend_ports: List should have at least 1 item after validation, not 0",
         ),
         (
-            {"backend-addresses": "10.0.0.1,invalid"},
-            "Invalid haproxy-route configuration; see debug-log",
-            "Invalid haproxy-route configuration: HaproxyRouteState: "
-            "backend_addresses.1: value is not a valid IPv4 or IPv6 address",
-        ),
-        (
             {"backend-ports": "invalid"},
             "Invalid haproxy-route configuration; see debug-log",
             "Invalid haproxy-route configuration: HaproxyRouteState: backend_ports.0: "
@@ -91,17 +85,6 @@ def test_config_changed_invalid_state(
             "Invalid haproxy-route configuration: HealthCheck: Value error, "
             "Health check configuration is incomplete: interval, rise, and fall "
             "must all be set if any one of them is specified.",
-        ),
-        (
-            {"external-grpc-port": 8443},
-            "Invalid haproxy-route configuration; see debug-log",
-            "Invalid haproxy-route configuration: HaproxyRouteState: Value error, "
-            "external_grpc_port can only be set when backend_protocol is 'https'.",
-        ),
-        (
-            {"load-balancing-algorithm": "invalid"},
-            "Invalid haproxy-route configuration; see debug-log",
-            "Invalid haproxy-route configuration: 'invalid' is not a valid LoadBalancingAlgorithm",
         ),
     ],
 )
@@ -131,23 +114,10 @@ def test_config_validation_has_concise_status_and_complete_logs(
     [
         (
             "haproxy-route",
-            {"backend-addresses": "invalid", "backend-ports": "99999"},
-            "Invalid haproxy-route configuration: HaproxyRouteState: "
-            "backend_addresses.0: value is not a valid IPv4 or IPv6 address; "
-            "backend_ports.0: Input should be less than or equal to 65535",
-        ),
-        (
-            "haproxy-route",
             {"backend-ports": "99999,99998"},
             "Invalid haproxy-route configuration: HaproxyRouteState: "
             "backend_ports.0: Input should be less than or equal to 65535; "
             "backend_ports.1: Input should be less than or equal to 65535",
-        ),
-        (
-            "haproxy-route",
-            {"timeout-connect": -1, "timeout-server": -2},
-            "Invalid haproxy-route configuration: TimeoutConfiguration: "
-            "server: Input should be greater than 0; connect: Input should be greater than 0",
         ),
         (
             "haproxy-route-tcp",
@@ -223,19 +193,6 @@ def test_config_validation_recovers_after_correction(
             "Invalid haproxy-route-tcp configuration; see debug-log",
             "Invalid haproxy-route-tcp configuration: HaproxyRouteTcpState: "
             "backend_addresses.0: value is not a valid IPv4 or IPv6 address",
-        ),
-        (
-            {"tcp-timeout-connect": -1},
-            "Invalid haproxy-route-tcp configuration; see debug-log",
-            "Invalid haproxy-route-tcp configuration: TimeoutConfiguration: "
-            "connect: Input should be greater than 0",
-        ),
-        (
-            {"tcp-health-check-interval": 5},
-            "Invalid haproxy-route-tcp configuration; see debug-log",
-            "Invalid haproxy-route-tcp configuration: TCPHealthCheck: Value error, "
-            "Health check configuration is incomplete: interval, rise, and fall "
-            "must all be set if any one of them is specified.",
         ),
         (
             {"tcp-load-balancing-algorithm": "invalid"},

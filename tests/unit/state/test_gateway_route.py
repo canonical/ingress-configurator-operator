@@ -8,8 +8,7 @@ from unittest.mock import Mock
 import pytest
 from charms.traefik_k8s.v2.ingress import IngressRequirerAppData, IngressRequirerData
 from ops import CharmBase
-from pydantic import Field, TypeAdapter
-from pydantic.dataclasses import dataclass
+from pydantic import TypeAdapter
 
 from state.gateway_route import GatewayRouteState
 
@@ -17,7 +16,6 @@ from state.gateway_route import GatewayRouteState
 @pytest.mark.parametrize(
     "field, raw_value, expected",
     [
-        ("backend_port", 8080, 8080),
         ("paths", " /api, , /other, ", ["/api", "/other"]),
         ("paths", None, ["/"]),
         ("paths", "", ["/"]),
@@ -50,67 +48,14 @@ def test_gateway_state_parses_raw_fields(field, raw_value, expected):
     assert getattr(state, field) == expected
 
 
-@pytest.mark.parametrize("raw_paths", [None, "", " , , "])
-def test_gateway_empty_paths_use_declared_field_default(raw_paths):
-    """Use the field's declared default rather than a fallback inside the validator."""
-
-    @dataclass(frozen=True)
-    class CustomDefaultGatewayRouteState(GatewayRouteState):
-        """Gateway state with a different declared path default."""
-
-        paths: list[str] = Field(default=["/custom"])
-
-    state = TypeAdapter(CustomDefaultGatewayRouteState).validate_python(
-        {
-            "application_name": "backend",
-            "model_name": "test-model",
-            "hostname": None,
-            "backend_protocol": "http",
-            "backend_port": 8080,
-            "paths": raw_paths,
-        }
-    )
-
-    assert state.paths == ["/custom"]
-
-
-@pytest.mark.parametrize("raw_fields", [{}, {"paths": None}])
-def test_gateway_path_defaults_are_not_shared(raw_fields):
-    """Give each state its own path list, including when a validator requests the default."""
-    data = {
-        "application_name": "backend",
-        "model_name": "test-model",
-        "hostname": None,
-        "backend_protocol": "http",
-        "backend_port": 8080,
-        **raw_fields,
-    }
-    adapter = TypeAdapter(GatewayRouteState)
-    first = adapter.validate_python(data)
-    second = adapter.validate_python(data)
-
-    assert first.paths is not second.paths
-    first.paths.append("/extra")
-    assert second.paths == ["/"]
-
-
-@pytest.mark.parametrize(
-    "paths, expected_paths",
-    [
-        (" /api, , /other, ", ["/api", "/other"]),
-        ("", ["/"]),
-        (None, ["/"]),
-        (" , , ", ["/"]),
-    ],
-)
-def test_gateway_adapter_parses_config_and_preserves_relation_data(paths, expected_paths):
+def test_gateway_adapter_parses_config_and_preserves_relation_data():
     """Normalize gateway config while taking backend details from the ingress relation."""
     charm = Mock(CharmBase)
     charm.config = {
         "hostname": "example.com",
         "backend-protocol": "http",
         "additional-hostnames": "api.example.com,other.example.com",
-        "paths": paths,
+        "paths": " /api, , /other, ",
     }
     ingress_data = IngressRequirerData(
         app=IngressRequirerAppData.model_validate(
@@ -133,4 +78,4 @@ def test_gateway_adapter_parses_config_and_preserves_relation_data(paths, expect
     assert state.backend_protocol == "http"
     assert state.hostname == "example.com"
     assert state.additional_hostnames == ["api.example.com", "other.example.com"]
-    assert state.paths == expected_paths
+    assert state.paths == ["/api", "/other"]

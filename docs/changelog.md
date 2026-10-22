@@ -10,7 +10,7 @@ Each revision is versioned by the date of the revision.
 
 ## 2026-10-22
 
-- Cleaned up the GatewayRouteState by removing the integrator mode substate.
+- Cleaned up the GatewayRouteState by removing the integrator mode sub-state.
 
 ## 2026-10-19
 

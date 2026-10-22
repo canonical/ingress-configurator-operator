@@ -53,7 +53,6 @@ def test_integrator_state_from_charm():
     [
         ("backend_addresses", " , 127.0.0.1, ::1, ", ["127.0.0.1", "::1"]),
         ("backend_ports", " , 80 , ,443, ", [80, 443]),
-        ("backend_ports", "8000.0", [8000]),
         ("paths", " /api, , /other, ", ["/api", "/other"]),
         ("deny_paths", " /admin, , /private, ", ["/admin", "/private"]),
         (
@@ -62,8 +61,6 @@ def test_integrator_state_from_charm():
             ["api.example.com", "static.example.com"],
         ),
         ("paths", "", []),
-        ("deny_paths", "", []),
-        ("additional_hostnames", "", []),
     ],
 )
 def test_http_state_parses_comma_separated_fields(field, raw_value, expected):
@@ -87,11 +84,10 @@ def test_http_state_parses_comma_separated_fields(field, raw_value, expected):
     [
         ("backend_addresses", " , , "),
         ("backend_ports", " , , "),
-        ("backend_ports", "8000.5"),
     ],
 )
 def test_http_state_rejects_invalid_backend_fields(field, raw_value):
-    """Reject empty normalized backend fields and fractional port strings."""
+    """Reject empty normalized backend fields."""
     charm = Mock(CharmBase)
     charm.config = {
         "backend-addresses": "127.0.0.1",

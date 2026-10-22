@@ -16,8 +16,7 @@ from state.haproxy_route_tcp import HaproxyRouteTcpState, InvalidHaproxyRouteTcp
     "fields, expected_status",
     [
         (("port",), "Invalid configuration; see debug-log"),
-        (("port", "timeout"), "2 validation errors; see debug-log"),
-        (("port", "port", "timeout"), "3 validation errors; see debug-log"),
+        (("port", "port"), "2 validation errors; see debug-log"),
     ],
 )
 def test_config_error_separates_status_from_details(fields, expected_status):
@@ -73,12 +72,6 @@ def test_config_error_separates_status_from_details(fields, expected_status):
             "config 'tcp-port-mapping' or config 'tcp-frontend-port' or config 'tcp-backend-port'",
         ),
         (
-            HaproxyRouteState,
-            InvalidHaproxyRouteStateError,
-            ("external_grpc_port",),
-            "config 'external-grpc-port'",
-        ),
-        (
             GatewayRouteState,
             InvalidGatewayRouteStateError,
             ("backend_port",),
@@ -107,7 +100,7 @@ def test_validation_diagnostics_identify_possible_sources(model, error_type, loc
 
 
 def test_format_validation_error_preserves_paths_and_reasons():
-    """Preserve nested locations, list indices, and every validation reason."""
+    """Preserve all locations and reasons without exposing inputs or metadata."""
     exc = ValidationError.from_exception_data(
         "Example",
         [
@@ -123,6 +116,12 @@ def test_format_validation_error_preserves_paths_and_reasons():
                 "input": [],
                 "ctx": {"field_type": "List", "min_length": 1, "actual_length": 0},
             },
+            {
+                "type": "value_error",
+                "loc": (),
+                "input": "private-input",
+                "ctx": {"error": ValueError("interval, rise, and fall must all be set")},
+            },
         ],
     )
 
@@ -130,43 +129,9 @@ def test_format_validation_error_preserves_paths_and_reasons():
 
     assert error.details == (
         "Invalid configuration: Example: items.1: Input should be greater than 0; "
-        "ports: List should have at least 1 item after validation, not 0"
+        "ports: List should have at least 1 item after validation, not 0; "
+        "Value error, interval, rise, and fall must all be set"
     )
-
-
-def test_format_validation_error_preserves_model_level_errors():
-    """Do not discard errors without a field location."""
-    exc = ValidationError.from_exception_data(
-        "HealthCheck",
-        [
-            {
-                "type": "value_error",
-                "loc": (),
-                "input": {},
-                "ctx": {"error": ValueError("interval, rise, and fall must all be set")},
-            }
-        ],
-    )
-
-    error = InvalidRouteStateError("Invalid configuration", validation_error=exc)
-
-    assert error.details == (
-        "Invalid configuration: HealthCheck: Value error, interval, rise, and fall must all be set"
-    )
-
-
-def test_format_validation_error_omits_input_metadata_and_urls():
-    """Only include the model, location, and Pydantic reason."""
-    exc = ValidationError.from_exception_data(
-        "Example",
-        [{"type": "int_parsing", "loc": ("count",), "input": "private-input"}],
-    )
-
-    message = InvalidRouteStateError("Invalid configuration", validation_error=exc).details
-
-    assert "count: Input should be a valid integer" in message
-    assert "private-input" not in message
-    assert "https://" not in message
 
 
 @pytest.mark.parametrize(

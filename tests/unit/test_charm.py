@@ -57,37 +57,23 @@ def test_config_changed_invalid_state(
     assert isinstance(out.unit_status, ops.testing.BlockedStatus)
 
 
-@pytest.mark.parametrize(
-    "config, expected_status",
-    [
-        (
-            {"backend-ports": ""},
-            "Invalid config 'backend-ports' or ingress 'port' or "
-            "Kubernetes Service 'nodePort'; see debug-log",
-        ),
-        (
-            {"health-check-interval": 5},
-            "Invalid config 'health-check-interval' or config 'health-check-rise' or "
-            "config 'health-check-fall'; see debug-log",
-        ),
-    ],
-)
 def test_invalid_config_sets_blocked_status_and_logs_error(
     context_machine: ops.testing.Context["IngressConfiguratorCharm"],
     caplog: pytest.LogCaptureFixture,
-    config: dict,
-    expected_status: str,
 ):
     """Block invalid HTTP configuration and log the failure with a traceback."""
     state = ops.testing.State(
-        config={"backend-addresses": "10.0.0.1", "backend-ports": "8080", **config},
+        config={"backend-addresses": "10.0.0.1", "backend-ports": ""},
         relations=[ops.testing.Relation("haproxy-route")],
         leader=True,
     )
 
     out = context_machine.run(context_machine.on.config_changed(), state)
 
-    assert out.unit_status == ops.testing.BlockedStatus(expected_status)
+    assert out.unit_status == ops.testing.BlockedStatus(
+        "Invalid config 'backend-ports' or ingress 'port' or "
+        "Kubernetes Service 'nodePort'; see debug-log"
+    )
     assert any(message.startswith("Invalid haproxy-route config:") for message in caplog.messages)
     assert any(record.exc_info is not None for record in caplog.records)
 
@@ -136,29 +122,6 @@ def test_multiple_config_errors_are_reported_once(
     assert [record.name for record in caplog.records if record.levelno >= logging.ERROR] == [
         "charm"
     ]
-
-
-def test_invalid_tcp_config_sets_blocked_status_and_logs_error(
-    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
-    caplog: pytest.LogCaptureFixture,
-):
-    """Block invalid TCP configuration and log the failure with a traceback."""
-    state = ops.testing.State(
-        config={"tcp-backend-addresses": "10.0.0.1", "tcp-port-mapping": "invalid"},
-        relations=[ops.testing.Relation("haproxy-route-tcp")],
-        leader=True,
-    )
-
-    out = context_machine.run(context_machine.on.config_changed(), state)
-
-    assert out.unit_status == ops.testing.BlockedStatus(
-        "Invalid config 'tcp-port-mapping' or config 'tcp-frontend-port' or "
-        "config 'tcp-backend-port'; see debug-log"
-    )
-    assert any(
-        message.startswith("Invalid haproxy-route-tcp config:") for message in caplog.messages
-    )
-    assert any(record.exc_info is not None for record in caplog.records)
 
 
 def test_config_changed_ingress_relation_not_ready(

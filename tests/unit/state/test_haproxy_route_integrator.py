@@ -3,13 +3,12 @@
 
 """Unit tests for HaproxyRouteState in integrator mode (build_for_integrator_mode)."""
 
-from dataclasses import asdict
 from unittest.mock import Mock
 
 import pytest
 from charms.haproxy.v2.haproxy_route import LoadBalancingAlgorithm
 from ops import CharmBase
-from pydantic import TypeAdapter, ValidationError
+from pydantic import ValidationError
 
 from state.haproxy_route import (
     HaproxyRouteState,
@@ -68,14 +67,14 @@ def test_integrator_state_from_charm():
     ],
 )
 def test_http_state_parses_comma_separated_fields(field, raw_value, expected):
-    """Parse raw string fields inside Pydantic."""
+    """Parse raw string configuration through the integrator state builder."""
     charm = Mock(CharmBase)
-    charm.config = {"backend-addresses": "127.0.0.1", "backend-ports": "8080"}
-    valid_state = _make_integrator_state(charm)
-
-    state = TypeAdapter(HaproxyRouteState).validate_python(
-        {**asdict(valid_state), field: raw_value}
-    )
+    charm.config = {
+        "backend-addresses": "127.0.0.1",
+        "backend-ports": "8080",
+        field.replace("_", "-"): raw_value,
+    }
+    state = _make_integrator_state(charm)
 
     value = getattr(state, field)
     assert ([str(address) for address in value] if field == "backend_addresses" else value) == (
@@ -94,13 +93,18 @@ def test_http_state_parses_comma_separated_fields(field, raw_value, expected):
 def test_http_state_rejects_invalid_backend_fields(field, raw_value):
     """Reject empty normalized backend fields and fractional port strings."""
     charm = Mock(CharmBase)
-    charm.config = {"backend-addresses": "127.0.0.1", "backend-ports": "8080"}
-    valid_state = _make_integrator_state(charm)
+    charm.config = {
+        "backend-addresses": "127.0.0.1",
+        "backend-ports": "8080",
+        field.replace("_", "-"): raw_value,
+    }
 
-    with pytest.raises(ValidationError) as exc_info:
-        TypeAdapter(HaproxyRouteState).validate_python({**asdict(valid_state), field: raw_value})
+    with pytest.raises(InvalidHaproxyRouteStateError) as exc_info:
+        _make_integrator_state(charm)
 
-    assert exc_info.value.errors()[0]["loc"][0] == field
+    cause = exc_info.value.__cause__
+    assert isinstance(cause, ValidationError)
+    assert cause.errors()[0]["loc"][0] == field
 
 
 def test_http_state_collects_nested_validation_errors():

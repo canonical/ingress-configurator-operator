@@ -3,13 +3,12 @@
 
 """Unit tests for the haproxy_route_tcp module."""
 
-from dataclasses import asdict
 from unittest.mock import Mock
 
 import pytest
 from charms.haproxy.v1.haproxy_route_tcp import LoadBalancingAlgorithm, PortMapping
 from ops import CharmBase
-from pydantic import TypeAdapter, ValidationError
+from pydantic import ValidationError
 
 from state.haproxy_route_tcp import (
     HaproxyRouteTcpState,
@@ -64,18 +63,14 @@ def test_tcp_state_parses_backend_addresses():
     """Parse comma-separated address strings in the state model."""
     charm = Mock(CharmBase)
     charm.config = {
-        "tcp-backend-addresses": "127.0.0.1",
+        "tcp-backend-addresses": " , 127.0.0.1, ::1, ",
         "tcp-frontend-port": 9000,
         "tcp-backend-port": 9001,
         "tcp-enforce-tls": False,
         "tcp-load-balancing-algorithm": "roundrobin",
         "tcp-load-balancing-consistent-hashing": False,
     }
-    valid_state = _make_tcp_integrator_state(charm)
-
-    state = TypeAdapter(HaproxyRouteTcpState).validate_python(
-        {**asdict(valid_state), "backend_addresses": " , 127.0.0.1, ::1, "}
-    )
+    state = _make_tcp_integrator_state(charm)
 
     assert [str(address) for address in state.backend_addresses] == ["127.0.0.1", "::1"]
 

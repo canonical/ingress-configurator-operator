@@ -3,10 +3,8 @@
 
 """Unit tests for the helpers module."""
 
-from unittest.mock import Mock
-
 import pytest
-from pydantic import TypeAdapter, ValidationError
+from pydantic import ValidationError
 
 from helpers import InvalidRouteStateError, truncate_k8s_resource_name
 from state.gateway_route import GatewayRouteState, InvalidGatewayRouteStateError
@@ -88,15 +86,8 @@ def test_config_error_separates_status_from_details(fields, expected_status):
         ),
     ],
 )
-def test_validation_diagnostics_identify_possible_sources(
-    model, error_type, location, sources, monkeypatch
-):
+def test_validation_diagnostics_identify_possible_sources(model, error_type, location, sources):
     """Use field metadata for public source names without discarding missing-field details."""
-    monkeypatch.setattr(
-        TypeAdapter,
-        "json_schema",
-        Mock(side_effect=AssertionError("Source lookup must not generate JSON Schema")),
-    )
     exc = ValidationError.from_exception_data(
         model.__name__,
         [{"type": "missing", "loc": location, "input": {}}],

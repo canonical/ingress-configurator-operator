@@ -7,7 +7,6 @@ This module provides state management functionality for HAProxy routes
 in the ingress configurator operator.
 """
 
-import logging
 from typing import Annotated, Literal, Optional, Self, cast
 
 import ops
@@ -24,15 +23,14 @@ from pydantic import BeforeValidator, Field, ValidationError, model_validator
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
-from helpers import get_invalid_config_fields, value_has_valid_characters
+from helpers import InvalidRouteStateError, value_has_valid_characters
 from state.kubernetes import NodePortState
 
-logger = logging.getLogger()
 CHARM_CONFIG_DELIMITER = ","
 DEFAULT_PATH_REWRITE_EXPRESSION_DELIMITER = ";"
 
 
-class InvalidHaproxyRouteStateError(Exception):
+class InvalidHaproxyRouteStateError(InvalidRouteStateError):
     """Exception raised when HAProxy route requirements are invalid."""
 
 
@@ -217,9 +215,8 @@ class HaproxyRouteState:
                 else []
             )
         except ValueError as exc:
-            logger.error(str(exc))
             raise InvalidHaproxyRouteStateError(
-                "HAProxy route state contains invalid value(s)."
+                "Invalid haproxy-route configuration: backend-ports", validation_error=exc
             ) from exc
         return cls._build(
             charm,
@@ -250,7 +247,6 @@ class HaproxyRouteState:
             backend_addresses = [cast(IPvAnyAddress, unit.ip) for unit in ingress_data.units]
             backend_ports = [ingress_data.app.port]
         except ValueError as exc:
-            logger.error(str(exc))
             raise InvalidHaproxyRouteStateError(
                 "HAProxy route state contains invalid value(s)."
             ) from exc
@@ -403,8 +399,10 @@ class HaproxyRouteState:
                 external_grpc_port=external_grpc_port,
             )
         except ValidationError as exc:
-            logger.error("Invalid haproxy-route config fields: %s", get_invalid_config_fields(exc))
-            raise InvalidHaproxyRouteStateError("Invalid haproxy-route configuration.") from exc
+            raise InvalidHaproxyRouteStateError(
+                "Invalid haproxy-route configuration", validation_error=exc
+            ) from exc
         except ValueError as exc:
-            logger.error(str(exc))
-            raise InvalidHaproxyRouteStateError("State contains invalid value(s).") from exc
+            raise InvalidHaproxyRouteStateError(
+                "Invalid haproxy-route configuration", validation_error=exc
+            ) from exc

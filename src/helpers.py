@@ -56,24 +56,62 @@ def value_has_valid_characters(value: str) -> str:
     return value
 
 
-def get_invalid_config_fields(exc: ValidationError) -> list[str]:
-    """Return the top-level field names that failed pydantic validation.
+def format_validation_error(exc: ValidationError) -> str:
+    """Format Pydantic validation reasons and locations for diagnostic logs.
 
-    Only the first element of each error's ``loc`` tuple is kept, so nested
-    type paths (e.g. for list items) are collapsed to their parent field.
-    Results are de-duplicated while preserving order.
+    Preserve model names, nested paths, and model-level errors. Omit Pydantic's
+    input and documentation URL metadata, but retain validator messages as-is.
 
     Args:
         exc: The validation error exception.
 
     Returns:
-        list[str]: De-duplicated top-level field names that failed validation.
+        The model name and semicolon-separated validation locations and reasons.
     """
-    error_fields: list[str] = []
-    for error in exc.errors():
-        if not error["loc"]:
-            continue
-        field = str(error["loc"][0])
-        if field not in error_fields:
-            error_fields.append(field)
-    return error_fields
+    details = []
+    for error in exc.errors(include_url=False, include_input=False, include_context=False):
+        location = ".".join(str(part) for part in error["loc"])
+        details.append(f"{location}: {error['msg']}" if location else error["msg"])
+    return f"{exc.title}: {'; '.join(details)}"
+
+
+class InvalidRouteStateError(Exception):
+    """Invalid route state with a concise status and complete diagnostic details.
+
+    Attributes:
+        details: The full route state error explanation for logging.
+    """
+
+    def __init__(self, message: str, *, validation_error: ValueError | None = None) -> None:
+        """Initialize the status summary and diagnostic details.
+
+        Args:
+            message: User-facing route state error summary. Used unchanged when no
+                validation error is supplied; otherwise followed by a debug-log hint.
+            validation_error: The original validation or parsing error, if any.
+        """
+        if validation_error is None:
+            self.details = message
+            self._status_message = message
+        else:
+            reason = (
+                format_validation_error(validation_error)
+                if isinstance(validation_error, ValidationError)
+                else str(validation_error)
+            )
+            self.details = f"{message}: {reason}"
+            self._status_message = f"{message}; see debug-log"
+        self._error_count = (
+            validation_error.error_count() if isinstance(validation_error, ValidationError) else 0
+        )
+        super().__init__(self.details)
+
+    def __str__(self) -> str:
+        """Return the status summary, including the count for multiple errors.
+
+        Counts come from the supplied Pydantic validation call, not from distinct
+        fields or subsequent validation calls.
+        """
+        if self._error_count > 1:
+            return f"{self._error_count} validation errors; see debug-log"
+        return self._status_message

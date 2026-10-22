@@ -15,19 +15,8 @@ Each revision is versioned by the date of the revision.
 ## 2026-10-22
 
 - Cleaned up the GatewayRouteState by removing the integrator mode sub-state.
-- Preserve validation field paths and reasons in logs for HAProxy HTTP, HAProxy TCP,
-  and gateway-route configuration, including cross-field validation errors. Blocked
-  statuses show concise configuration summaries, include the error count when
-  multiple validations fail, and direct users to debug-log for the full diagnostics
-  without exposing internal validation models.
-- Validate comma-separated route fields together, including malformed backend port
-  values, while preserving gateway-specific path defaults.
-- Collect HTTP and TCP backend, health-check, retry, timeout, and load-balancing validation
-  failures together, including their complete nested field paths.
-- Validate TCP port-mapping strings with the route state so parsing failures are
-  reported alongside other field errors.
-- Trim surrounding whitespace and ignore empty entries in comma-separated route
-  configuration.
+- Centralize route configuration validation with concise blocked statuses and
+  detailed diagnostics in debug-log.
 
 ## 2026-10-19
 

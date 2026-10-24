@@ -7,13 +7,11 @@ This module provides state management functionality for HAProxy TCP routes
 in the ingress configurator operator.
 """
 
-import logging
 from typing import Annotated, Optional, Self, cast
 
 import ops
 from annotated_types import Len
 from charms.haproxy.v1.haproxy_route_tcp import (
-    LoadBalancingAlgorithm,
     PortMapping,
     Retry,
     TCPHealthCheckType,
@@ -21,17 +19,27 @@ from charms.haproxy.v1.haproxy_route_tcp import (
     TimeoutConfiguration,
     valid_domain_with_wildcard,
 )
-from pydantic import BeforeValidator, Field, ValidationError, model_validator
+from pydantic import (
+    BeforeValidator,
+    Field,
+    TypeAdapter,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from pydantic.dataclasses import dataclass
 from pydantic.networks import IPvAnyAddress
 
-from helpers import get_invalid_config_fields
-
-logger = logging.getLogger(__name__)
+from helpers import InvalidRouteStateError, split_delimited
 
 
-class InvalidHaproxyRouteTcpStateError(Exception):
+class InvalidHaproxyRouteTcpStateError(InvalidRouteStateError):
     """Exception raised when HAProxy TCP route requirements are invalid."""
+
+    @staticmethod
+    def _validation_model() -> type:
+        """Return the TCP state model for validation diagnostics."""
+        return HaproxyRouteTcpState
 
 
 @dataclass(frozen=True)
@@ -48,13 +56,29 @@ class TCPHealthCheck:
         db_user: Database user for health checks (mysql/postgres types only).
     """
 
-    interval: Optional[int] = Field(default=None, gt=0)
-    rise: Optional[int] = Field(default=None, gt=0)
-    fall: Optional[int] = Field(default=None, gt=0)
-    check_type: Optional[TCPHealthCheckType] = None
-    send: Optional[str] = None
-    expect: Optional[str] = None
-    db_user: Optional[str] = None
+    interval: Optional[int] = Field(
+        default=None,
+        gt=0,
+        json_schema_extra={"config": ["tcp-health-check-interval"]},
+    )
+    rise: Optional[int] = Field(
+        default=None, gt=0, json_schema_extra={"config": ["tcp-health-check-rise"]}
+    )
+    fall: Optional[int] = Field(
+        default=None, gt=0, json_schema_extra={"config": ["tcp-health-check-fall"]}
+    )
+    check_type: Optional[TCPHealthCheckType] = Field(
+        default=None, json_schema_extra={"config": ["tcp-health-check-type"]}
+    )
+    send: Optional[str] = Field(
+        default=None, json_schema_extra={"config": ["tcp-health-check-send"]}
+    )
+    expect: Optional[str] = Field(
+        default=None, json_schema_extra={"config": ["tcp-health-check-expect"]}
+    )
+    db_user: Optional[str] = Field(
+        default=None, json_schema_extra={"config": ["tcp-health-check-db-user"]}
+    )
 
     @model_validator(mode="after")
     def validate_health_check_all_set(self) -> Self:
@@ -75,40 +99,6 @@ class TCPHealthCheck:
                 "fall must all be set if any one of them is specified."
             )
         return self
-
-    @classmethod
-    def from_charm(cls, charm: ops.CharmBase) -> Self:
-        """Create a TCPHealthCheck from charm config.
-
-        Args:
-            charm: The charm instance.
-
-        Raises:
-            InvalidHaproxyRouteTcpStateError: If the health check type is invalid.
-
-        Returns:
-            TCPHealthCheck instance.
-        """
-        check_type_str = cast(Optional[str], charm.config.get("tcp-health-check-type"))
-        check_type = None
-        if check_type_str:
-            try:
-                check_type = TCPHealthCheckType(check_type_str)
-            except ValueError as exc:
-                raise InvalidHaproxyRouteTcpStateError(
-                    f"Invalid health check type: {check_type_str}. "
-                    "Must be one of: generic, mysql, postgres, redis, smtp."
-                ) from exc
-
-        return cls(
-            interval=cast(Optional[int], charm.config.get("tcp-health-check-interval")),
-            rise=cast(Optional[int], charm.config.get("tcp-health-check-rise")),
-            fall=cast(Optional[int], charm.config.get("tcp-health-check-fall")),
-            check_type=check_type,
-            send=cast(Optional[str], charm.config.get("tcp-health-check-send")),
-            expect=cast(Optional[str], charm.config.get("tcp-health-check-expect")),
-            db_user=cast(Optional[str], charm.config.get("tcp-health-check-db-user")),
-        )
 
 
 @dataclass(frozen=True)
@@ -135,16 +125,86 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
         proxy_protocol: Whether to enable PROXY protocol when connecting to backend servers.
     """
 
-    backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
-    tls_terminate: bool
-    hostname: Annotated[str, BeforeValidator(valid_domain_with_wildcard)] | None
-    retry: Retry | None
-    load_balancing_configuration: TCPLoadBalancingConfiguration
-    enforce_tls: bool
-    health_check: TCPHealthCheck
-    timeout: TimeoutConfiguration
-    proxy_protocol: bool
-    port_mapping: PortMapping
+    backend_addresses: Annotated[
+        list[IPvAnyAddress], Len(min_length=1), BeforeValidator(split_delimited)
+    ] = Field(json_schema_extra={"config": ["tcp-backend-addresses"]})
+    tls_terminate: bool = Field(json_schema_extra={"config": ["tcp-tls-terminate"]})
+    hostname: Annotated[str, BeforeValidator(valid_domain_with_wildcard)] | None = Field(
+        json_schema_extra={"config": ["tcp-hostname"]}
+    )
+    retry: Retry | None = Field(
+        json_schema_extra={
+            "config": ["tcp-retry-count", "tcp-retry-redispatch"],
+            "properties": {
+                "count": {"config": ["tcp-retry-count"]},
+                "redispatch": {"config": ["tcp-retry-redispatch"]},
+            },
+        }
+    )
+    load_balancing_configuration: TCPLoadBalancingConfiguration = Field(
+        json_schema_extra={
+            "config": [
+                "tcp-load-balancing-algorithm",
+                "tcp-load-balancing-consistent-hashing",
+            ],
+            "properties": {
+                "algorithm": {"config": ["tcp-load-balancing-algorithm"]},
+                "consistent_hashing": {"config": ["tcp-load-balancing-consistent-hashing"]},
+            },
+        }
+    )
+    enforce_tls: bool = Field(json_schema_extra={"config": ["tcp-enforce-tls"]})
+    health_check: TCPHealthCheck = Field(
+        json_schema_extra={
+            "config": [
+                "tcp-health-check-interval",
+                "tcp-health-check-rise",
+                "tcp-health-check-fall",
+            ]
+        }
+    )
+    timeout: TimeoutConfiguration = Field(
+        json_schema_extra={
+            "properties": {
+                "server": {"config": ["tcp-timeout-server"]},
+                "connect": {"config": ["tcp-timeout-connect"]},
+                "queue": {"config": ["tcp-timeout-queue"]},
+            },
+        }
+    )
+    proxy_protocol: bool = Field(json_schema_extra={"config": ["tcp-enable-proxy-protocol"]})
+    port_mapping: PortMapping = Field(
+        json_schema_extra={"config": ["tcp-port-mapping", "tcp-frontend-port", "tcp-backend-port"]}
+    )
+
+    @field_validator("port_mapping", mode="before")
+    @classmethod
+    def parse_port_mapping(cls, value: object) -> object:
+        """Resolve raw port alternatives and parse mappings, preserving resolved values.
+
+        Args:
+            value: Raw port alternatives, a mapping string, or parsed mapping input.
+
+        Returns:
+            A parsed mapping for raw input, otherwise the original value.
+
+        Raises:
+            ValueError: If port alternatives conflict or a raw mapping string is invalid.
+        """
+        if isinstance(value, dict) and "mapping" in value:
+            mapping = value["mapping"]
+            frontend_port = value.get("frontend_port")
+            backend_port = value.get("backend_port")
+            if mapping is not None and (frontend_port is not None or backend_port is not None):
+                raise ValueError(
+                    "tcp-port-mapping is mutually exclusive with "
+                    "tcp-frontend-port and tcp-backend-port."
+                )
+            value = mapping if mapping is not None else f"{frontend_port}:{backend_port}"
+
+        if isinstance(value, str):
+            return PortMapping.from_string(value.strip())
+        return value
 
     @property
     def port(self) -> int:
@@ -189,57 +249,19 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
         Returns:
             HaproxyRouteTcpState: instance of the TCP state.
         """
-        port_mapping_str = cast(str | None, charm.config.get("tcp-port-mapping"))
-        tcp_frontend_port = cast(int | None, charm.config.get("tcp-frontend-port"))
-        tcp_backend_port = cast(int | None, charm.config.get("tcp-backend-port"))
-
-        if port_mapping_str is not None and (
-            tcp_frontend_port is not None or tcp_backend_port is not None
-        ):
-            raise InvalidHaproxyRouteTcpStateError(
-                "tcp-port-mapping is mutually exclusive with tcp-frontend-port and tcp-backend-port."
-            )
-
-        try:
-            backend_addresses = (
-                [
-                    cast(IPvAnyAddress, address)
-                    for address in cast(str, charm.config.get("tcp-backend-addresses")).split(",")
-                ]
-                if charm.config.get("tcp-backend-addresses")
-                else []
-            )
-        except ValueError as exc:
-            logger.error(str(exc))
-            raise InvalidHaproxyRouteTcpStateError(
-                "TCP backend state contains invalid value(s)."
-            ) from exc
-
-        try:
-            port_mapping = PortMapping.from_string(
-                port_mapping_str.strip()
-                if port_mapping_str is not None
-                else f"{tcp_frontend_port}:{tcp_backend_port}"
-            )
-        except ValueError as exc:
-            logger.error(str(exc))
-            raise InvalidHaproxyRouteTcpStateError(f"Invalid tcp-port-mapping: {exc}") from exc
-
-        return cls._build(charm, backend_addresses, port_mapping)
+        return cls._build(charm, cast(str | None, charm.config.get("tcp-backend-addresses")))
 
     @classmethod
     def _build(
         cls,
         charm: ops.CharmBase,
-        backend_addresses: list[IPvAnyAddress],
-        port_mapping: PortMapping,
+        backend_addresses: str | None,
     ) -> Self:
-        """Build HaproxyRouteTcpState from resolved backend fields and charm config.
+        """Build HaproxyRouteTcpState from backend config and raw port inputs.
 
         Args:
             charm: The IngressConfiguratorCharm instance.
-            backend_addresses: list of resolved backend IP addresses.
-            port_mapping: the resolved TCP port mapping (single-port or range).
+            backend_addresses: Raw comma-separated backend address config.
 
         Raises:
             InvalidHaproxyRouteTcpStateError: If the configuration
@@ -252,50 +274,52 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
         hostname = cast(str | None, charm.config.get("tcp-hostname"))
         enforce_tls = cast(bool, charm.config.get("tcp-enforce-tls"))
         try:
-            load_balancing_algorithm = LoadBalancingAlgorithm(
-                cast(str, charm.config.get("tcp-load-balancing-algorithm"))
-            )
-        except ValueError as exc:
-            logger.error(str(exc))
-            raise InvalidHaproxyRouteTcpStateError("Invalid load balancing algorithm.") from exc
-
-        try:
-            load_balancing_configuration = TCPLoadBalancingConfiguration(
-                algorithm=load_balancing_algorithm,
-                consistent_hashing=cast(
-                    bool, charm.config.get("tcp-load-balancing-consistent-hashing")
-                ),
-            )
             retry_count = cast(int | None, charm.config.get("tcp-retry-count"))
             retry = (
-                Retry(
-                    count=retry_count,
-                    redispatch=cast(bool, charm.config.get("tcp-retry-redispatch")),
-                )
+                {
+                    "count": retry_count,
+                    "redispatch": charm.config.get("tcp-retry-redispatch"),
+                }
                 if retry_count is not None
                 else None
             )
-            return cls(
-                backend_addresses=backend_addresses,
-                tls_terminate=tls_terminate,
-                hostname=hostname,
-                retry=retry,
-                load_balancing_configuration=load_balancing_configuration,
-                enforce_tls=enforce_tls,
-                health_check=TCPHealthCheck.from_charm(charm),
-                timeout=TimeoutConfiguration(
-                    server=cast(int | None, charm.config.get("tcp-timeout-server")),
-                    connect=cast(int | None, charm.config.get("tcp-timeout-connect")),
-                    queue=cast(int | None, charm.config.get("tcp-timeout-queue")),
-                ),
-                proxy_protocol=cast(bool, charm.config.get("tcp-enable-proxy-protocol", False)),
-                port_mapping=port_mapping,
+            return TypeAdapter(cls).validate_python(
+                {
+                    "backend_addresses": backend_addresses,
+                    "tls_terminate": tls_terminate,
+                    "hostname": hostname,
+                    "retry": retry,
+                    "load_balancing_configuration": {
+                        "algorithm": charm.config.get("tcp-load-balancing-algorithm"),
+                        "consistent_hashing": charm.config.get(
+                            "tcp-load-balancing-consistent-hashing"
+                        ),
+                    },
+                    "enforce_tls": enforce_tls,
+                    "health_check": {
+                        "interval": charm.config.get("tcp-health-check-interval"),
+                        "rise": charm.config.get("tcp-health-check-rise"),
+                        "fall": charm.config.get("tcp-health-check-fall"),
+                        "check_type": charm.config.get("tcp-health-check-type") or None,
+                        "send": charm.config.get("tcp-health-check-send"),
+                        "expect": charm.config.get("tcp-health-check-expect"),
+                        "db_user": charm.config.get("tcp-health-check-db-user"),
+                    },
+                    "timeout": {
+                        "server": charm.config.get("tcp-timeout-server"),
+                        "connect": charm.config.get("tcp-timeout-connect"),
+                        "queue": charm.config.get("tcp-timeout-queue"),
+                    },
+                    "proxy_protocol": charm.config.get("tcp-enable-proxy-protocol", False),
+                    "port_mapping": {
+                        "mapping": charm.config.get("tcp-port-mapping"),
+                        "frontend_port": charm.config.get("tcp-frontend-port"),
+                        "backend_port": charm.config.get("tcp-backend-port"),
+                    },
+                }
             )
         except ValidationError as exc:
-            logger.error(
-                "Failed to validate haproxy-route-tcp requirements. Invalid config fields: %s",
-                get_invalid_config_fields(exc),
-            )
             raise InvalidHaproxyRouteTcpStateError(
-                "Invalid haproxy-route-tcp configuration."
+                "Invalid haproxy-route-tcp configuration",
+                validation_error=exc,
             ) from exc

@@ -8,6 +8,7 @@ from unittest.mock import Mock
 import pytest
 from charms.haproxy.v1.haproxy_route_tcp import LoadBalancingAlgorithm, PortMapping
 from ops import CharmBase
+from pydantic import ValidationError
 
 from state.haproxy_route_tcp import (
     HaproxyRouteTcpState,
@@ -58,6 +59,22 @@ def test_haproxy_route_tcp_requirements_for_integrator_mode():
     assert requirements.proxy_protocol is False
 
 
+def test_tcp_state_parses_backend_addresses():
+    """Parse comma-separated address strings in the state model."""
+    charm = Mock(CharmBase)
+    charm.config = {
+        "tcp-backend-addresses": " , 127.0.0.1, ::1, ",
+        "tcp-frontend-port": 9000,
+        "tcp-backend-port": 9001,
+        "tcp-enforce-tls": False,
+        "tcp-load-balancing-algorithm": "roundrobin",
+        "tcp-load-balancing-consistent-hashing": False,
+    }
+    state = _make_tcp_integrator_state(charm)
+
+    assert [str(address) for address in state.backend_addresses] == ["127.0.0.1", "::1"]
+
+
 def test_haproxy_route_tcp_invalid_algorithm():
     """
     arrange: mock a charm with invalid load balancing algorithm
@@ -76,7 +93,7 @@ def test_haproxy_route_tcp_invalid_algorithm():
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid load balancing algorithm" in str(exc_info.value)
+    assert "load_balancing_configuration.algorithm:" in exc_info.value.details
 
 
 def test_haproxy_route_tcp_requirements_for_integrator_mode_no_tls():
@@ -195,7 +212,7 @@ def test_haproxy_route_tcp_requirements_invalid_wildcard_sni(invalid_hostname):
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
+    assert exc_info.value.juju_status_msg == "1 validation error; see debug-log"
 
 
 def test_haproxy_route_tcp_requirements_empty_backend_addresses():
@@ -217,7 +234,8 @@ def test_haproxy_route_tcp_requirements_empty_backend_addresses():
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
+    assert "Invalid haproxy-route-tcp configuration" in exc_info.value.details
+    assert "backend_addresses: List should have at least 1 item" in exc_info.value.details
 
 
 @pytest.mark.parametrize(
@@ -246,7 +264,7 @@ def test_haproxy_route_tcp_requirements_invalid_backend_address(invalid_address)
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid load balancing algorithm" in str(exc_info.value)
+    assert "backend_addresses.0:" in exc_info.value.details
 
 
 @pytest.mark.parametrize(
@@ -277,7 +295,7 @@ def test_haproxy_route_tcp_requirements_invalid_frontend_port(invalid_port):
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid tcp-port-mapping" in str(exc_info.value)
+    assert "port_mapping:" in exc_info.value.details
 
 
 @pytest.mark.parametrize(
@@ -308,7 +326,7 @@ def test_haproxy_route_tcp_requirements_invalid_backend_port(invalid_port):
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid tcp-port-mapping" in str(exc_info.value)
+    assert "port_mapping:" in exc_info.value.details
 
 
 def test_haproxy_route_tcp_requirements_valid_port_boundaries():
@@ -496,7 +514,9 @@ def test_haproxy_route_tcp_requirements_incomplete_health_check(missing_field):
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
+    assert "health_check: Value error, Health check configuration is incomplete:" in (
+        exc_info.value.details
+    )
 
 
 @pytest.mark.parametrize(
@@ -527,7 +547,8 @@ def test_haproxy_route_tcp_requirements_invalid_health_check_values(invalid_valu
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
+    assert "health_check." in exc_info.value.details
+    assert "Input should be greater than 0" in exc_info.value.details
 
 
 def test_haproxy_route_tcp_requirements_health_check_with_type_generic():
@@ -650,7 +671,8 @@ def test_haproxy_route_tcp_requirements_invalid_health_check_type():
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid health check type" in str(exc_info.value)
+    assert "health_check.check_type:" in exc_info.value.details
+    assert "(possible config sources: 'tcp-health-check-type')" in exc_info.value.details
 
 
 @pytest.mark.parametrize(
@@ -726,7 +748,8 @@ def test_haproxy_route_tcp_requirements_invalid_timeout_values(invalid_value):
 
     with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
-    assert "Invalid haproxy-route-tcp configuration" in str(exc_info.value)
+    assert "timeout." in exc_info.value.details
+    assert "Input should be greater than 0" in exc_info.value.details
 
 
 def test_haproxy_route_tcp_requirements_proxy_protocol_enabled():
@@ -802,8 +825,13 @@ def test_haproxy_route_tcp_port_mapping_mutually_exclusive_with_frontend_port():
         "tcp-frontend-port": 4000,
     }
 
-    with pytest.raises(InvalidHaproxyRouteTcpStateError, match="mutually exclusive"):
+    with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
+
+    cause = exc_info.value.__cause__
+    assert isinstance(cause, ValidationError)
+    assert [error["loc"] for error in cause.errors()] == [("port_mapping",)]
+    assert "mutually exclusive" in exc_info.value.details
 
 
 def test_haproxy_route_tcp_port_mapping_mutually_exclusive_with_backend_port():
@@ -819,8 +847,13 @@ def test_haproxy_route_tcp_port_mapping_mutually_exclusive_with_backend_port():
         "tcp-backend-port": 20000,
     }
 
-    with pytest.raises(InvalidHaproxyRouteTcpStateError, match="mutually exclusive"):
+    with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
+
+    cause = exc_info.value.__cause__
+    assert isinstance(cause, ValidationError)
+    assert [error["loc"] for error in cause.errors()] == [("port_mapping",)]
+    assert "mutually exclusive" in exc_info.value.details
 
 
 def test_haproxy_route_tcp_port_mapping_invalid_mapping_string():
@@ -835,8 +868,59 @@ def test_haproxy_route_tcp_port_mapping_invalid_mapping_string():
         "tcp-port-mapping": "not-valid",
     }
 
-    with pytest.raises(InvalidHaproxyRouteTcpStateError, match="Invalid tcp-port-mapping"):
+    with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
         _make_tcp_integrator_state(charm)
+
+    assert exc_info.value.juju_status_msg == "1 validation error; see debug-log"
+    assert (
+        "(possible config sources: 'tcp-port-mapping' or 'tcp-frontend-port' or "
+        "'tcp-backend-port')"
+    ) in exc_info.value.details
+
+
+def test_tcp_state_collects_nested_validation_errors():
+    """Collect backend, enum, and nested component failures in a single validation call."""
+    charm = Mock(CharmBase)
+    charm.config = {
+        **BASE_PORT_MAPPING_CONFIG,
+        "tcp-backend-addresses": "invalid",
+        "tcp-port-mapping": "8443:443",
+        "tcp-frontend-port": "8443",
+        "tcp-health-check-type": "invalid",
+        "tcp-retry-count": "invalid",
+        "tcp-retry-redispatch": False,
+        "tcp-timeout-connect": -1,
+        "tcp-load-balancing-algorithm": "invalid",
+    }
+
+    with pytest.raises(InvalidHaproxyRouteTcpStateError) as exc_info:
+        _make_tcp_integrator_state(charm)
+
+    assert exc_info.value.juju_status_msg == "6 validation errors; see debug-log"
+    cause = exc_info.value.__cause__
+    assert isinstance(cause, ValidationError)
+    assert [error["loc"] for error in cause.errors()] == [
+        ("backend_addresses", 0),
+        ("retry", "count"),
+        ("load_balancing_configuration", "algorithm"),
+        ("health_check", "check_type"),
+        ("timeout", "connect"),
+        ("port_mapping",),
+    ]
+
+
+def test_tcp_empty_health_check_type_is_unset():
+    """Treat an empty health-check type string as unspecified."""
+    charm = Mock(CharmBase)
+    charm.config = {
+        **BASE_PORT_MAPPING_CONFIG,
+        "tcp-port-mapping": "8443:443",
+        "tcp-health-check-type": "",
+    }
+
+    state = _make_tcp_integrator_state(charm)
+
+    assert state.health_check.check_type is None
 
 
 def test_haproxy_route_tcp_port_mapping_unequal_ranges_via_integrator_mode():

@@ -3,24 +3,25 @@
 
 """Gateway route state management module."""
 
-import logging
-from typing import Annotated, Literal, Self, cast
+from typing import Annotated, Literal, Self
 
 import ops
 from charms.gateway_api_integrator.v1.gateway_route import valid_fqdn
 from charms.traefik_k8s.v2.ingress import IngressRequirerData
-from pydantic import BeforeValidator, Field, ValidationError
+from pydantic import BeforeValidator, Field, TypeAdapter, ValidationError, field_validator
 from pydantic.dataclasses import dataclass
+from pydantic_core import PydanticUseDefault
 
-from helpers import get_invalid_config_fields
-
-logger = logging.getLogger(__name__)
-
-CHARM_CONFIG_DELIMITER = ","
+from helpers import InvalidRouteStateError, split_delimited
 
 
-class InvalidGatewayRouteStateError(Exception):
+class InvalidGatewayRouteStateError(InvalidRouteStateError):
     """Exception raised when a GatewayRouteState contains invalid attributes."""
+
+    @staticmethod
+    def _validation_model() -> type:
+        """Return the gateway state model for validation diagnostics."""
+        return GatewayRouteState
 
 
 @dataclass(frozen=True)
@@ -41,14 +42,40 @@ class GatewayRouteState:
 
     application_name: str
     model_name: str
-    hostname: Annotated[str, BeforeValidator(valid_fqdn)] | None
-    backend_protocol: Literal["http"] | None
-    backend_port: int = Field(gt=0, le=65535)
-    additional_hostnames: list[Annotated[str, BeforeValidator(valid_fqdn)]] = Field(
-        default_factory=lambda: []
+    hostname: Annotated[str, BeforeValidator(valid_fqdn)] | None = Field(
+        json_schema_extra={"config": ["hostname"]}
     )
-    paths: list[str] = Field(default_factory=lambda: ["/"])
+    backend_protocol: Literal["http"] | None = Field(
+        json_schema_extra={"config": ["backend-protocol"]}
+    )
+    backend_port: int = Field(gt=0, le=65535)
+    additional_hostnames: Annotated[
+        list[Annotated[str, BeforeValidator(valid_fqdn)]],
+        BeforeValidator(split_delimited),
+    ] = Field(default=[], json_schema_extra={"config": ["additional-hostnames"]})
+    paths: list[str] = Field(default=["/"], json_schema_extra={"config": ["paths"]})
     strip_prefix: bool = False
+
+    @field_validator("paths", mode="before")
+    @classmethod
+    def parse_paths(cls, value: object) -> object:
+        """Normalize configured paths, using the field default for empty raw config.
+
+        Args:
+            value: Raw comma-separated path config or an already-parsed list.
+
+        Returns:
+            Normalized paths for raw config, otherwise the original value.
+
+        Raises:
+            PydanticUseDefault: If raw config contains no nonempty paths.
+        """
+        if value is None or isinstance(value, str):
+            paths = split_delimited(value)
+            if not paths:
+                raise PydanticUseDefault()
+            return paths
+        return value
 
     @property
     def hostnames(self) -> list[str]:
@@ -61,11 +88,7 @@ class GatewayRouteState:
 
     @staticmethod
     def has_integrator_config(charm: ops.CharmBase) -> bool:
-        """Return True if any gateway-route integrator backend config option is set.
-
-        This is intentionally a presence check — it does not validate the values.
-        Use it to detect the absence of backend configuration before attempting
-        to parse the config with `build_for_integrator_mode`.
+        """Detect backend config that is unsupported with gateway-route.
 
         Args:
             charm: the ingress-configurator charm.
@@ -99,35 +122,24 @@ class GatewayRouteState:
         Returns:
             GatewayRouteState instance.
         """
-        hostname = cast(str | None, charm.config.get("hostname"))
-        additional_hostnames = (
-            cast(str, charm.config.get("additional-hostnames")).split(CHARM_CONFIG_DELIMITER)
-            if charm.config.get("additional-hostnames")
-            else []
-        )
-        paths_raw = (
-            cast(str, charm.config.get("paths")).split(CHARM_CONFIG_DELIMITER)
-            if charm.config.get("paths")
-            else ["/"]
-        )
-        paths = [p.strip() for p in paths_raw if p.strip()] or ["/"]
-
         try:
-            return cls(
-                application_name=application_name,
-                model_name=model_name,
-                backend_port=backend_port,
-                backend_protocol=cast(
-                    Literal["http"] | None, charm.config.get("backend-protocol")
-                ),
-                hostname=hostname,
-                additional_hostnames=additional_hostnames,
-                paths=paths,
-                strip_prefix=strip_prefix,
+            return TypeAdapter(cls).validate_python(
+                {
+                    "application_name": application_name,
+                    "model_name": model_name,
+                    "backend_port": backend_port,
+                    "backend_protocol": charm.config.get("backend-protocol"),
+                    "hostname": charm.config.get("hostname"),
+                    "additional_hostnames": charm.config.get("additional-hostnames"),
+                    "paths": charm.config.get("paths"),
+                    "strip_prefix": strip_prefix,
+                }
             )
         except ValidationError as exc:
-            logger.error("Invalid gateway-route config fields: %s", get_invalid_config_fields(exc))
-            raise InvalidGatewayRouteStateError("Invalid gateway-route configuration.") from exc
+            raise InvalidGatewayRouteStateError(
+                "Invalid gateway-route configuration",
+                validation_error=exc,
+            ) from exc
 
     @classmethod
     def build_for_adapter_mode(

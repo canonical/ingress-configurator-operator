@@ -3,12 +3,10 @@
 
 """Gateway route state management module."""
 
-import ipaddress
 import logging
 from typing import Annotated, Literal, Self, cast
 
 import ops
-from annotated_types import Len
 from charms.gateway_api_integrator.v1.gateway_route import valid_fqdn
 from charms.traefik_k8s.v2.ingress import IngressRequirerData
 from pydantic import BeforeValidator, Field, ValidationError
@@ -26,29 +24,6 @@ class InvalidGatewayRouteStateError(Exception):
 
 
 @dataclass(frozen=True)
-class GatewayRouteIntegratorSubState:
-    """Additional state specific to gateway-route integrator mode.
-
-    Attributes:
-        backend_addresses: Backend IP addresses used to build a headless
-            Service + EndpointSlice.
-    """
-
-    backend_addresses: Annotated[
-        list[ipaddress.IPv4Address] | list[ipaddress.IPv6Address], Len(min_length=1)
-    ] = Field(default_factory=lambda: [])
-
-    @property
-    def address_type(self) -> Literal["IPv4", "IPv6"]:
-        """EndpointSlice addressType derived from the IP family of backend_addresses.
-
-        Returns:
-            "IPv4" or "IPv6".
-        """
-        return "IPv4" if isinstance(self.backend_addresses[0], ipaddress.IPv4Address) else "IPv6"
-
-
-@dataclass(frozen=True)
 class GatewayRouteState:
     """State for the gateway-route reconcile path.
 
@@ -62,7 +37,6 @@ class GatewayRouteState:
         paths: URL path prefixes to route.
         strip_prefix: Whether the matched path prefix should be rewritten to ``/``
             before the request reaches the backend.
-        integrator_state: Integrator-mode-specific state. Only populated for integrator mode.
     """
 
     application_name: str
@@ -75,7 +49,6 @@ class GatewayRouteState:
     )
     paths: list[str] = Field(default_factory=lambda: ["/"])
     strip_prefix: bool = False
-    integrator_state: GatewayRouteIntegratorSubState | None = None
 
     @property
     def hostnames(self) -> list[str]:
@@ -109,7 +82,6 @@ class GatewayRouteState:
         application_name: str,
         model_name: str,
         backend_port: int,
-        integrator_state: GatewayRouteIntegratorSubState | None = None,
         strip_prefix: bool = False,
     ) -> Self:
         """Build a GatewayRouteState from shared config.
@@ -119,7 +91,6 @@ class GatewayRouteState:
             application_name: Name of the backend application.
             model_name: Model/namespace for the backend application.
             backend_port: Port the backend listens on.
-            integrator_state: Populated for integrator mode, None otherwise.
             strip_prefix: Whether to rewrite the matched path prefix to ``/``.
 
         Raises:
@@ -153,7 +124,6 @@ class GatewayRouteState:
                 additional_hostnames=additional_hostnames,
                 paths=paths,
                 strip_prefix=strip_prefix,
-                integrator_state=integrator_state,
             )
         except ValidationError as exc:
             logger.error("Invalid gateway-route config fields: %s", get_invalid_config_fields(exc))
@@ -181,54 +151,4 @@ class GatewayRouteState:
             model_name=ingress_data.app.model,
             backend_port=ingress_data.app.port,
             strip_prefix=bool(ingress_data.app.strip_prefix),
-        )
-
-    @classmethod
-    def build_for_integrator_mode(cls, charm: ops.CharmBase) -> Self:
-        """Create a GatewayRouteState for integrator mode from charm config.
-
-        In integrator mode there is no ingress relation. Traffic is routed to
-        external backend IPs via a headless Service and EndpointSlice.
-
-        Args:
-            charm: The charm instance.
-
-        Raises:
-            InvalidGatewayRouteStateError: When config values are missing or invalid.
-
-        Returns:
-            GatewayRouteState instance with integrator_state populated.
-        """
-        raw_addresses = cast(str, charm.config.get("backend-addresses") or "")
-        addr_strings = [
-            a.strip() for a in raw_addresses.split(CHARM_CONFIG_DELIMITER) if a.strip()
-        ]
-
-        raw_ports = cast(str, charm.config.get("backend-ports") or "")
-        port_values = [p.strip() for p in raw_ports.split(CHARM_CONFIG_DELIMITER) if p.strip()]
-        if len(port_values) != 1:
-            raise InvalidGatewayRouteStateError(
-                "gateway-route requires exactly one port in backend-ports."
-            )
-        try:
-            backend_port = int(port_values[0])
-        except ValueError as exc:
-            raise InvalidGatewayRouteStateError(
-                f"Invalid port value in backend-ports: '{port_values[0]}'."
-            ) from exc
-
-        try:
-            integrator_state = GatewayRouteIntegratorSubState(
-                backend_addresses=addr_strings,  # type: ignore[arg-type]
-            )
-        except ValidationError as exc:
-            logger.error("Invalid gateway-route config fields: %s", get_invalid_config_fields(exc))
-            raise InvalidGatewayRouteStateError("Invalid gateway-route configuration.") from exc
-
-        return cls._build(
-            charm,
-            application_name=charm.app.name,
-            model_name=charm.model.name,
-            backend_port=backend_port,
-            integrator_state=integrator_state,
         )

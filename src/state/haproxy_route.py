@@ -364,10 +364,7 @@ class HaproxyRouteState:
             HaproxyRouteState: instance of the state.
         """
         try:
-            external_grpc_port = cast(int | None, charm.config.get("external-grpc-port"))
-            hostname = cast(Optional[str], charm.config.get("hostname"))
-            http_server_close = cast(bool, charm.config.get("http-server-close", False))
-            retry_count = cast(int | None, charm.config.get("retry-count"))
+            retry_count = charm.config.get("retry-count")
             retry = (
                 {
                     "count": retry_count,
@@ -385,16 +382,11 @@ class HaproxyRouteState:
                 }.items()
                 if v is not None
             }
-            allow_http = cast(bool, charm.config.get("allow-http", False))
-            backend_protocol = cast(
-                Literal["http", "https"],
-                charm.config.get("backend-protocol", "http"),
-            )
             return TypeAdapter(cls).validate_python(
                 {
                     "backend_addresses": backend_addresses,
                     "backend_ports": backend_ports,
-                    "backend_protocol": backend_protocol,
+                    "backend_protocol": charm.config.get("backend-protocol", "http"),
                     "paths": charm.config.get("paths"),
                     "deny_paths": charm.config.get("deny-paths"),
                     "health_check": {
@@ -407,7 +399,7 @@ class HaproxyRouteState:
                     "retry": retry,
                     "timeout": timeout,
                     "service": service,
-                    "hostname": hostname,
+                    "hostname": charm.config.get("hostname"),
                     "additional_hostnames": charm.config.get("additional-hostnames"),
                     "load_balancing_configuration": {
                         "algorithm": charm.config.get(
@@ -418,11 +410,11 @@ class HaproxyRouteState:
                             "load-balancing-consistent-hashing", False
                         ),
                     },
-                    "http_server_close": http_server_close,
+                    "http_server_close": charm.config.get("http-server-close", False),
                     "path_rewrite_expressions": charm.config.get("path-rewrite-expressions"),
                     "header_rewrite_expressions": charm.config.get("header-rewrite-expressions"),
-                    "allow_http": allow_http,
-                    "external_grpc_port": external_grpc_port,
+                    "allow_http": charm.config.get("allow-http", False),
+                    "external_grpc_port": charm.config.get("external-grpc-port"),
                 }
             )
         except ValidationError as exc:

@@ -115,6 +115,7 @@ class HaproxyRouteState:
         header_rewrite_expressions: List of header rewrite expressions.
         allow_http: Whether to allow HTTP traffic to the service.
         external_grpc_port: Optional gRPC external port.
+        default_backend: Whether this backend is the default landing page.
     """
 
     backend_addresses: Annotated[list[IPvAnyAddress], Len(min_length=1)]
@@ -142,6 +143,7 @@ class HaproxyRouteState:
     header_rewrite_expressions: list[tuple[str, str]] = Field(default=[])
     allow_http: bool = Field(default=False)
     external_grpc_port: int | None = Field(default=None, gt=0, le=65535)
+    default_backend: bool = Field(default=False)
 
     @model_validator(mode="after")
     def validate_external_grpc_port_requires_https(self) -> Self:
@@ -169,6 +171,21 @@ class HaproxyRouteState:
         """
         if self.external_grpc_port is not None and self.allow_http:
             msg = "external_grpc_port cannot be set when allow_http is True."
+            raise ValueError(msg)
+
+        return self
+
+    @model_validator(mode="after")
+    def validate_default_backend_not_grpc(self) -> Self:
+        """Perform additional validations.
+
+        Returns: this class instance.
+
+        Raises:
+            ValueError: if the validation doesn't pass.
+        """
+        if self.default_backend and self.external_grpc_port is not None:
+            msg = "default_backend cannot be set when external_grpc_port is set."
             raise ValueError(msg)
 
         return self
@@ -383,6 +400,7 @@ class HaproxyRouteState:
                 Literal["http", "https"],
                 charm.config.get("backend-protocol", "http"),
             )
+            default_backend = cast(bool, charm.config.get("default-backend", False))
             return cls(
                 backend_addresses=backend_addresses,
                 backend_ports=backend_ports,
@@ -401,6 +419,7 @@ class HaproxyRouteState:
                 header_rewrite_expressions=header_rewrite_expressions,
                 allow_http=allow_http,
                 external_grpc_port=external_grpc_port,
+                default_backend=default_backend,
             )
         except ValidationError as exc:
             logger.error("Invalid haproxy-route config fields: %s", get_invalid_config_fields(exc))

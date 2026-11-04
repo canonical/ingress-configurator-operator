@@ -37,6 +37,40 @@ from state.kubernetes import NodePortState
 DEFAULT_PATH_REWRITE_EXPRESSION_DELIMITER = ";"
 
 
+def _split_rewrite_expressions(value: object) -> object:
+    """Split a config string of rewrite expressions on the escaped newline.
+
+    Args:
+        value: Raw config string, unset value, or already-parsed input.
+
+    Returns:
+        List of expressions for strings, empty list for unset, else the input unchanged.
+    """
+    if not value:
+        return []
+    if isinstance(value, str):
+        # The new line character ('\n') is escaped ('\\n') as set by the configuration option
+        return value.split("\\n")
+    return value
+
+
+def _split_header_rewrite_expressions(value: object) -> object:
+    """Split header rewrite config into [header, expression] pairs.
+
+    Entries without a colon yield a single-item list, rejected by tuple validation.
+
+    Args:
+        value: Raw config string, unset value, or already-parsed input.
+
+    Returns:
+        List of pairs for strings, empty list for unset, else the input unchanged.
+    """
+    expressions = _split_rewrite_expressions(value)
+    if isinstance(value, str) and isinstance(expressions, list):
+        return [expression.split(":", 1) for expression in expressions]
+    return expressions
+
+
 class InvalidHaproxyRouteStateError(InvalidRouteStateError):
     """Exception raised when HAProxy route requirements are invalid."""
 
@@ -181,12 +215,12 @@ class HaproxyRouteState:
     http_server_close: bool = Field(
         default=False, json_schema_extra={"config": ["http-server-close"]}
     )
-    path_rewrite_expressions: list[str] = Field(
-        default=[], json_schema_extra={"config": ["path-rewrite-expressions"]}
+    path_rewrite_expressions: Annotated[list[str], BeforeValidator(_split_rewrite_expressions)] = (
+        Field(default=[], json_schema_extra={"config": ["path-rewrite-expressions"]})
     )
-    header_rewrite_expressions: list[tuple[str, str]] = Field(
-        default=[], json_schema_extra={"config": ["header-rewrite-expressions"]}
-    )
+    header_rewrite_expressions: Annotated[
+        list[tuple[str, str]], BeforeValidator(_split_header_rewrite_expressions)
+    ] = Field(default=[], json_schema_extra={"config": ["header-rewrite-expressions"]})
     allow_http: bool = Field(default=False, json_schema_extra={"config": ["allow-http"]})
     external_grpc_port: int | None = Field(
         default=None,
@@ -333,25 +367,6 @@ class HaproxyRouteState:
             external_grpc_port = cast(int | None, charm.config.get("external-grpc-port"))
             hostname = cast(Optional[str], charm.config.get("hostname"))
             http_server_close = cast(bool, charm.config.get("http-server-close", False))
-            path_rewrite_expressions = (
-                # The new line character ('\n') is escaped ('\\n') as set by the
-                # configuration option
-                cast(str, charm.config.get("path-rewrite-expressions")).split("\\n")
-                if charm.config.get("path-rewrite-expressions")
-                else []
-            )
-            header_rewrite_expressions = (
-                # The new line character ('\n') is escaped ('\\n') as set by the
-                # configuration option
-                [
-                    cast(tuple[str, str], tuple(elem.split(":", 1)))
-                    for elem in cast(str, charm.config.get("header-rewrite-expressions")).split(
-                        "\\n"
-                    )
-                ]
-                if charm.config.get("header-rewrite-expressions")
-                else []
-            )
             retry_count = cast(int | None, charm.config.get("retry-count"))
             retry = (
                 {
@@ -404,8 +419,8 @@ class HaproxyRouteState:
                         ),
                     },
                     "http_server_close": http_server_close,
-                    "path_rewrite_expressions": path_rewrite_expressions,
-                    "header_rewrite_expressions": header_rewrite_expressions,
+                    "path_rewrite_expressions": charm.config.get("path-rewrite-expressions"),
+                    "header_rewrite_expressions": charm.config.get("header-rewrite-expressions"),
                     "allow_http": allow_http,
                     "external_grpc_port": external_grpc_port,
                 }

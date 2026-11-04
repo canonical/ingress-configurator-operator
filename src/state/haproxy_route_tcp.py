@@ -270,11 +270,8 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
         Returns:
             HaproxyRouteTcpState instance populated with relevant info.
         """
-        tls_terminate = cast(bool, charm.config.get("tcp-tls-terminate", True))
-        hostname = cast(str | None, charm.config.get("tcp-hostname"))
-        enforce_tls = cast(bool, charm.config.get("tcp-enforce-tls"))
         try:
-            retry_count = cast(int | None, charm.config.get("tcp-retry-count"))
+            retry_count = charm.config.get("tcp-retry-count")
             retry = (
                 {
                     "count": retry_count,
@@ -286,8 +283,8 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
             return TypeAdapter(cls).validate_python(
                 {
                     "backend_addresses": backend_addresses,
-                    "tls_terminate": tls_terminate,
-                    "hostname": hostname,
+                    "tls_terminate": charm.config.get("tcp-tls-terminate", True),
+                    "hostname": charm.config.get("tcp-hostname"),
                     "retry": retry,
                     "load_balancing_configuration": {
                         "algorithm": charm.config.get("tcp-load-balancing-algorithm"),
@@ -295,7 +292,7 @@ class HaproxyRouteTcpState:  # pylint: disable=too-many-instance-attributes
                             "tcp-load-balancing-consistent-hashing"
                         ),
                     },
-                    "enforce_tls": enforce_tls,
+                    "enforce_tls": charm.config.get("tcp-enforce-tls"),
                     "health_check": {
                         "interval": charm.config.get("tcp-health-check-interval"),
                         "rise": charm.config.get("tcp-health-check-rise"),

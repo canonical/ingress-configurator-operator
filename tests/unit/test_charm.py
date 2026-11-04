@@ -4,6 +4,7 @@
 """Unit tests for the ingress configurator charm."""
 
 import json
+import logging
 from itertools import combinations
 from typing import TYPE_CHECKING
 from unittest.mock import ANY
@@ -54,6 +55,70 @@ def test_config_changed_invalid_state(
     out = context_machine.run(context_machine.on.config_changed(), charm_state)
 
     assert isinstance(out.unit_status, ops.testing.BlockedStatus)
+
+
+def test_invalid_config_sets_blocked_status_and_logs_error(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+    caplog: pytest.LogCaptureFixture,
+):
+    """Block invalid HTTP configuration and log the failure with a traceback."""
+    state = ops.testing.State(
+        config={"backend-addresses": "10.0.0.1", "backend-ports": ""},
+        relations=[ops.testing.Relation("haproxy-route")],
+        leader=True,
+    )
+
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.BlockedStatus("1 validation error; see debug-log")
+    assert any(message.startswith("Invalid haproxy-route config:") for message in caplog.messages)
+    assert any(record.exc_info is not None for record in caplog.records)
+
+
+@pytest.mark.parametrize(
+    "relation, config",
+    [
+        (
+            "haproxy-route",
+            {"backend-ports": "99999,99998"},
+        ),
+        (
+            "haproxy-route-tcp",
+            {
+                "tcp-backend-addresses": "invalid",
+                "tcp-frontend-port": 8443,
+                "tcp-backend-port": 443,
+                "tcp-hostname": "invalid hostname!",
+            },
+        ),
+    ],
+)
+def test_multiple_config_errors_are_reported_once(
+    context_machine: ops.testing.Context["IngressConfiguratorCharm"],
+    caplog: pytest.LogCaptureFixture,
+    relation: str,
+    config: dict,
+):
+    """Summarize multiple configuration errors and log the failure once."""
+    defaults = (
+        {"backend-addresses": "10.0.0.1", "backend-ports": "8080"}
+        if relation == "haproxy-route"
+        else {}
+    )
+    state = ops.testing.State(
+        config={**defaults, **config},
+        relations=[ops.testing.Relation(relation)],
+        leader=True,
+    )
+
+    out = context_machine.run(context_machine.on.config_changed(), state)
+
+    assert out.unit_status == ops.testing.BlockedStatus("2 validation errors; see debug-log")
+    assert any(message.startswith(f"Invalid {relation} config:") for message in caplog.messages)
+    assert any(record.exc_info is not None for record in caplog.records)
+    assert [record.name for record in caplog.records if record.levelno >= logging.ERROR] == [
+        "charm"
+    ]
 
 
 def test_config_changed_ingress_relation_not_ready(

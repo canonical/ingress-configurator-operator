@@ -8,6 +8,7 @@ from unittest.mock import Mock
 import pytest
 from charms.haproxy.v2.haproxy_route import LoadBalancingAlgorithm
 from ops import CharmBase
+from pydantic import ValidationError
 
 from state.haproxy_route import (
     HaproxyRouteState,
@@ -45,6 +46,96 @@ def test_integrator_state_from_charm():
     assert charm_state.retry.redispatch == charm.config.get("retry-redispatch")
     assert charm_state.http_server_close == charm.config.get("http-server-close")
     assert charm_state.allow_http is False
+
+
+@pytest.mark.parametrize(
+    "field, raw_value, expected",
+    [
+        ("backend_addresses", " , 127.0.0.1, ::1, ", ["127.0.0.1", "::1"]),
+        ("backend_ports", " , 80 , ,443, ", [80, 443]),
+        ("paths", " /api, , /other, ", ["/api", "/other"]),
+        ("deny_paths", " /admin, , /private, ", ["/admin", "/private"]),
+        (
+            "additional_hostnames",
+            " api.example.com, , static.example.com, ",
+            ["api.example.com", "static.example.com"],
+        ),
+        ("paths", "", []),
+    ],
+)
+def test_http_state_parses_comma_separated_fields(field, raw_value, expected):
+    """Parse raw string configuration through the integrator state builder."""
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1",
+        "backend-ports": "8080",
+        field.replace("_", "-"): raw_value,
+    }
+    state = _make_integrator_state(charm)
+
+    value = getattr(state, field)
+    assert ([str(address) for address in value] if field == "backend_addresses" else value) == (
+        expected
+    )
+
+
+@pytest.mark.parametrize(
+    "field, raw_value",
+    [
+        ("backend_addresses", " , , "),
+        ("backend_ports", " , , "),
+    ],
+)
+def test_http_state_rejects_invalid_backend_fields(field, raw_value):
+    """Reject empty normalized backend fields."""
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "127.0.0.1",
+        "backend-ports": "8080",
+        field.replace("_", "-"): raw_value,
+    }
+
+    with pytest.raises(InvalidHaproxyRouteStateError) as exc_info:
+        _make_integrator_state(charm)
+
+    cause = exc_info.value.__cause__
+    assert isinstance(cause, ValidationError)
+    assert cause.errors()[0]["loc"][0] == field
+
+
+def test_http_state_collects_nested_validation_errors():
+    """Collect independent backend and component failures in a single validation call."""
+    charm = Mock(CharmBase)
+    charm.config = {
+        "backend-addresses": "invalid",
+        "backend-ports": "invalid,also-invalid",
+        "health-check-interval": 5,
+        "retry-count": "invalid",
+        "retry-redispatch": False,
+        "timeout-connect": -1,
+        "load-balancing-algorithm": "invalid",
+        "external-grpc-port": "50051",
+    }
+
+    with pytest.raises(InvalidHaproxyRouteStateError) as exc_info:
+        _make_integrator_state(charm)
+
+    assert exc_info.value.juju_status_msg == "8 validation errors; see debug-log"
+    cause = exc_info.value.__cause__
+    assert isinstance(cause, ValidationError)
+    assert [error["loc"] for error in cause.errors()] == [
+        ("backend_addresses", 0),
+        ("backend_ports", 0),
+        ("backend_ports", 1),
+        ("health_check",),
+        ("retry", "count"),
+        ("timeout", "connect"),
+        ("load_balancing_configuration", "algorithm"),
+        ("external_grpc_port",),
+    ]
+    for error in cause.errors():
+        location = ".".join(str(part) for part in error["loc"])
+        assert f"{location}:" in exc_info.value.details
 
 
 def test_state_from_charm_no_backend():
@@ -117,8 +208,15 @@ def test_state_from_charm_invalid_port():
         "backend-addresses": "127.0.0.1,127.0.0.2",
         "backend-ports": "99999",
     }
-    with pytest.raises(InvalidHaproxyRouteStateError):
+    with pytest.raises(InvalidHaproxyRouteStateError) as exc_info:
         _make_integrator_state(charm)
+
+    assert exc_info.value.details == (
+        "Invalid haproxy-route configuration: HaproxyRouteState: "
+        "backend_ports.0: Input should be less than or equal to 65535 "
+        "(possible config sources: 'backend-ports')"
+    )
+    assert exc_info.value.juju_status_msg == "1 validation error; see debug-log"
 
 
 def test_state_from_charm_invalid_protocol():
@@ -308,8 +406,15 @@ def test_state_from_charm_invalid_timeout_connect():
         "backend-ports": "8080",
         "timeout-connect": -1,
     }
-    with pytest.raises(InvalidHaproxyRouteStateError):
+    with pytest.raises(InvalidHaproxyRouteStateError) as exc_info:
         _make_integrator_state(charm)
+
+    assert exc_info.value.details == (
+        "Invalid haproxy-route configuration: HaproxyRouteState: "
+        "timeout.connect: Input should be greater than 0 "
+        "(possible config sources: 'timeout-connect')"
+    )
+    assert exc_info.value.juju_status_msg == "1 validation error; see debug-log"
 
 
 def test_state_from_charm_invalid_timeout_queue():
@@ -643,7 +748,7 @@ def test_state_from_charm_invalid_external_grpc_port_and_http():
     """
     arrange: mock a charm with external-grpc-port but http protocol
     act: instantiate a State via build_for_integrator_mode
-    assert: a InvalidStateError is raised with ValueError as cause
+    assert: a InvalidStateError is raised with a field-located ValidationError as cause
     """
     charm = Mock(CharmBase)
     charm.config = {
@@ -654,7 +759,10 @@ def test_state_from_charm_invalid_external_grpc_port_and_http():
     }
     with pytest.raises(InvalidHaproxyRouteStateError) as exc_info:
         _make_integrator_state(charm)
-    assert isinstance(exc_info.value.__cause__, ValueError)
+    cause = exc_info.value.__cause__
+    assert isinstance(cause, ValidationError)
+    assert [error["loc"] for error in cause.errors()] == [("external_grpc_port",)]
+    assert exc_info.value.juju_status_msg == "1 validation error; see debug-log"
     assert "external_grpc_port can only be set when backend_protocol is 'https'" in str(
         exc_info.value.__cause__
     )
@@ -676,6 +784,10 @@ def test_state_from_charm_invalid_external_grpc_port_invalid_and_allow_http():
     }
     with pytest.raises(InvalidHaproxyRouteStateError) as exc_info:
         _make_integrator_state(charm)
+    cause = exc_info.value.__cause__
+    assert isinstance(cause, ValidationError)
+    assert [error["loc"] for error in cause.errors()] == [("external_grpc_port",)]
+    assert exc_info.value.juju_status_msg == "1 validation error; see debug-log"
     assert "external_grpc_port cannot be set when allow_http is True." in str(
         exc_info.value.__cause__
     )

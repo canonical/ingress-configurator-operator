@@ -3,10 +3,62 @@
 
 """cache-config interface library v0.
 
-This library implements the requirer side of the ``cache-config`` interface, used to
-configure the [content-cache](https://charmhub.io/content-cache) charm with backend
-origins, healthcheck parameters and caching rules, and to read back the URL that
-content-cache serves on.
+This library implements both sides of the ``cache-config`` interface, used to configure
+a [content-cache](https://charmhub.io/content-cache) deployment with backend origins,
+healthcheck parameters and caching rules, and to read back the URL that content-cache
+serves on.
+
+## Requirer
+
+Use ``CacheConfigRequirer`` from any charm that wants content-cache to proxy/cache a
+backend. Call ``publish_cache_config`` whenever the backend configuration changes, and
+read ``get_provider_units_data`` to find the URL(s) content-cache serves the relation on::
+
+    from charms.content_cache.v0.cache_config import CacheConfigRequirer
+
+    class MyCharm(ops.CharmBase):
+        def __init__(self, framework):
+            super().__init__(framework)
+            self.cache_config = CacheConfigRequirer(self)
+
+        def _reconcile(self):
+            self.cache_config.publish_cache_config(
+                backends=["http://10.0.0.1:80"],
+                fail_timeout="30s",
+                healthcheck_interval=2000,
+                healthcheck_path="/",
+                healthcheck_valid_status=[200],
+                healthcheck_ssl_verify=True,
+                proxy_cache_valid=["200 1h"],
+            )
+
+## Provider
+
+Use ``CacheConfigProvider`` from the content-cache charm itself, to read and validate
+the backend configuration every requirer publishes, and to publish back the
+``cache-backend`` URL each requirer should use::
+
+    from charms.content_cache.v0.cache_config import CacheConfigProvider
+
+    class ContentCacheCharm(ops.CharmBase):
+        def __init__(self, framework):
+            super().__init__(framework)
+            self.cache_config = CacheConfigProvider(self)
+
+        def _reconcile(self):
+            for relation_id, data in self.cache_config.get_requirers_data().items():
+                ...
+                self.cache_config.publish_cache_backend(relation_id, url)
+
+## Maintaining this library
+
+This file is the single source of truth for the ``cache-config`` interface and is
+vendored (copied byte-for-byte) into every charm in this monorepo that speaks it,
+at the same path: ``lib/charms/content_cache/v0/cache_config.py``. After editing the
+canonical copy under ``libs/charms/content_cache/v0/cache_config.py``, run
+``scripts/sync-cache-config-lib.sh`` and commit the result; CI fails a PR that leaves a
+vendored copy out of sync. Bump ``LIBPATCH`` for a backwards-compatible change, or
+``LIBAPI`` (and the ``v0`` directory name, everywhere) for a breaking one.
 """
 
 import dataclasses
@@ -29,10 +81,7 @@ from pydantic import (
 )
 from pydantic.dataclasses import dataclass
 
-# TODO: This library should be owned by the content-cache charm.
-# We are only temporary storing the requirer implementation here.
-# Therefore the LIBID/LIBAPI/LIBPATCH entries here are dummy values
-LIBID = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+LIBID = "9cfb3c6a6a1e4c6e9f6b8c2a7b1b1a2d"
 LIBAPI = 0
 LIBPATCH = 1
 
@@ -46,12 +95,12 @@ _MAX_STATUS_CODE = 999
 
 _NGINX_TIME_PATTERN = re.compile(r"\d+[dhms]")
 _NGINX_SIZE_PATTERN = re.compile(r"\d+[kmgKMG]")
-# Copied verbatim from content-cache's path validation, flags included, so that this
-# library rejects exactly what the provider rejects. It is deliberately not an RFC 3986
-# path grammar: percent-encoding is not accepted, and Python's \w is Unicode-aware.
+# Flags included, so that this library rejects exactly what the provider rejects. It is
+# deliberately not an RFC 3986 path grammar: percent-encoding is not accepted, and
+# Python's \w is Unicode-aware.
 _PATH_PATTERN = re.compile(r"[/\w.\-~!$&'()*+,;=:@]+", re.IGNORECASE)
-# Also copied verbatim from content-cache. The trailing $ is redundant under fullmatch,
-# but is kept so the pattern stays byte-identical to the provider's.
+# The trailing $ is redundant under fullmatch, but is kept so the pattern stays
+# byte-identical to the provider's historical one.
 _HOSTNAME_SEGMENT_PATTERN = re.compile(r"(?!-)[A-Z\d-]{1,63}(?<!-)$", re.IGNORECASE)
 _URL_ADAPTER: TypeAdapter[AnyHttpUrl] = TypeAdapter(AnyHttpUrl)
 
@@ -61,11 +110,15 @@ class CacheConfigError(Exception):
 
 
 class CacheConfigInvalidRelationDataError(CacheConfigError):
-    """Raised when cache-config relation data fails validation."""
+    """Raised when cache-config relation data fails validation on write (requirer side)."""
 
 
 class InvalidCacheBackendsDataError(CacheConfigError):
-    """Raised when the cache backends data is invalid."""
+    """Raised when the provider units' cache_backend data is invalid as a whole."""
+
+
+class CacheConfigIntegrationDataError(CacheConfigError):
+    """Raised when a requirer's app databag fails validation (provider side)."""
 
 
 def _encode(value: typing.Any) -> str:
@@ -474,3 +527,74 @@ class CacheConfigRequirer(Object):
             return CacheConfigProviderUnitsData(cache_backends)
         except ValidationError:
             raise InvalidCacheBackendsDataError("Invalid cache backends data.")
+
+
+class CacheConfigProvider(Object):
+    """cache-config interface provider implementation."""
+
+    def __init__(
+        self,
+        charm: ops.CharmBase,
+        relation_name: str = CACHE_CONFIG_RELATION_NAME,
+    ) -> None:
+        """Initialize the CacheConfigProvider.
+
+        Args:
+            charm: The charm instance using this library.
+            relation_name: The name of the relation endpoint.
+        """
+        super().__init__(charm, relation_name)
+        self.charm = charm
+        self.relation_name = relation_name
+
+    def get_requirers_data(self) -> dict[int, CacheConfigRequirerAppData]:
+        """Read and validate every related requirer's app databag.
+
+        Relations with no data published yet are omitted rather than errored, since that
+        is the normal state before the remote charm has finished its own configuration.
+
+        Raises:
+            CacheConfigIntegrationDataError: When a requirer's app databag fails
+                validation. This fails the whole call on the first bad relation, rather
+                than silently skipping it, since a misconfigured backend must block
+                reconciliation rather than be dropped.
+
+        Returns:
+            A mapping of relation id to the requirer's validated app data.
+        """
+        configurations: dict[int, CacheConfigRequirerAppData] = {}
+        for relation in self.charm.model.relations[self.relation_name]:
+            relation_data = relation.data[relation.app]
+            if not relation_data:
+                continue
+            try:
+                configurations[relation.id] = relation.load(
+                    CacheConfigRequirerAppData, relation.app, decoder=_decode
+                )
+            except ValidationError as exc:
+                raise CacheConfigIntegrationDataError(
+                    f"Faulty cache-config data from relation {relation.id}: {exc}"
+                ) from exc
+        return configurations
+
+    def publish_cache_backend(self, relation_id: int, cache_backend_url: str) -> None:
+        """Publish the resolved cache-backend URL to a relation's unit databag.
+
+        Args:
+            relation_id: The id of the relation to publish to.
+            cache_backend_url: The URL this unit serves the relation's backend on.
+        """
+        relation = self.charm.model.get_relation(self.relation_name, relation_id)
+        if relation is None:
+            return
+        if relation.data[self.charm.unit].get(CACHE_BACKEND_FIELD_NAME) != cache_backend_url:
+            relation.data[self.charm.unit][CACHE_BACKEND_FIELD_NAME] = cache_backend_url
+
+    def clear_cache_backend(self, relation: ops.Relation) -> None:
+        """Clear the cache-backend value from a relation's unit databag.
+
+        Args:
+            relation: The relation to clear cache-backend from.
+        """
+        if relation.data[self.charm.unit].get(CACHE_BACKEND_FIELD_NAME):
+            relation.data[self.charm.unit][CACHE_BACKEND_FIELD_NAME] = ""

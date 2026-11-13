@@ -145,6 +145,7 @@ class HaproxyRouteState:
         header_rewrite_expressions: List of header rewrite expressions.
         allow_http: Whether to allow HTTP traffic to the service.
         external_grpc_port: Optional gRPC external port.
+        default_backend: Whether this backend is the default landing page.
     """
 
     backend_addresses: Annotated[
@@ -254,6 +255,21 @@ class HaproxyRouteState:
         if info.data.get("allow_http") is True:
             raise ValueError("external_grpc_port cannot be set when allow_http is True.")
         return value
+
+    @model_validator(mode="after")
+    def validate_default_backend_not_grpc(self) -> Self:
+        """Perform additional validations.
+
+        Returns: this class instance.
+
+        Raises:
+            ValueError: if the validation doesn't pass.
+        """
+        if self.default_backend and self.external_grpc_port is not None:
+            msg = "default_backend cannot be set when external_grpc_port is set."
+            raise ValueError(msg)
+
+        return self
 
     @staticmethod
     def has_integrator_config(charm: ops.CharmBase) -> bool:

@@ -7,7 +7,8 @@ import hashlib
 import logging
 import string
 
-from pydantic import ValidationError
+from pydantic import JsonValue, ValidationError
+from pydantic.dataclasses import is_pydantic_dataclass
 
 logger = logging.getLogger()
 
@@ -56,24 +57,115 @@ def value_has_valid_characters(value: str) -> str:
     return value
 
 
-def get_invalid_config_fields(exc: ValidationError) -> list[str]:
-    """Return the top-level field names that failed pydantic validation.
+class InvalidRouteStateError(Exception):
+    """Invalid route state with a concise status and complete diagnostic details.
 
-    Only the first element of each error's ``loc`` tuple is kept, so nested
-    type paths (e.g. for list items) are collapsed to their parent field.
-    Results are de-duplicated while preserving order.
+    Attributes:
+        juju_status_msg: Concise message for the unit's Juju status.
+        details: The full route state error explanation for logging.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        validation_error: ValidationError,
+    ) -> None:
+        """Initialize the status summary and diagnostic details.
+
+        Args:
+            message: Route state error summary, used in diagnostics.
+            validation_error: The original Pydantic validation error.
+        """
+        self._details = f"{message}: {self._format_validation_error(validation_error)}"
+        self._error_count = validation_error.error_count()
+        super().__init__(self.details)
+
+    @staticmethod
+    def _validation_model() -> type | None:
+        """Return the state model associated with this error, if any."""
+        return None
+
+    def _validation_error_config(self, location: tuple[str | int, ...]) -> str | None:
+        """Read possible config options, retaining parent options for nested values."""
+        model = self._validation_model()
+        if model is None or not is_pydantic_dataclass(model):
+            return None
+
+        fields = model.__pydantic_fields__
+        metadata: dict[str, JsonValue] = {}
+        options: JsonValue = []
+        for part in location:
+            if isinstance(part, int):
+                continue
+            field = fields.get(part)
+            properties = metadata.get("properties", {})
+            if not isinstance(properties, dict):
+                raise TypeError("Validation config properties must be a dictionary")
+            child = properties.get(part)
+            if child is None:
+                if field is None:
+                    break
+                field_metadata = field.json_schema_extra
+                child = field_metadata if isinstance(field_metadata, dict) else {}
+            metadata = child if isinstance(child, dict) else {}
+            options = metadata.get("config", options)
+            annotation = field.annotation if field is not None else None
+            fields = (
+                annotation.__pydantic_fields__
+                if isinstance(annotation, type) and is_pydantic_dataclass(annotation)
+                else {}
+            )
+        return self._format_config_options(options)
+
+    @staticmethod
+    def _format_config_options(options: JsonValue) -> str | None:
+        """Render the config options that could supply a field's value."""
+        if not isinstance(options, list) or not all(isinstance(name, str) for name in options):
+            raise TypeError("Validation config options must be a list of strings")
+        return " or ".join(f"'{name}'" for name in options) or None
+
+    def _format_validation_error(self, exc: ValidationError) -> str:
+        """Preserve paths and reasons, adding possible config options without input metadata."""
+        details = []
+        for error in exc.errors(include_url=False, include_input=False, include_context=False):
+            location = ".".join(str(part) for part in error["loc"])
+            detail = f"{location}: {error['msg']}" if location else error["msg"]
+            config = self._validation_error_config(error["loc"])
+            details.append(f"{detail} (possible config sources: {config})" if config else detail)
+        return f"{exc.title}: {'; '.join(details)}"
+
+    @property
+    def details(self) -> str:
+        """Return the full diagnostic message."""
+        return self._details
+
+    @property
+    def juju_status_msg(self) -> str:
+        """Return the validation error count and a debug-log hint.
+
+        Counts come from the supplied Pydantic validation call, not from distinct
+        fields or subsequent validation calls.
+        """
+        suffix = "" if self._error_count == 1 else "s"
+        return f"{self._error_count} validation error{suffix}; see debug-log"
+
+
+def split_delimited(value: object, *, delimiter: str = ",") -> object:
+    """Split trimmed nonempty string items; preserve already-parsed inputs.
 
     Args:
-        exc: The validation error exception.
+        value: A delimited string, unset value, or already-parsed field input.
+        delimiter: Separator between items, defaulting to a comma.
 
     Returns:
-        list[str]: De-duplicated top-level field names that failed validation.
+        Trimmed nonempty items for strings, an empty list for None, or the original value.
+
+    Raises:
+        ValueError: If a string input is split with an empty delimiter.
     """
-    error_fields: list[str] = []
-    for error in exc.errors():
-        if not error["loc"]:
-            continue
-        field = str(error["loc"][0])
-        if field not in error_fields:
-            error_fields.append(field)
-    return error_fields
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(delimiter) if item.strip()]
+    return value

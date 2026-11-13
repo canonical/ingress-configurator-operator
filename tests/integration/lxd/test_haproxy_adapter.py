@@ -8,11 +8,11 @@ from typing import Callable
 import jubilant
 from requests import Session
 
-from .conftest import CERTIFICATES_APP_NAME, MOCK_HAPROXY_HOSTNAME, get_unit_addresses
+from ..conftest import CERTIFICATES_APP_NAME, MOCK_HAPROXY_HOSTNAME, get_unit_addresses
 
 
 def test_adapter_end_to_end_routing(
-    juju: jubilant.Juju,
+    juju_lxd: jubilant.Juju,
     application: str,
     haproxy: str,
     ingress_requirer: str,
@@ -21,14 +21,14 @@ def test_adapter_end_to_end_routing(
     """Test for adapter mode.
 
     Args:
-        juju: Jubilant juju fixture
+        juju_lxd: Jubilant Juju instance for the LXD model.
         application: Name of the ingress-configurator application.
         haproxy: Name of the haproxy application.
         ingress_requirer: Any charm running an apache webserver.
         http_session: Modified requests session fixture for making HTTP requests.
     """
-    juju.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
-    juju.wait(
+    juju_lxd.integrate(f"{haproxy}:haproxy-route", f"{application}:haproxy-route")
+    juju_lxd.wait(
         lambda status: jubilant.all_active(
             status, haproxy, application, ingress_requirer, CERTIFICATES_APP_NAME
         ),
@@ -36,14 +36,14 @@ def test_adapter_end_to_end_routing(
     )
 
     session = http_session(
-        dns_entries=[(MOCK_HAPROXY_HOSTNAME, str(get_unit_addresses(juju, haproxy)[0]))]
+        dns_entries=[(MOCK_HAPROXY_HOSTNAME, str(get_unit_addresses(juju_lxd, haproxy)[0]))]
     )
     response = session.get(f"https://{MOCK_HAPROXY_HOSTNAME}", verify=False, timeout=30)
     assert "Apache2 Default Page" in response.text
 
 
 def test_adapter_http(
-    juju: jubilant.Juju,
+    juju_lxd: jubilant.Juju,
     application: str,
     haproxy: str,
     ingress_requirer: str,
@@ -52,23 +52,23 @@ def test_adapter_http(
     """Test for allow-http config.
 
     Args:
-        juju: Jubilant juju fixture
+        juju_lxd: Jubilant Juju instance for the LXD model.
         application: Name of the ingress-configurator application.
         haproxy: Name of the haproxy application.
         ingress_requirer: Any charm running an apache webserver.
         http_session: Modified requests session fixture for making HTTP requests.
     """
-    juju.wait(
+    juju_lxd.wait(
         lambda status: jubilant.all_active(status, haproxy, application, ingress_requirer),
         error=jubilant.any_error,
     )
-    addr = str(get_unit_addresses(juju, haproxy)[0])
+    addr = str(get_unit_addresses(juju_lxd, haproxy)[0])
     session = http_session(dns_entries=[(MOCK_HAPROXY_HOSTNAME, addr)])
 
     response = session.get(f"http://{MOCK_HAPROXY_HOSTNAME}", verify=False, timeout=30)
     assert response.history[0].status_code == 302
-    juju.config(application, {"allow-http": True})
-    juju.wait(
+    juju_lxd.config(application, {"allow-http": True})
+    juju_lxd.wait(
         lambda status: jubilant.all_active(status, haproxy, application),
         error=jubilant.any_error,
     )

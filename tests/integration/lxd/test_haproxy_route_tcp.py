@@ -11,27 +11,29 @@ import time
 import jubilant
 import pytest
 
-from .conftest import get_unit_addresses
+from ..conftest import get_unit_addresses
 
 logger = logging.getLogger(__name__)
 
 
 @pytest.mark.abort_on_fail
-def test_haproxy_route_tcp(application_with_tcp_server: str, haproxy: str, juju: jubilant.Juju):
+def test_haproxy_route_tcp(
+    application_with_tcp_server: str, haproxy: str, juju_lxd: jubilant.Juju
+):
     """Deploy the charm with anycharm ingress per unit requirer that installs apache2.
 
     Assert that the requirer endpoints are available.
     """
-    juju.integrate(
+    juju_lxd.integrate(
         f"{haproxy}:haproxy-route-tcp",
         application_with_tcp_server,
     )
-    juju.wait(
+    juju_lxd.wait(
         lambda status: jubilant.all_agents_idle(status, haproxy, application_with_tcp_server),
         error=jubilant.any_error,
     )
-    application_ip_address = get_unit_addresses(juju, application_with_tcp_server)[0]
-    juju.config(
+    application_ip_address = get_unit_addresses(juju_lxd, application_with_tcp_server)[0]
+    juju_lxd.config(
         application_with_tcp_server,
         {
             "tcp-frontend-port": 4444,
@@ -42,11 +44,11 @@ def test_haproxy_route_tcp(application_with_tcp_server: str, haproxy: str, juju:
         },
     )
 
-    juju.wait(
+    juju_lxd.wait(
         lambda status: jubilant.all_active(status, haproxy, application_with_tcp_server),
         error=jubilant.any_error,
     )
-    haproxy_ip_address = get_unit_addresses(juju, haproxy)[0]
+    haproxy_ip_address = get_unit_addresses(juju_lxd, haproxy)[0]
     context = ssl._create_unverified_context()  # pylint: disable=protected-access  # nosec
     deadline = time.time() + 30
     address = (str(haproxy_ip_address), 4444)

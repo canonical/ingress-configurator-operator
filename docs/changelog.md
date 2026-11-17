@@ -8,15 +8,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Each revision is versioned by the date of the revision.
 
-## 2026-10-15
-
-### Changed
+## 2026-11-17
 
 - Allow config-driven (integrator) `haproxy-route` on Kubernetes. The charm no longer blocks with
   "Ingress relation required on Kubernetes substrate." when `backend-addresses` and
   `backend-ports` are set and there is no `ingress` relation. Without an `ingress` relation or
   backend config, the unit is now blocked with "Ingress relation or backend config required." on
   every substrate.
+
+## 2026-10-22
+
+- Centralize route validation with error counts in blocked statuses and detailed
+  diagnostics identifying possible config sources in debug-log.
+- Cleaned up the GatewayRouteState by removing the integrator mode sub-state.
+
+## 2026-10-21
+
+- Updated the home page to include two missing sections.
+
+## 2026-10-19
+
+- Moved the documentation tooling to the centrally managed `platform-engineering-documentation-files` Copier template and added a scheduled workflow that keeps it in sync. There is no change to the charm.
 
 ## 2026-10-07
 

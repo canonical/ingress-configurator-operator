@@ -1,0 +1,28 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: d2d1381
+_src_path: gh:canonical/platform-engineering-documentation-files.git
+author: Canonical Ltd.
+discourse: discourse.charmhub.io
+display_contributors: false
+docs_host: canonical.com
+github_url: https://github.com/canonical/ingress-configurator-operator
+html_favicon: ''
+license_name: Apache-2.0
+license_url: https://github.com/canonical/ingress-configurator-operator/blob/main/LICENSE
+linkcheck_timeout: 30
+llms_txt_description: This is the documentation for the Ingress Configurator charm,
+    a Juju charm that acts as a bridge between workloads needing ingress and the route-provider
+    charms that fulfill it. It supports both charm workloads integrating over the
+    ingress interface and external backends described by configuration.
+matrix: https://matrix.to/#/#charmhub-charmdev:ubuntu.com
+mattermost: ''
+new_domain: canonical.com/juju/docs/ingress-configurator-charm
+ogp_image: https://assets.ubuntu.com/v1/cc828679-docs_illustration.svg
+old_domain: canonical-ingress-configurator-charm.readthedocs-hosted.com
+product_page: charmhub.io/ingress-configurator
+product_tag: ''
+project: Ingress Configurator Charm
+repo_default_branch: main
+repo_folder: /docs/
+rtd_slug: juju/docs/ingress-configurator-charm
+source_edit_link: https://github.com/canonical/ingress-configurator-operator

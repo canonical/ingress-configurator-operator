@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Each revision is versioned by the date of the revision.
 
+## 2026-11-17
+
+- Allow config-driven (integrator) `haproxy-route` on Kubernetes. The charm no longer blocks with
+  "Ingress relation required on Kubernetes substrate." when `backend-addresses` and
+  `backend-ports` are set and there is no `ingress` relation. Without an `ingress` relation or
+  backend config, the unit is now blocked with "Ingress relation or backend config required." on
+  every substrate.
+
 ## 2026-10-22
 
 - Centralize route validation with error counts in blocked statuses and detailed

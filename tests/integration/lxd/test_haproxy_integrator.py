@@ -8,8 +8,33 @@ from typing import Callable
 import jubilant
 import pytest
 from requests import Session
+from tenacity import retry, retry_if_exception_type, stop_after_delay, wait_fixed
 
 from ..conftest import CERTIFICATES_APP_NAME, MOCK_HAPROXY_HOSTNAME, get_unit_addresses
+
+
+@retry(
+    stop=stop_after_delay(60),
+    wait=wait_fixed(5),
+    retry=retry_if_exception_type(AssertionError),
+    reraise=True,
+)
+def _assert_routed_response(session: Session, url: str, expected_body: str) -> None:
+    """Request a URL until haproxy routes it to the expected backend response.
+
+    Haproxy may take a short moment to reload after a relation/config change is
+    applied, even once Juju reports the units as active and idle, so retry until
+    the new routing rules are in effect.
+
+    Args:
+        session: Requests session used to make the HTTP call.
+        url: URL to request.
+        expected_body: Substring expected in the response body once routed correctly.
+    """
+    response = session.get(url, timeout=30, verify=False)
+    assert response.status_code == 200 and expected_body in response.text, (
+        f"Unexpected response for {url}: status={response.status_code}, body={response.text!r}"
+    )
 
 
 @pytest.mark.abort_on_fail
@@ -70,10 +95,11 @@ def test_config_hostnames_and_paths(
     )
 
     for path_component in ["v1", "v2"]:
-        response = session.get(
-            f"https://{MOCK_HAPROXY_HOSTNAME}/api/{path_component}/", timeout=30, verify=False
+        _assert_routed_response(
+            session,
+            f"https://{MOCK_HAPROXY_HOSTNAME}/api/{path_component}/",
+            f"{path_component} ok!",
         )
-        assert response.status_code == 200 and f"{path_component} ok!" in response.text
 
     juju_lxd.config(
         app=application,
@@ -92,7 +118,8 @@ def test_config_hostnames_and_paths(
     )
 
     for subdomain in ["api", "api2", "api3"]:
-        response = session.get(
-            f"https://{subdomain}.{MOCK_HAPROXY_HOSTNAME}/api/v1/", timeout=30, verify=False
+        _assert_routed_response(
+            session,
+            f"https://{subdomain}.{MOCK_HAPROXY_HOSTNAME}/api/v1/",
+            "v1 ok!",
         )
-        assert response.status_code == 200 and "v1 ok!" in response.text
